@@ -32,3 +32,39 @@ Reason: prevent empty claim graph from stalling debate/finalization.
 If `reportPolicy.composer="delegate-agent"` but no `ReportComposerDelegate` is provided, engine falls back to builtin report composer.
 
 Reason: fail-soft behavior for host integration mistakes in M1.
+
+## D5. Failure path contract
+
+If orchestration throws after session creation, the engine now:
+
+1. transitions session state to `failed`
+2. persists structured `{ code, message }` error info to the session store
+3. emits a `Failed` observer event
+4. rethrows the original error to the caller
+
+Reason: preserve a stable terminal state for host integrations without hiding operational failures from the caller.
+
+## D6. Scoring rubric semantics
+
+`scoringPolicy.rubric` now participates in score calculation as actual dimension weights over four heuristic dimensions:
+
+- correctness
+- completeness
+- actionability
+- consistency
+
+The exported `ParticipantScore.breakdown` contains averaged per-dimension scores, not a copy of the configured rubric weights.
+
+Reason: avoid exposing a no-op public switch while keeping M1 scoring lightweight and host-agnostic.
+
+## D7. Explicit M1 boundary for reserved policy fields
+
+The following schema fields remain reserved in M1 and are accepted but not yet enforced by the default runtime path:
+
+- `waitingPolicy.mode`
+- `waitingPolicy.globalDeadlineMs`
+- `waitingPolicy.lateArrivalPolicy`
+- `roundPolicy.minRounds`
+- `reportPolicy.maxReportChars`
+
+Reason: keep the contract shape aligned with the plan while making the current implementation boundary explicit.

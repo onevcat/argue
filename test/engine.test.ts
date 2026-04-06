@@ -37,6 +37,37 @@ function mkOutput(input: {
   };
 }
 
+class RecordingStore {
+  private readonly sessions = new Map<string, Record<string, unknown>>();
+  lastSessionId?: string;
+
+  async save(session: unknown): Promise<void> {
+    const record = session as Record<string, unknown>;
+    this.lastSessionId = record.sessionId as string;
+    this.sessions.set(this.lastSessionId, record);
+  }
+
+  async load(sessionId: string): Promise<Record<string, unknown> | null> {
+    return this.sessions.get(sessionId) ?? null;
+  }
+
+  async update(sessionId: string, patch: unknown): Promise<void> {
+    const current = this.sessions.get(sessionId) ?? {};
+    this.sessions.set(sessionId, {
+      ...current,
+      ...(patch as Record<string, unknown>)
+    });
+  }
+}
+
+class RecordingObserver {
+  readonly events: Array<{ type: string; payload?: Record<string, unknown> }> = [];
+
+  async onEvent(event: { type: string; payload?: Record<string, unknown> }): Promise<void> {
+    this.events.push(event);
+  }
+}
+
 describe("ArgueEngine", () => {
   it("runs M1 happy-path with consensus", async () => {
     const scenarios: Record<string, { type: "success"; output: ParticipantRoundOutput }> = {};
@@ -147,6 +178,38 @@ describe("ArgueEngine", () => {
     expect(result.status).toBe("consensus");
     expect(result.metrics.waitTimeouts).toBeGreaterThanOrEqual(1);
     expect(delegate.canceledTaskIds.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("marks the session failed and emits Failed when orchestration throws", async () => {
+    const store = new RecordingStore();
+    const observer = new RecordingObserver();
+    const engine = new ArgueEngine({
+      taskDelegate: new StubAgentTaskDelegate({
+        "initial:0:onevclaw": {
+          type: "success",
+          output: mkOutput({ participantId: "onevclaw", phase: "initial", round: 0 })
+        }
+      }),
+      sessionStore: store,
+      observer
+    });
+
+    await expect(
+      engine.start({
+        requestId: "req-failed",
+        topic: "Failure path",
+        objective: "Persist failed terminal state",
+        participants: PARTICIPANTS.map((id) => ({ id }))
+      })
+    ).rejects.toThrow(/No scenario configured/);
+
+    const session = await store.load(store.lastSessionId ?? "missing");
+    expect(session?.state).toBe("failed");
+    expect(session?.error).toMatchObject({
+      code: "Error"
+    });
+    expect(String((session?.error as { message?: string } | undefined)?.message ?? "")).toContain("No scenario configured");
+    expect(observer.events.at(-1)?.type).toBe("Failed");
   });
 
   it("includes deliberation trace when requested", async () => {

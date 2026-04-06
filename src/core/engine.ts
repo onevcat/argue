@@ -53,7 +53,7 @@ export class ArgueEngine {
     const normalized = normalizeStartInput(input);
     const sessionId = this.idFactory();
     const state = new ArgueStateMachine();
-    const participants = normalized.participants.map((p) => p.id);
+    const participants = normalized.participants.map((participant) => participant.id);
 
     const participantSessionMap = new Map<string, string>(
       participants.map((participantId) => [
@@ -78,148 +78,167 @@ export class ArgueEngine {
       startedAt: new Date(startAt).toISOString()
     });
 
-    state.transition("running");
-    await this.emit(normalized, sessionId, "SessionStarted", {
-      participants,
-      minParticipants: normalized.participantsPolicy.minParticipants
-    });
+    try {
+      state.transition("running");
+      await this.store.update(sessionId, {
+        state: state.current,
+        runningAt: new Date(this.now()).toISOString()
+      });
 
-    const initialOutputs = await this.runRound({
-      normalized,
-      sessionId,
-      participantSessionMap,
-      phase: "initial",
-      round: 0,
-      claimCatalog,
-      previousOutputs: [],
-      metrics
-    });
+      await this.emit(normalized, sessionId, "SessionStarted", {
+        participants,
+        minParticipants: normalized.participantsPolicy.minParticipants
+      });
 
-    this.ensureMinParticipants(normalized, initialOutputs.length);
-    rounds.push({ round: 0, outputs: initialOutputs });
-    claimCatalog = this.mergeClaims(claimCatalog, initialOutputs);
-
-    let previousOutputs = initialOutputs;
-    for (let round = 1; round <= normalized.roundPolicy.maxRounds; round += 1) {
-      const debateOutputs = await this.runRound({
+      const initialOutputs = await this.runRound({
         normalized,
         sessionId,
         participantSessionMap,
-        phase: "debate",
-        round,
+        phase: "initial",
+        round: 0,
+        claimCatalog,
+        previousOutputs: [],
+        metrics
+      });
+
+      this.ensureMinParticipants(normalized, initialOutputs.length);
+      rounds.push({ round: 0, outputs: initialOutputs });
+      claimCatalog = this.mergeClaims(claimCatalog, initialOutputs);
+
+      let previousOutputs = initialOutputs;
+      for (let round = 1; round <= normalized.roundPolicy.maxRounds; round += 1) {
+        const debateOutputs = await this.runRound({
+          normalized,
+          sessionId,
+          participantSessionMap,
+          phase: "debate",
+          round,
+          claimCatalog,
+          previousOutputs,
+          metrics
+        });
+
+        this.ensureMinParticipants(normalized, debateOutputs.length);
+        rounds.push({ round, outputs: debateOutputs });
+
+        claimCatalog = this.applyRevisions(claimCatalog, debateOutputs);
+        previousOutputs = debateOutputs;
+      }
+
+      await this.emit(normalized, sessionId, "ConsensusDrafted", {
+        claimCount: claimCatalog.length
+      });
+
+      const finalVoteRound = normalized.roundPolicy.maxRounds + 1;
+      const finalVoteOutputs = await this.runRound({
+        normalized,
+        sessionId,
+        participantSessionMap,
+        phase: "final_vote",
+        round: finalVoteRound,
         claimCatalog,
         previousOutputs,
         metrics
       });
+      this.ensureMinParticipants(normalized, finalVoteOutputs.length);
+      rounds.push({ round: finalVoteRound, outputs: finalVoteOutputs });
 
-      this.ensureMinParticipants(normalized, debateOutputs.length);
-      rounds.push({ round, outputs: debateOutputs });
+      const scoreboard = computeParticipantScores({
+        participants,
+        rounds,
+        scoringPolicy: normalized.scoringPolicy
+      });
 
-      claimCatalog = this.applyRevisions(claimCatalog, debateOutputs);
-      previousOutputs = debateOutputs;
+      const representative = chooseRepresentative({
+        scores: scoreboard,
+        rounds,
+        tieBreaker: normalized.scoringPolicy.tieBreaker
+      });
+
+      const representativeSpeech = this.pickRepresentativeSpeech(representative.participantId, rounds);
+
+      const votes = finalVoteOutputs
+        .filter((output) => typeof output.vote === "string")
+        .map((output) => ({
+          participantId: output.participantId,
+          vote: output.vote as "accept" | "reject",
+          reason: output.summary
+        }));
+
+      const accepts = votes.filter((vote) => vote.vote === "accept").length;
+      const rejects = votes.filter((vote) => vote.vote === "reject").length;
+
+      state.transition("finalizing");
+      await this.store.update(sessionId, {
+        state: state.current,
+        finalizingAt: new Date(this.now()).toISOString()
+      });
+
+      const status: ArgueResult["status"] = accepts >= normalized.participantsPolicy.minParticipants && rejects === 0
+        ? "consensus"
+        : "unresolved";
+
+      const report = await this.composeReport({
+        normalized,
+        requestId: normalized.requestId,
+        sessionId,
+        representative: {
+          participantId: representative.participantId,
+          speech: representativeSpeech,
+          score: representative.score
+        },
+        rounds,
+        votes,
+        scoreboard,
+        status
+      });
+
+      const result: ArgueResult = ArgueResultSchema.parse({
+        requestId: normalized.requestId,
+        sessionId,
+        status,
+        finalClaims: claimCatalog,
+        representative: {
+          participantId: representative.participantId,
+          reason: representative.reason,
+          score: representative.score,
+          speech: representativeSpeech
+        },
+        scoreboard,
+        votes,
+        report,
+        disagreements: collectDisagreements(rounds),
+        rounds,
+        metrics: {
+          elapsedMs: Math.max(0, this.now() - startAt),
+          totalTurns: metrics.totalTurns,
+          retries: metrics.retries,
+          waitTimeouts: metrics.waitTimeouts
+        }
+      });
+
+      state.transition("finished");
+      await this.store.update(sessionId, {
+        state: state.current,
+        result,
+        finishedAt: new Date(this.now()).toISOString()
+      });
+
+      await this.emit(normalized, sessionId, "Finalized", {
+        status,
+        representative: representative.participantId
+      });
+
+      return result;
+    } catch (error) {
+      await this.handleFailure({
+        error,
+        normalized,
+        sessionId,
+        state
+      });
+      throw error;
     }
-
-    await this.emit(normalized, sessionId, "ConsensusDrafted", {
-      claimCount: claimCatalog.length
-    });
-
-    const finalVoteRound = normalized.roundPolicy.maxRounds + 1;
-    const finalVoteOutputs = await this.runRound({
-      normalized,
-      sessionId,
-      participantSessionMap,
-      phase: "final_vote",
-      round: finalVoteRound,
-      claimCatalog,
-      previousOutputs,
-      metrics
-    });
-    this.ensureMinParticipants(normalized, finalVoteOutputs.length);
-    rounds.push({ round: finalVoteRound, outputs: finalVoteOutputs });
-
-    const scoreboard = computeParticipantScores({
-      participants,
-      rounds,
-      scoringPolicy: normalized.scoringPolicy
-    });
-
-    const representative = chooseRepresentative({
-      scores: scoreboard,
-      rounds,
-      tieBreaker: normalized.scoringPolicy.tieBreaker
-    });
-
-    const representativeSpeech = this.pickRepresentativeSpeech(representative.participantId, rounds);
-
-    const votes = finalVoteOutputs
-      .filter((x) => typeof x.vote === "string")
-      .map((x) => ({
-        participantId: x.participantId,
-        vote: x.vote as "accept" | "reject",
-        reason: x.summary
-      }));
-
-    const accepts = votes.filter((x) => x.vote === "accept").length;
-    const rejects = votes.filter((x) => x.vote === "reject").length;
-
-    state.transition("finalizing");
-
-    const status: ArgueResult["status"] = accepts >= normalized.participantsPolicy.minParticipants && rejects === 0
-      ? "consensus"
-      : "unresolved";
-
-    const report = await this.composeReport({
-      normalized,
-      requestId: normalized.requestId,
-      sessionId,
-      representative: {
-        participantId: representative.participantId,
-        speech: representativeSpeech,
-        score: representative.score
-      },
-      rounds,
-      votes,
-      scoreboard,
-      status
-    });
-
-    state.transition("finished");
-
-    const result: ArgueResult = ArgueResultSchema.parse({
-      requestId: normalized.requestId,
-      sessionId,
-      status,
-      finalClaims: claimCatalog,
-      representative: {
-        participantId: representative.participantId,
-        reason: representative.reason,
-        score: representative.score,
-        speech: representativeSpeech
-      },
-      scoreboard,
-      votes,
-      report,
-      disagreements: collectDisagreements(rounds),
-      rounds,
-      metrics: {
-        elapsedMs: Math.max(0, this.now() - startAt),
-        totalTurns: metrics.totalTurns,
-        retries: metrics.retries,
-        waitTimeouts: metrics.waitTimeouts
-      }
-    });
-
-    await this.store.update(sessionId, {
-      state: state.current,
-      result
-    });
-
-    await this.emit(normalized, sessionId, "Finalized", {
-      status,
-      representative: representative.participantId
-    });
-
-    return result;
   }
 
   private async runRound(args: {
@@ -238,7 +257,7 @@ export class ArgueEngine {
   }): Promise<ParticipantRoundOutput[]> {
     const dispatches = await Promise.all(args.normalized.participants.map(async (participant) => {
       const peerRoundInputs = args.previousOutputs
-        .filter((x) => x.participantId !== participant.id)
+        .filter((output) => output.participantId !== participant.id)
         .slice(0, args.normalized.peerContextPolicy.maxPeersPerRound ?? Number.MAX_SAFE_INTEGER)
         .map((output) => {
           const { text, truncated } = applyTextBudget(
@@ -273,7 +292,7 @@ export class ArgueEngine {
       return this.deps.taskDelegate.dispatch(task);
     }));
 
-    const taskIds = dispatches.map((x) => x.taskId);
+    const taskIds = dispatches.map((dispatch) => dispatch.taskId);
 
     await this.emit(args.normalized, args.sessionId, "RoundDispatched", {
       phase: args.phase,
@@ -307,8 +326,8 @@ export class ArgueEngine {
     });
 
     return waited.completed
-      .filter((x) => x.phase === args.phase && x.round === args.round)
-      .filter((x) => args.normalized.participants.some((p) => p.id === x.participantId));
+      .filter((output) => output.phase === args.phase && output.round === args.round)
+      .filter((output) => args.normalized.participants.some((participant) => participant.id === output.participantId));
   }
 
   private mergeClaims(base: Claim[], outputs: ParticipantRoundOutput[]): Claim[] {
@@ -422,6 +441,29 @@ export class ArgueEngine {
     });
   }
 
+  private async handleFailure(args: {
+    error: unknown;
+    normalized: NormalizedArgueStartInput;
+    sessionId: string;
+    state: ArgueStateMachine;
+  }): Promise<void> {
+    if (args.state.current === "finished" || args.state.current === "failed") {
+      return;
+    }
+
+    args.state.transition("failed");
+    const failure = toFailureInfo(args.error);
+
+    await Promise.allSettled([
+      this.store.update(args.sessionId, {
+        state: args.state.current,
+        error: failure,
+        failedAt: new Date(this.now()).toISOString()
+      }),
+      this.emit(args.normalized, args.sessionId, "Failed", failure)
+    ]);
+  }
+
   private async emit(
     normalized: NormalizedArgueStartInput,
     sessionId: string,
@@ -480,4 +522,18 @@ function collectDisagreements(
     }
   }
   return out;
+}
+
+function toFailureInfo(error: unknown): { code: string; message: string } {
+  if (error instanceof Error) {
+    return {
+      code: error.name || "Error",
+      message: error.message
+    };
+  }
+
+  return {
+    code: "UnknownError",
+    message: String(error)
+  };
 }

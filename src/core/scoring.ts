@@ -1,31 +1,56 @@
-import type { ArgueStartInput } from "../contracts/request.js";
+import type { NormalizedArgueStartInput } from "../contracts/request.js";
 import type { ParticipantRoundOutput, ParticipantScore } from "../contracts/result.js";
+
+type RubricWeights = NonNullable<NonNullable<NormalizedArgueStartInput["scoringPolicy"]>["rubric"]>;
+
+type ScoreBreakdown = {
+  correctness: number;
+  completeness: number;
+  actionability: number;
+  consistency: number;
+};
+
+type WeightedRoundScore = {
+  round: number;
+  score: number;
+  breakdown: ScoreBreakdown;
+};
 
 export function computeParticipantScores(args: {
   participants: string[];
   rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }>;
-  scoringPolicy: NonNullable<ArgueStartInput["scoringPolicy"]>;
+  scoringPolicy: NonNullable<NormalizedArgueStartInput["scoringPolicy"]>;
 }): ParticipantScore[] {
-  const byParticipantRound = new Map<string, Map<number, number>>();
+  const byParticipantRound = new Map<string, WeightedRoundScore[]>();
+  const weights = normalizeWeights(args.scoringPolicy.rubric);
 
   for (const participant of args.participants) {
-    byParticipantRound.set(participant, new Map());
+    byParticipantRound.set(participant, []);
   }
 
   for (const roundRecord of args.rounds) {
+    const roundClaimTarget = Math.max(
+      1,
+      ...roundRecord.outputs.map((output) => Math.max(output.judgements.length, output.extractedClaims?.length ?? 0, 1))
+    );
+
     for (const output of roundRecord.outputs) {
-      const roundMap = byParticipantRound.get(output.participantId);
-      if (!roundMap) continue;
-      roundMap.set(roundRecord.round, scoreOutput(output));
+      const roundScores = byParticipantRound.get(output.participantId);
+      if (!roundScores) continue;
+
+      const breakdown = scoreOutputBreakdown(output, roundClaimTarget);
+      roundScores.push({
+        round: roundRecord.round,
+        score: weightedTotal(breakdown, weights),
+        breakdown
+      });
     }
   }
 
   const result: ParticipantScore[] = [];
   for (const participant of args.participants) {
-    const roundMap = byParticipantRound.get(participant) ?? new Map();
-    const byRound = [...roundMap.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([round, score]) => ({ round, score }));
+    const rounds = [...(byParticipantRound.get(participant) ?? [])].sort((a, b) => a.round - b.round);
+    const byRound = rounds.map(({ round, score }) => ({ round, score }));
 
     const total = byRound.length > 0
       ? roundTo2(byRound.reduce((sum, item) => sum + item.score, 0) / byRound.length)
@@ -35,7 +60,7 @@ export function computeParticipantScores(args: {
       participantId: participant,
       total,
       byRound,
-      breakdown: { ...args.scoringPolicy.rubric }
+      breakdown: aggregateBreakdowns(rounds.map((item) => item.breakdown))
     });
   }
 
@@ -45,7 +70,7 @@ export function computeParticipantScores(args: {
 export function chooseRepresentative(args: {
   scores: ParticipantScore[];
   rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }>;
-  tieBreaker: NonNullable<ArgueStartInput["scoringPolicy"]>["tieBreaker"];
+  tieBreaker: NonNullable<NormalizedArgueStartInput["scoringPolicy"]>["tieBreaker"];
 }): { participantId: string; score: number; reason: "top-score" | "tie-breaker" } {
   if (args.scores.length === 0) {
     throw new Error("Cannot choose representative without participant scores");
@@ -125,29 +150,87 @@ function breakTieByLeastObjection(
   return winner;
 }
 
-function scoreOutput(output: ParticipantRoundOutput): number {
-  if (typeof output.selfScore === "number") return roundTo2(clamp(output.selfScore, 0, 100));
-
+function scoreOutputBreakdown(output: ParticipantRoundOutput, roundClaimTarget: number): ScoreBreakdown {
   const confidenceAvg = output.judgements.length > 0
-    ? output.judgements.reduce((sum, j) => sum + j.confidence, 0) / output.judgements.length
+    ? output.judgements.reduce((sum, judgement) => sum + judgement.confidence, 0) / output.judgements.length
     : 0.5;
 
   const stanceAvg = output.judgements.length > 0
-    ? output.judgements.reduce((sum, j) => sum + stanceFactor(j.stance), 0) / output.judgements.length
+    ? output.judgements.reduce((sum, judgement) => sum + stanceFactor(judgement.stance), 0) / output.judgements.length
     : 0.7;
 
-  let score = (confidenceAvg * 0.7 + stanceAvg * 0.3) * 100;
-  if (output.phase === "final_vote" && output.vote === "accept") {
-    score = Math.min(100, score + 5);
+  const correctness = roundTo2(clamp(output.selfScore ?? confidenceAvg * 100, 0, 100));
+  const completeness = roundTo2((
+    clamp(output.judgements.length / Math.max(1, roundClaimTarget), 0, 1) * 0.5 +
+    clamp(output.fullResponse.trim().length / 160, 0, 1) * 0.3 +
+    clamp(output.summary.trim().length / 80, 0, 1) * 0.2
+  ) * 100);
+  const actionability = roundTo2((
+    clamp(output.summary.trim().length / 60, 0, 1) * 0.45 +
+    clamp(output.fullResponse.trim().length / 180, 0, 1) * 0.25 +
+    (output.judgements.some((judgement) => typeof judgement.revisedStatement === "string") ? 1 : 0.55) * 0.2 +
+    (output.phase === "final_vote" ? (output.vote === "accept" ? 1 : 0.4) : 0.7) * 0.1
+  ) * 100);
+  const consistency = roundTo2(clamp(stanceAvg * 100, 0, 100));
+
+  return {
+    correctness,
+    completeness,
+    actionability,
+    consistency
+  };
+}
+
+function aggregateBreakdowns(breakdowns: ScoreBreakdown[]): ScoreBreakdown | undefined {
+  if (breakdowns.length === 0) return undefined;
+
+  return {
+    correctness: roundTo2(average(breakdowns.map((item) => item.correctness))),
+    completeness: roundTo2(average(breakdowns.map((item) => item.completeness))),
+    actionability: roundTo2(average(breakdowns.map((item) => item.actionability))),
+    consistency: roundTo2(average(breakdowns.map((item) => item.consistency)))
+  };
+}
+
+function weightedTotal(
+  breakdown: ScoreBreakdown,
+  weights: RubricWeights
+): number {
+  const totalWeight = weights.correctness + weights.completeness + weights.actionability + weights.consistency;
+  const normalizedWeight = totalWeight > 0 ? totalWeight : 1;
+
+  return roundTo2((
+    breakdown.correctness * weights.correctness +
+    breakdown.completeness * weights.completeness +
+    breakdown.actionability * weights.actionability +
+    breakdown.consistency * weights.consistency
+  ) / normalizedWeight);
+}
+
+function normalizeWeights(
+  rubric: RubricWeights
+): RubricWeights {
+  const total = rubric.correctness + rubric.completeness + rubric.actionability + rubric.consistency;
+  if (total > 0) {
+    return { ...rubric };
   }
 
-  return roundTo2(score);
+  return {
+    correctness: 0.35,
+    completeness: 0.25,
+    actionability: 0.25,
+    consistency: 0.15
+  };
 }
 
 function stanceFactor(stance: "agree" | "disagree" | "revise"): number {
   if (stance === "agree") return 1;
   if (stance === "revise") return 0.8;
   return 0.6;
+}
+
+function average(values: number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function clamp(value: number, min: number, max: number): number {
