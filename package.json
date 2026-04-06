@@ -1,0 +1,20 @@
+{
+  "name": "argue",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Harness-agnostic orchestration package for multi-agent consensus workflows.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "echo 'TODO: build'",
+    "test": "echo 'TODO: test'"
+  },
+  "keywords": [
+    "multi-agent",
+    "orchestration",
+    "consensus",
+    "workflow"
+  ],
+  "license": "MIT"
+}
