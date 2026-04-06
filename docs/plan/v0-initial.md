@@ -11,6 +11,7 @@
 5. 编排器负责等待机制（派发、等待、超时、补偿），不是宿主临时拼接。
 6. 最终报告新增可选“过程揭露”模式；开启时建议走独立 reporter 会话生成。
 7. “代表发言”与“报告生成方式（builtin/delegate-agent）”是两条独立维度。
+8. 最低参与人数为 2（`minParticipants=2`）。
 
 ---
 
@@ -65,6 +66,10 @@ export type ArgueStartInput = {
     id: string;               // e.g. onevclaw
     role?: string;
   }>;
+
+  participantsPolicy?: {
+    minParticipants?: number; // default: 2, must be >= 2
+  };
 
   roundPolicy?: {
     minRounds?: number;       // default: 2
@@ -347,12 +352,13 @@ export interface WaitCoordinator {
 
 ## 4.2 waitRound 策略（v0）
 
-1. 每轮派发后必须进入 `waitRound`。
-2. 优先 event-first；无事件时按策略轮询。
-3. 到达 `perRoundTimeoutMs`：
+1. 会话启动前校验参与人数：`participants.length >= minParticipants`，且 `minParticipants` 默认 2。
+2. 每轮派发后必须进入 `waitRound`。
+3. 优先 event-first；无事件时按策略轮询。
+4. 到达 `perRoundTimeoutMs`：
    - 有效参与人数 >= 2：继续并记录缺席
    - 否则 `failed`
-4. 迟到结果按 `lateArrivalPolicy` 处理。
+5. 迟到结果按 `lateArrivalPolicy` 处理。
 
 ## 4.3 报告生成策略（v0）
 
@@ -479,7 +485,7 @@ argue/
 
 ### M1（先跑通）
 
-- 3 参与者
+- 至少 2 参与者（默认示例 3）
 - initial + 3 轮 debate + final vote
 - sticky-per-participant session
 - claim-level judgement
