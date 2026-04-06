@@ -1,14 +1,19 @@
 {
   "name": "argue",
   "version": "0.1.0",
-  "private": false,
   "description": "Harness-agnostic orchestration package for multi-agent consensus workflows.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "echo 'TODO: build'",
-    "test": "echo 'TODO: test'"
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "ci": "npm run check && npm run test && npm run build"
   },
   "keywords": [
     "multi-agent",
@@ -16,5 +21,16 @@
     "consensus",
     "workflow"
   ],
-  "license": "MIT"
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
 }
