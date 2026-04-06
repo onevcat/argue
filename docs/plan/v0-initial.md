@@ -1,216 +1,226 @@
-# argue v0 初期计划（草案）
+# argue v0 初期计划（已按最新讨论更新）
+
+> 本文是 v0 的总览版。
+> 详细协议字段见：`docs/plan/v0-shape-spec.md`。
 
 ## 1. 目标与边界
 
 ### 目标
 
-把“多 agent 并行产出 -> 多轮互评 -> 收敛共识”的流程做成一个可复用编排组件。
+把“多 agent 并行产出 -> 多轮互评 -> 收敛共识 -> 代表发言”的流程做成可复用编排组件。
 
 ### 非目标（强约束）
 
 `argue` 不负责：
 
-1. 触发源接入（例如 GitHub webhook、聊天消息、CLI）
-2. 具体 agent 运行时调用细节（例如 OpenClaw hook、ACP、本地进程）
-3. 平台写回（例如发 GitHub 评论）
+1. 触发源接入（GitHub/IM/CLI 等）
+2. 具体 agent 调用实现（OpenClaw hook / ACP / 本地 runtime）
+3. 外部平台写回（GitHub 评论、消息发送等）
 
-这些都由上层宿主（首个用户可为 MeowHook）通过委托/适配器实现。
+以上都由宿主通过委托接口注入。
 
 ---
 
 ## 2. 核心流程（MVP）
 
-1. **Start**：接收标准化输入，创建 `ArgueSession`。
-2. **Initial Round**：向所有参与者并行派发任务，收集初始结论。
+1. **Start**：接收 `ArgueStartInput`，创建 `ArgueSession`。
+2. **Initial Round**：并行派发初始任务，收集各参与者完整回答。
 3. **Debate Rounds**（默认 3 轮）：
-   - 每轮把“他人上一轮摘要 + 自己上一轮结论”发给当前 agent。
-   - agent 返回：`agree/disagree/revise` + 理由 + 更新结论。
-4. **Synthesis**：生成 `consensusDraft`。
-5. **Vote/Confirm**：各 agent 对 draft `accept/reject`，可附修正建议。
-6. **Finalize**：
-   - 全员接受 -> 输出 `status=consensus`。
-   - 到达轮次上限仍未统一 -> 输出 `status=unresolved` + 分歧点。
+   - 每个参与者在**固定同一会话**中继续讨论（sticky）。
+   - 轮次输入优先带入“他人上一轮完整回答”（预算内，必要时截断）。
+   - 每位参与者按**论点粒度**返回 `agree/disagree/revise`。
+4. **Synthesis**：基于 claim-level judgement 生成统一 `finalClaims`。
+5. **Final Vote**：各参与者对统一稿投票 `accept/reject` 并可附修正。
+6. **Scoring & Representative**：计算分数并选出最高分代表发言。
+7. **Finalize**：
+   - 满足共识条件 -> `status=consensus`
+   - 轮次/时间到达上限仍未收敛 -> `status=unresolved`
+   - 有效参与人数不足或关键任务失败 -> `status=failed`
 
 ---
 
-## 3. 输入 / 输出（协议层）
+## 3. 输入输出（v0 形状）
 
-### 输入：`ArgueRequest`
+## 3.1 输入：`ArgueStartInput`（总览）
 
 ```ts
-type ArgueRequest = {
-  requestId: string;                  // 调用方生成的全局 ID
-  topic: string;                      // 议题
-  objective: string;                  // 期望产物定义
-  participants: string[];             // 逻辑参与者 ID, e.g. ["onevclaw","onevpaw","onevtail"]
-  maxRounds?: number;                 // 默认 3, 上限建议 6
-  consensusPolicy?: "delphi";        // MVP 先固定 delphi
-  context?: Record<string, unknown>;  // 上层透传上下文（平台无关）
-  constraints?: {
-    deadlineMs?: number;
-    tokenBudgetHint?: number;
-    language?: string;
+type ArgueStartInput = {
+  requestId: string;
+  topic: string;
+  objective: string;
+
+  participants: Array<{ id: string; role?: string }>;
+
+  roundPolicy?: {
+    minRounds?: number; // default 2
+    maxRounds?: number; // default 3
   };
+
+  sessionPolicy?: {
+    mode: "sticky-per-participant"; // v0 固定
+    sessionKeyPrefix?: string;
+  };
+
+  peerContextPolicy?: {
+    passMode: "full-response-preferred";
+    maxCharsPerPeerResponse?: number;
+    maxPeersPerRound?: number;
+    overflowStrategy?: "truncate-tail" | "truncate-middle";
+  };
+
+  scoringPolicy?: {
+    enabled: true;
+    representativeSelection: "top-score";
+    tieBreaker: "latest-round-score" | "least-objection";
+  };
+
+  waitingPolicy?: {
+    mode: "event-first" | "polling" | "hybrid";
+    perTaskTimeoutMs?: number;
+    perRoundTimeoutMs?: number;
+    globalDeadlineMs?: number;
+    lateArrivalPolicy?: "accept-if-before-finalize" | "drop";
+  };
+
+  constraints?: {
+    language?: string;
+    tokenBudgetHint?: number;
+  };
+
+  context?: Record<string, unknown>;
 };
 ```
 
-### 输出：`ArgueResult`
+## 3.2 参与者轮次输出：`ParticipantRoundOutput`（总览）
+
+```ts
+type ParticipantRoundOutput = {
+  participantId: string;
+  phase: "initial" | "debate" | "final_vote";
+  round: number;
+
+  fullResponse: string; // 保留完整回答
+
+  extractedClaims?: Array<{
+    claimId: string;
+    title: string;
+    statement: string;
+    category?: "pro" | "con" | "risk" | "tradeoff" | "todo";
+  }>;
+
+  judgements: Array<{
+    claimId: string;
+    stance: "agree" | "disagree" | "revise";
+    confidence: number; // 0~1
+    rationale: string;
+    revisedStatement?: string;
+  }>;
+
+  vote?: "accept" | "reject"; // final_vote 时使用
+  summary: string;
+};
+```
+
+## 3.3 最终输出：`ArgueResult`（总览）
 
 ```ts
 type ArgueResult = {
   requestId: string;
   sessionId: string;
   status: "consensus" | "unresolved" | "failed";
-  finalAnswer?: string;               // 共识稿（或失败时为空）
-  agreedBy?: string[];                // 接受最终稿的参与者
+
+  finalClaims: Array<{
+    claimId: string;
+    title: string;
+    statement: string;
+    category?: string;
+  }>;
+
+  representative: {
+    participantId: string; // 分数最高
+    reason: "top-score" | "tie-breaker";
+    score: number;
+    speech: string;
+  };
+
+  scoreboard: Array<{
+    participantId: string;
+    total: number;
+    byRound: Array<{ round: number; score: number }>;
+  }>;
+
+  votes: Array<{
+    participantId: string;
+    vote: "accept" | "reject";
+    reason?: string;
+  }>;
+
   disagreements?: Array<{
-    participant: string;
+    claimId: string;
+    participantId: string;
     reason: string;
   }>;
-  rounds: Array<{
-    round: number;
-    participant: string;
-    stance: "agree" | "disagree" | "revise";
-    summary: string;
-  }>;
+
   metrics: {
     elapsedMs: number;
     totalTurns: number;
     retries: number;
+    waitTimeouts: number;
   };
-  error?: {
-    code: string;
-    message: string;
-  };
+
+  error?: { code: string; message: string };
 };
 ```
 
 ---
 
-## 4. 通讯方式（包内与包外）
+## 4. 通讯与等待机制（补全）
 
-## 4.1 包外通讯原则
+### 4.1 通讯原则
 
-`argue` 只通过接口与宿主通信，不直接访问网络平台 API。
+`argue` 与外部系统仅通过委托接口通信：
 
-- 上层把输入转成 `ArgueRequest` 调用 `argue.start(...)`
-- `argue` 通过委托触发 agent 任务
-- `argue` 通过事件回调上报状态
-- 上层决定是否把状态写回 GitHub/聊天工具
+- `AgentTaskDelegate`：派发任务、等待结果、可选取消
+- `ArgueObserver`：会话事件上报
+- `SessionStore`：会话状态读写（可插拔）
 
-## 4.2 包内通讯模型
+### 4.2 等待机制（v0 必备）
 
-采用“状态机 + 事件”模型：
+每轮派发后必须进入 `waitRound`：
 
-- `SessionStarted`
-- `RoundDispatched`
-- `ParticipantResponded`
-- `RoundCompleted`
-- `ConsensusDrafted`
-- `Finalized`
-- `Failed`
+1. 优先事件驱动收集结果（event-first）
+2. 事件缺失时按策略轮询（hybrid/polling）
+3. 到达 `perRoundTimeoutMs`：
+   - 若有效参与人数 >= 2，带缺席标记继续
+   - 否则 `failed`
+4. 对迟到结果应用 `lateArrivalPolicy`
 
-事件用于观测与调试，可由上层订阅。
+> 这部分是 `argue` 的核心能力之一，不依赖宿主实现业务判断。
 
 ---
 
-## 5. 委托接口（关键）
+## 5. 共识与评分（v0）
 
-### 5.1 Agent 执行委托
-
-```ts
-interface AgentTaskDelegate {
-  dispatch(input: {
-    sessionId: string;
-    requestId: string;
-    participant: string;
-    phase: "initial" | "debate" | "final_vote";
-    round: number;
-    prompt: string;
-    timeoutMs?: number;
-    metadata?: Record<string, unknown>;
-  }): Promise<{ taskId: string }>;
-
-  awaitResult(taskId: string, timeoutMs?: number): Promise<{
-    ok: boolean;
-    output?: string;
-    error?: string;
-    usage?: Record<string, number>;
-  }>;
-
-  cancel?(taskId: string): Promise<void>;
-}
-```
-
-### 5.2 事件上报委托
-
-```ts
-interface ArgueObserver {
-  onEvent(event: {
-    sessionId: string;
-    requestId: string;
-    type:
-      | "SessionStarted"
-      | "RoundDispatched"
-      | "ParticipantResponded"
-      | "RoundCompleted"
-      | "ConsensusDrafted"
-      | "Finalized"
-      | "Failed";
-    at: string;
-    payload?: Record<string, unknown>;
-  }): Promise<void> | void;
-}
-```
-
-### 5.3 可插拔状态存储
-
-```ts
-interface SessionStore {
-  save(session: unknown): Promise<void>;
-  load(sessionId: string): Promise<unknown | null>;
-  update(sessionId: string, patch: unknown): Promise<void>;
-}
-```
-
-默认可先给内存实现；生产由宿主注入持久化实现。
+1. 共识判断基于 claim-level 结果 + final vote。
+2. 每位参与者按统一 rubric 计分（默认 correctness/completeness/actionability/consistency）。
+3. 最终由最高分参与者代表发言。
+4. 平分时按 tie-breaker 决定（默认 latest-round-score）。
 
 ---
 
-## 6. 共识策略（MVP 固定）
+## 6. 与宿主集成方式（示例，不绑定）
 
-先实现单一策略：**Delphi-like iterative consensus**。
+宿主负责：
 
-规则：
+1. 将外部触发转换为 `ArgueStartInput`
+2. 提供 `AgentTaskDelegate` 执行路径
+3. 订阅事件并写回外部平台
 
-1. 每轮都先做“他人观点摘要”。
-2. 强制输出结构化 stance（agree/disagree/revise）。
-3. 若连续两轮无实质变化，可提前终止为 `unresolved`。
-4. 最终稿必须经过确认投票，不靠编排器单方面判定。
-
----
-
-## 7. 失败与超时策略
-
-- 单参与者任务失败：可重试 `n` 次（MVP 默认 1 次）。
-- 多参与者中断：若无法满足最小参与人数（MVP=2）则 `failed`。
-- 全局超时：到 `deadlineMs` 立即终止并输出当前最佳草案 + 未完成项。
+`argue` 只负责协议与编排，不关心 GitHub/MeowHook/OpenClaw 的具体实现。
 
 ---
 
-## 8. 与宿主集成方式（示例，不绑定）
-
-宿主侧职责：
-
-1. 将外部触发（如 GitHub comment `/argue`）转换为 `ArgueRequest`。
-2. 提供 `AgentTaskDelegate`（例如调用 OpenClaw hook）。
-3. 订阅 `ArgueObserver` 并回写进度/结果到目标平台。
-
-`argue` 只关心协议与编排，不关心 GitHub/MeowHook/OpenClaw 具体细节。
-
----
-
-## 9. 目录建议（包本体）
+## 7. 目录建议
 
 ```text
 argue/
@@ -219,8 +229,11 @@ argue/
       engine.ts
       state-machine.ts
       consensus-delphi.ts
+      scoring.ts
+      wait-coordinator.ts
     contracts/
       request.ts
+      task.ts
       result.ts
       delegate.ts
       events.ts
@@ -230,36 +243,39 @@ argue/
   docs/
     plan/
       v0-initial.md
+      v0-shape-spec.md
+      sequence-mermaid.md
 ```
 
 ---
 
-## 10. MVP 里程碑
+## 8. MVP 里程碑
 
 ### M1（先跑通）
 
-- 支持 3 参与者
-- 支持 initial + 3 轮 debate + final vote
-- 产出结构化 `ArgueResult`
-- 内存 store + observer
+- 3 参与者
+- initial + 3 轮 debate + final vote
+- sticky-per-participant session
+- claim-level judgement
+- event-first waitRound + timeout
 
 ### M2（可集成）
 
-- 可恢复会话（持久化 store）
-- 更细粒度事件
-- 失败重试和 deadline 完整化
+- 持久化 SessionStore
+- 评分细化与 tie-breaker 完整实现
+- 迟到结果与失败补偿策略完善
 
 ### M3（增强）
 
-- 可选共识策略（majority / judge）
+- 多种共识策略（majority/judge 等）
 - 参与者动态增减
-- 更强的质量评估指标
+- 更丰富质量指标与观测面板
 
 ---
 
-## 11. 当前待你细化的问题
+## 9. 待细化项
 
-1. `consensus` 的硬判定条件（必须全票？还是 2/3 + 无高风险异议）
-2. 每轮 prompt 模板的标准化程度
-3. `unresolved` 时是否仍输出“建议行动方案”
-4. 观测事件最少字段（便于后续 dashboard）
+1. `consensus` 硬判定阈值（全票 vs 加权）
+2. rubric 默认权重与可配置边界
+3. `unresolved` 时的输出要求（是否必须给行动建议）
+4. round prompt 模板规范与长度预算
