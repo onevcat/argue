@@ -1,38 +1,21 @@
 import type { ArgueStartInput } from "./request.js";
-import type { FinalReport, ParticipantRoundOutput, ParticipantScore } from "./result.js";
-import type { RoundTaskInput } from "./task.js";
+import type { ParticipantRoundOutput } from "./result.js";
+import type { AgentTaskInput, AgentTaskResult } from "./task.js";
 
 export interface AgentTaskDelegate {
-  dispatch(task: RoundTaskInput): Promise<{ taskId: string; participantId: string }>;
+  dispatch(task: AgentTaskInput): Promise<{
+    taskId: string;
+    participantId: string;
+    kind: AgentTaskInput["kind"];
+  }>;
+
   awaitResult(taskId: string, timeoutMs?: number): Promise<{
     ok: boolean;
-    output?: ParticipantRoundOutput;
+    output?: AgentTaskResult;
     error?: string;
   }>;
-  cancel?(taskId: string): Promise<void>;
-}
 
-export interface ReportComposerDelegate {
-  compose(input: {
-    requestId: string;
-    sessionId: string;
-    representative: {
-      participantId: string;
-      speech: string;
-      score: number;
-    };
-    rounds: Array<{
-      round: number;
-      outputs: ParticipantRoundOutput[];
-    }>;
-    votes: Array<{
-      participantId: string;
-      vote: "accept" | "reject";
-      reason?: string;
-    }>;
-    scoreboard: ParticipantScore[];
-    policy: NonNullable<ArgueStartInput["reportPolicy"]>;
-  }): Promise<FinalReport>;
+  cancel?(taskId: string): Promise<void>;
 }
 
 export interface ArgueObserver {
@@ -43,7 +26,11 @@ export interface ArgueObserver {
       | "SessionStarted"
       | "RoundDispatched"
       | "ParticipantResponded"
+      | "ParticipantEliminated"
+      | "ClaimsMerged"
       | "RoundCompleted"
+      | "EarlyStopTriggered"
+      | "GlobalDeadlineHit"
       | "ConsensusDrafted"
       | "Finalized"
       | "Failed";

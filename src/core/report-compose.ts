@@ -3,7 +3,7 @@ import type { FinalReport, OpinionShift, ParticipantRoundOutput } from "../contr
 type BuildBuiltinReportInput = {
   includeDeliberationTrace: boolean;
   traceLevel: "compact" | "full";
-  status: "consensus" | "unresolved" | "failed";
+  status: "consensus" | "partial_consensus" | "unresolved" | "failed";
   representativeSpeech: string;
   rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }>;
   representativeId: string;

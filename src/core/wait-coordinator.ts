@@ -1,6 +1,7 @@
 import type { AgentTaskDelegate, WaitCoordinator } from "../contracts/delegate.js";
 import type { ArgueStartInput } from "../contracts/request.js";
-import { ParticipantRoundOutputSchema, type ParticipantRoundOutput } from "../contracts/result.js";
+import { AgentTaskResultSchema } from "../contracts/task.js";
+import type { ParticipantRoundOutput } from "../contracts/result.js";
 
 export class DefaultWaitCoordinator implements WaitCoordinator {
   constructor(private readonly delegate: AgentTaskDelegate) {}
@@ -37,12 +38,22 @@ export class DefaultWaitCoordinator implements WaitCoordinator {
           const current = states.get(taskId);
           if (!current || current.done) return;
 
-          if (result.ok && result.output) {
-            const parsed = ParticipantRoundOutputSchema.parse(result.output);
-            states.set(taskId, { done: true, ok: true, output: parsed });
-          } else {
+          if (!result.ok || !result.output) {
             states.set(taskId, { done: true, ok: false, error: result.error ?? "unknown_error" });
+            return;
           }
+
+          const parsed = AgentTaskResultSchema.safeParse(result.output);
+          if (!parsed.success || parsed.data.kind !== "round") {
+            states.set(taskId, { done: true, ok: false, error: "invalid_round_result" });
+            return;
+          }
+
+          states.set(taskId, {
+            done: true,
+            ok: true,
+            output: parsed.data.output
+          });
         })
         .catch((error) => {
           const current = states.get(taskId);

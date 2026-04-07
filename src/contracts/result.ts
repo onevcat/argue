@@ -1,12 +1,16 @@
 import { z } from "zod";
 
 export const ClaimCategorySchema = z.enum(["pro", "con", "risk", "tradeoff", "todo"]);
+export const ClaimStatusSchema = z.enum(["active", "merged", "withdrawn"]);
 
 export const ClaimSchema = z.object({
   claimId: z.string().min(1),
   title: z.string().min(1),
   statement: z.string().min(1),
-  category: ClaimCategorySchema.optional()
+  category: ClaimCategorySchema.optional(),
+  proposedBy: z.array(z.string().min(1)).min(1),
+  status: ClaimStatusSchema.default("active"),
+  mergedInto: z.string().min(1).optional()
 });
 
 export type Claim = z.infer<typeof ClaimSchema>;
@@ -19,10 +23,20 @@ export const ClaimJudgementSchema = z.object({
   stance: ClaimStanceSchema,
   confidence: z.number().min(0).max(1),
   rationale: z.string().min(1),
-  revisedStatement: z.string().min(1).optional()
+  revisedStatement: z.string().min(1).optional(),
+  mergesWith: z.string().min(1).optional()
 });
 
 export type ClaimJudgement = z.infer<typeof ClaimJudgementSchema>;
+
+export const ClaimVoteSchema = z.object({
+  participantId: z.string().min(1),
+  claimId: z.string().min(1),
+  vote: z.enum(["accept", "reject"]),
+  reason: z.string().optional()
+});
+
+export type ClaimVote = z.infer<typeof ClaimVoteSchema>;
 
 export const PhaseSchema = z.enum(["initial", "debate", "final_vote"]);
 export type Phase = z.infer<typeof PhaseSchema>;
@@ -31,7 +45,12 @@ const ParticipantRoundOutputBaseSchema = z.object({
   participantId: z.string().min(1),
   round: z.number().int().min(0),
   fullResponse: z.string().min(1),
-  extractedClaims: z.array(ClaimSchema).optional(),
+  extractedClaims: z.array(ClaimSchema.pick({
+    claimId: true,
+    title: true,
+    statement: true,
+    category: true
+  })).optional(),
   judgements: z.array(ClaimJudgementSchema),
   selfScore: z.number().min(0).max(100).optional(),
   summary: z.string().min(1)
@@ -40,15 +59,15 @@ const ParticipantRoundOutputBaseSchema = z.object({
 export const ParticipantRoundOutputSchema = z.discriminatedUnion("phase", [
   ParticipantRoundOutputBaseSchema.extend({
     phase: z.literal("initial"),
-    vote: z.undefined().optional()
+    claimVotes: z.undefined().optional()
   }),
   ParticipantRoundOutputBaseSchema.extend({
     phase: z.literal("debate"),
-    vote: z.undefined().optional()
+    claimVotes: z.undefined().optional()
   }),
   ParticipantRoundOutputBaseSchema.extend({
     phase: z.literal("final_vote"),
-    vote: z.enum(["accept", "reject"])
+    claimVotes: z.array(ClaimVoteSchema.omit({ participantId: true })).default([])
   })
 ]);
 
@@ -82,8 +101,19 @@ export const OpinionShiftSchema = z.object({
 
 export type OpinionShift = z.infer<typeof OpinionShiftSchema>;
 
+export const ClaimResolutionSchema = z.object({
+  claimId: z.string().min(1),
+  status: z.enum(["resolved", "unresolved"]),
+  acceptCount: z.number().int().nonnegative(),
+  rejectCount: z.number().int().nonnegative(),
+  totalVoters: z.number().int().nonnegative(),
+  votes: z.array(ClaimVoteSchema)
+});
+
+export type ClaimResolution = z.infer<typeof ClaimResolutionSchema>;
+
 export const FinalReportSchema = z.object({
-  mode: z.enum(["builtin", "delegate-agent"]),
+  mode: z.enum(["builtin", "representative"]),
   traceIncluded: z.boolean(),
   traceLevel: z.enum(["compact", "full"]),
   finalSummary: z.string().min(1),
@@ -98,23 +128,29 @@ export const FinalReportSchema = z.object({
 
 export type FinalReport = z.infer<typeof FinalReportSchema>;
 
+export const EliminationRecordSchema = z.object({
+  participantId: z.string().min(1),
+  round: z.number().int().min(0),
+  reason: z.enum(["timeout", "error"]),
+  at: z.string().min(1)
+});
+
+export type EliminationRecord = z.infer<typeof EliminationRecordSchema>;
+
 export const ArgueResultSchema = z.object({
   requestId: z.string().min(1),
   sessionId: z.string().min(1),
-  status: z.enum(["consensus", "unresolved", "failed"]),
+  status: z.enum(["consensus", "partial_consensus", "unresolved", "failed"]),
   finalClaims: z.array(ClaimSchema),
+  claimResolutions: z.array(ClaimResolutionSchema),
   representative: z.object({
     participantId: z.string().min(1),
-    reason: z.enum(["top-score", "tie-breaker"]),
+    reason: z.enum(["top-score", "tie-breaker", "host-designated"]),
     score: z.number(),
     speech: z.string().min(1)
   }),
   scoreboard: z.array(ParticipantScoreSchema),
-  votes: z.array(z.object({
-    participantId: z.string().min(1),
-    vote: z.enum(["accept", "reject"]),
-    reason: z.string().optional()
-  })),
+  eliminations: z.array(EliminationRecordSchema),
   report: FinalReportSchema,
   disagreements: z.array(z.object({
     claimId: z.string().min(1),
@@ -127,9 +163,12 @@ export const ArgueResultSchema = z.object({
   })),
   metrics: z.object({
     elapsedMs: z.number().int().nonnegative(),
+    totalRounds: z.number().int().nonnegative(),
     totalTurns: z.number().int().nonnegative(),
     retries: z.number().int().nonnegative(),
-    waitTimeouts: z.number().int().nonnegative()
+    waitTimeouts: z.number().int().nonnegative(),
+    earlyStopTriggered: z.boolean(),
+    globalDeadlineHit: z.boolean()
   }),
   error: z.object({
     code: z.string().min(1),
