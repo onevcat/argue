@@ -4,6 +4,17 @@ A harness-agnostic orchestration engine for multi-agent consensus workflows.
 
 Multiple AI agents analyze the same problem, debate claims across rounds, merge overlaps, vote per claim, and converge on structured consensus via one `start()` call.
 
+## Monorepo layout
+
+- `packages/argue`: reusable NPM library (engine + contracts)
+- `packages/argue-cli`: command line host skeleton (`argue` command)
+
+Quick workspace commands:
+
+- `npm run check`
+- `npm test`
+- `npm run build`
+
 ## Why argue
 
 | Problem | How argue solves it |
