@@ -17,7 +17,7 @@
 11. 共识判定在 claim 级别：每个 claim 按 `consensusThreshold` 独立投票判定，session 终态由 claim 判定结果聚合得出（`consensus` / `partial_consensus` / `unresolved`）。
 12. Claim 支持显式合并（merge）：辩论过程中参与者可声明 claim 合并，先出现的 claim 存活。
 13. argue 内置默认 prompt 模板（debate + report），host 可替换。
-14. `ArgueResult` 包含 `requestId` 与完整 run records，支持 JSONL run log 输出（host 可配）。
+14. `ArgueResult` 包含 `requestId` 与完整 run records；JSONL run log 下沉到 M3 产品化阶段实现（host/CLI 可配）。
 
 ---
 
@@ -149,6 +149,7 @@ export type ArgueStartInput = {
 
 ```ts
 export type RoundTaskInput = {
+  kind: "round";
   sessionId: string;
   requestId: string;
   participantId: string;
@@ -171,6 +172,37 @@ export type RoundTaskInput = {
   claimCatalog?: Claim[];
   metadata?: Record<string, unknown>;
 };
+```
+
+### 3.2.1 委托任务封装：`AgentTaskInput` / `AgentTaskResult`
+
+```ts
+export type ReportTaskInput = {
+  kind: "report";
+  sessionId: string;      // 独立 report session
+  requestId: string;
+  participantId: string;  // 可为活跃参与者，也可为 host 外部 reporter id
+  prompt: string;
+  reportInput: {
+    status: "consensus" | "partial_consensus" | "unresolved" | "failed";
+    representative: {
+      participantId: string;
+      speech: string;
+      score: number;
+    };
+    finalClaims: Claim[];
+    claimResolutions: ClaimResolution[];
+    scoreboard: ParticipantScore[];
+    rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }>;
+  };
+  metadata?: Record<string, unknown>;
+};
+
+export type AgentTaskInput = RoundTaskInput | ReportTaskInput;
+
+export type AgentTaskResult =
+  | { kind: "round"; output: ParticipantRoundOutput }
+  | { kind: "report"; output: FinalReport };
 ```
 
 ## 3.3 论点与轮次输出
@@ -327,21 +359,20 @@ export type ArgueResult = {
 
 ```ts
 export interface AgentTaskDelegate {
-  dispatch(task: RoundTaskInput): Promise<{ taskId: string; participantId: string }>;
+  dispatch(task: AgentTaskInput): Promise<{
+    taskId: string;
+    participantId: string;
+    kind: AgentTaskInput["kind"];
+  }>;
 
   awaitResult(taskId: string, timeoutMs?: number): Promise<{
     ok: boolean;
-    output?: ParticipantRoundOutput;
+    output?: AgentTaskResult;
     error?: string;
   }>;
 
   cancel?(taskId: string): Promise<void>;
 }
-
-// ReportComposerDelegate is removed in M2.
-// In "representative" mode, argue composes the prompt itself and calls the
-// representative agent via AgentTaskDelegate. Host no longer needs to implement
-// a separate report composer interface.
 
 export interface ArgueObserver {
   onEvent(event: {
@@ -397,14 +428,17 @@ export interface WaitCoordinator {
 ## 4.3 报告生成策略（v0）
 
 1. `reportPolicy.composer=builtin`：引擎内部模板生成报告。
-2. `reportPolicy.composer=representative`：argue 组织 prompt（注入 `ReportInput`），通过 `AgentTaskDelegate` 调用代表者 agent 生成报告。代表者默认为得分最高的参与者，host 可通过 `reportPolicy.representativeId` 强制指定。argue 校验返回的 `FinalReport` 符合 schema。
-3. 当 `includeDeliberationTrace=true` 且 `traceLevel=full`，推荐 `representative` 模式。
+2. `reportPolicy.composer=representative`：argue 组织 prompt（注入 `ReportInput`），通过 `AgentTaskDelegate` 以 `kind=report` 派发到独立 report session。
+   - `representativeId` 命中活跃参与者时，可用于指定代表者（`host-designated`）。
+   - `representativeId` 也可作为外部 reporter id 交给 host 路由（不强制必须在活跃参与者内）。
+3. representative 报告任务失败（dispatch / await / schema）时，回退到 builtin 报告，保证会话可完成。
+4. 当 `includeDeliberationTrace=true` 且 `traceLevel=full`，推荐 `representative` 模式。
 
 ---
 
 ## 5. 共识、评分与报告规则（v0）
 
-1. **共识判定在 claim 级别**：final vote 阶段每个参与者对每个 active claim 独立投票（accept/reject）。单个 claim 的 accept 比例 ≥ `consensusPolicy.threshold` → resolved。
+1. **共识判定在 claim 级别**：final vote 阶段每个参与者对每个 active claim 独立投票（accept/reject）。单个 claim 用**有效票分母**计算（`acceptCount / totalVoters`），比例 ≥ `consensusPolicy.threshold` → resolved。
 2. **Session 终态聚合**：全部 claim resolved → `consensus`；部分 → `partial_consensus`；全未通过 → `unresolved`。`globalDeadlineMs` 超时也进入 `unresolved`。
 3. **评分 rubric**：四维（correctness / completeness / actionability / consistency），host 可配权重。correctness 核心指标为 **peer review**：该参与者提出的 claims 被其他参与者 agree 的比例。
 4. **Claim 合并**：辩论过程中参与者可通过 `ClaimJudgement.mergesWith` 声明合并。引擎每轮结束处理合并，先出现的 claim 存活，链式合并递归解析。被合并 claim 的 credit 归属所有共同提出者。
@@ -549,22 +583,57 @@ argue/
 - builtin 报告生成
 - 启发式评分（4 维 rubric）
 
-### M2（可集成）
+### M2（可集成）✅
 
 - **Early-stop**：`minRounds` 后检测共识信号，提前结束 debate
-- **参与者剔除**：超时永久剔除 + `EliminationRecord` 追踪；迟到结果 drop
+- **参与者剔除**：超时/错误永久剔除 + `EliminationRecord` 追踪；迟到结果 drop
 - **`globalDeadlineMs`**：session 级总时限，超时进入 `unresolved`
-- **Claim 合并**：显式 `mergesWith` 机制，先出现者存活，链式解析；`Claim` 加 `proposedBy` / `status` / `mergedInto`
-- **Claim 级共识**：final vote 改为 per-claim 投票 + `consensusThreshold`；session 终态：`consensus` / `partial_consensus` / `unresolved`
+- **Claim 合并**：显式 `mergesWith` 机制，先出现者存活，链式解析；`Claim` 含 `proposedBy` / `status` / `mergedInto`
+- **Claim 级共识**：final vote 为 per-claim 投票，按**有效票分母**判定；session 终态：`consensus` / `partial_consensus` / `unresolved`
 - **评分改进**：correctness 核心指标改为 peer review（claims 被他人 agree 的比例）
-- **Representative 报告模式**：argue 组织 prompt → 调用代表者 agent → 校验 FinalReport；移除 `ReportComposerDelegate`
+- **统一委托协议**：`AgentTaskDelegate` 升级为 `kind=round|report`（`round` 内含 `phase`）
+- **Representative 报告模式**：argue 组织 prompt → 调用代表者/外部 reporter → 校验 `FinalReport`，失败回退 builtin
 - **Prompt 模板**：argue 内置默认 debate + report prompt 模板，host 可替换
-- **Run log**：JSONL 事件日志（host 可配路径/开关）；`ArgueResult` 包含 `requestId` + 完整 run records
-- **Schema 清理**：移除 `waitingPolicy.mode`（固定 event-first）、`lateArrivalPolicy`、`maxReportChars`
+- **Schema 清理**：移除 `waitingPolicy.mode`、`lateArrivalPolicy`、`maxReportChars`
 
-### M3（增强）
+### M3（可验证产品）🎯
 
-- Agent reputation 系统（历史表现加权投票）
-- 多种共识策略（majority/judge 等）
-- 参与者动态增减
-- 更丰富质量指标与观测面板
+目标：不是只做“可集成引擎”，而是做一个可以在本地直接跑通的最小产品闭环。
+
+#### M3 目标定义（最小可验证）
+
+1. 提供 `argue` 命令行工具（host）
+2. 通过配置文件声明参与者与运行时（Claude CLI / Codex CLI / SDK adapter）
+3. 运行一次真实多 agent 辩论并输出可读结果（终端 + JSON 文件）
+4. 提供可重复的 e2e 验证用例（含异常路径）
+
+#### 当前缺口（相对 M3）
+
+- 缺少独立 host/CLI 包（目前只有 engine library）
+- 缺少 runtime adapter 抽象与实现（CLI 进程调用 / SDK 调用）
+- 缺少 agent profile 配置与校验（model、命令模板、超时、并发限制）
+- 缺少产品级 run artifact 输出（JSONL 事件日志、最终报告文件、失败快照）
+- 缺少“真实 host + 假代理/真代理”混合 e2e 测试矩阵
+
+#### 建议实现路径（M3）
+
+- **M3-A Host Skeleton**
+  - 新增 `packages/argue-cli`（或 `apps/argue-cli`）
+  - 命令：`argue run --config ./argue.config.{json|yaml}`
+  - 最小输出：stdout 摘要 + `./out/<requestId>.result.json`
+
+- **M3-B Runtime Adapters**
+  - `claude-cli` adapter（如 `claude -p`）
+  - `codex-cli` adapter（如 `codex exec`）
+  - `mock` adapter（稳定回放，供 CI 与 edge case 验证）
+  - 统一映射到 `AgentTaskDelegate`（`kind=round|report`）
+
+- **M3-C Product Validation**
+  - 固定 demo config（3 agents）+ 一键脚本
+  - 覆盖成功、缺席超时、merge、振荡分歧、report fallback
+  - 输出 JSONL run log（M3 交付项）
+
+- **M3-D 可用性打磨（可并行）**
+  - 更好的终端展示（round 进度、淘汰提示、claim resolution 汇总）
+  - 失败恢复与重试策略（host 侧）
+  - 文档：Quick Start（5 分钟跑起来）
