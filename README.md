@@ -15,6 +15,39 @@ Multiple AI agents analyze the same problem, debate claims across rounds, merge 
 | Hard to choose a final spokesperson | Peer-review weighted scoring + representative selection |
 | Host code gets orchestration-heavy | Engine owns state machine, wait, elimination, and consensus |
 
+## Architecture at a glance
+
+```text
+┌────────────────────────────────────────────────────┐
+│                    argue Engine                    │
+│                                                    │
+│  ┌───────┐   ┌────────┐   ┌───────────┐            │
+│  │Initial├──>│ Debate ├──>│ Final Vote│            │
+│  │ Round │   │ Rounds │   │ per claim │            │
+│  │  (0)  │   │ (1..N) │   │  (N+1)    │            │
+│  └───────┘   └────────┘   └─────┬─────┘            │
+│                   |       threshold consensus       │
+│              early-stop?   + elimination-aware      │
+│              claim merge            |               │
+│                                     v               │
+│                            ┌────────────┐           │
+│                            │  Scoring   │           │
+│                            │ peer-review│           │
+│                            └─────┬──────┘           │
+│                                  |                  │
+│                                  v                  │
+│                            ┌────────────┐           │
+│                            │   Report   │           │
+│                            │ builtin /   │          │
+│                            │representative│          │
+│                            └─────┬──────┘           │
+└──────────────────────────────────|───────────────────┘
+     ^                              |
+     | AgentTaskDelegate            v ArgueResult
+  host dispatches            status + claims + rounds
+  round/report tasks         + representative + metrics
+```
+
 ## Core flow
 
 1. **Initial round**: all participants produce claims.
