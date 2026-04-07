@@ -27,17 +27,30 @@ export type ClaimJudgement = z.infer<typeof ClaimJudgementSchema>;
 export const PhaseSchema = z.enum(["initial", "debate", "final_vote"]);
 export type Phase = z.infer<typeof PhaseSchema>;
 
-export const ParticipantRoundOutputSchema = z.object({
+const ParticipantRoundOutputBaseSchema = z.object({
   participantId: z.string().min(1),
-  phase: PhaseSchema,
   round: z.number().int().min(0),
   fullResponse: z.string().min(1),
   extractedClaims: z.array(ClaimSchema).optional(),
   judgements: z.array(ClaimJudgementSchema),
   selfScore: z.number().min(0).max(100).optional(),
-  vote: z.enum(["accept", "reject"]).optional(),
   summary: z.string().min(1)
 });
+
+export const ParticipantRoundOutputSchema = z.discriminatedUnion("phase", [
+  ParticipantRoundOutputBaseSchema.extend({
+    phase: z.literal("initial"),
+    vote: z.undefined().optional()
+  }),
+  ParticipantRoundOutputBaseSchema.extend({
+    phase: z.literal("debate"),
+    vote: z.undefined().optional()
+  }),
+  ParticipantRoundOutputBaseSchema.extend({
+    phase: z.literal("final_vote"),
+    vote: z.enum(["accept", "reject"])
+  })
+]);
 
 export type ParticipantRoundOutput = z.infer<typeof ParticipantRoundOutputSchema>;
 

@@ -16,24 +16,50 @@ function mkOutput(input: {
   selfScore?: number;
   revisedStatement?: string;
 }): ParticipantRoundOutput {
+  const judgements = [{
+    claimId: "c1",
+    stance: input.stance ?? "agree",
+    confidence: input.confidence ?? 0.8,
+    rationale: `${input.participantId} rationale ${input.phase} ${input.round}`,
+    revisedStatement: input.revisedStatement
+  }] as const;
+  const summary = input.summary ?? `${input.participantId} summary ${input.phase} ${input.round}`;
+  const fullResponse = `${input.participantId}:${input.phase}:${input.round}`;
+
+  if (input.phase === "initial") {
+    return {
+      participantId: input.participantId,
+      phase: "initial",
+      round: input.round,
+      fullResponse,
+      extractedClaims: [{ claimId: "c1", title: "Claim 1", statement: "Start from baseline", category: "pro" }],
+      judgements: [...judgements],
+      selfScore: input.selfScore,
+      summary
+    };
+  }
+
+  if (input.phase === "debate") {
+    return {
+      participantId: input.participantId,
+      phase: "debate",
+      round: input.round,
+      fullResponse,
+      judgements: [...judgements],
+      selfScore: input.selfScore,
+      summary
+    };
+  }
+
   return {
     participantId: input.participantId,
-    phase: input.phase,
+    phase: "final_vote",
     round: input.round,
-    fullResponse: `${input.participantId}:${input.phase}:${input.round}`,
-    extractedClaims: input.phase === "initial"
-      ? [{ claimId: "c1", title: "Claim 1", statement: "Start from baseline", category: "pro" }]
-      : undefined,
-    judgements: [{
-      claimId: "c1",
-      stance: input.stance ?? "agree",
-      confidence: input.confidence ?? 0.8,
-      rationale: `${input.participantId} rationale ${input.phase} ${input.round}`,
-      revisedStatement: input.revisedStatement
-    }],
-    vote: input.vote,
+    fullResponse,
+    judgements: [...judgements],
+    vote: input.vote ?? "accept",
     selfScore: input.selfScore,
-    summary: input.summary ?? `${input.participantId} summary ${input.phase} ${input.round}`
+    summary
   };
 }
 
@@ -180,6 +206,51 @@ describe("ArgueEngine", () => {
     expect(delegate.canceledTaskIds.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("rejects final_vote outputs that omit vote when all participants are required", async () => {
+    const scenarios: Record<string, { type: "success"; output: ParticipantRoundOutput }> = {};
+
+    for (const participant of PARTICIPANTS) {
+      scenarios[`initial:0:${participant}`] = {
+        type: "success",
+        output: mkOutput({ participantId: participant, phase: "initial", round: 0 })
+      };
+      for (let round = 1; round <= 3; round += 1) {
+        scenarios[`debate:${round}:${participant}`] = {
+          type: "success",
+          output: mkOutput({ participantId: participant, phase: "debate", round })
+        };
+      }
+    }
+
+    scenarios["final_vote:4:onevclaw"] = {
+      type: "success",
+      output: mkOutput({ participantId: "onevclaw", phase: "final_vote", round: 4, vote: "accept" })
+    };
+    scenarios["final_vote:4:onevpaw"] = {
+      type: "success",
+      output: mkOutput({ participantId: "onevpaw", phase: "final_vote", round: 4, vote: "accept" })
+    };
+    scenarios["final_vote:4:onevtail"] = {
+      type: "success",
+      output: {
+        ...mkOutput({ participantId: "onevtail", phase: "final_vote", round: 4, vote: "accept" }),
+        vote: undefined
+      } as ParticipantRoundOutput
+    };
+
+    const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) });
+
+    await expect(
+      engine.start({
+        requestId: "req-missing-vote",
+        topic: "Missing final vote",
+        objective: "Reject invalid final vote payloads",
+        participants: PARTICIPANTS.map((id) => ({ id })),
+        participantsPolicy: { minParticipants: 3 }
+      })
+    ).rejects.toThrow(/minimum participant requirement/);
+  });
+
   it("marks the session failed and emits Failed when orchestration throws", async () => {
     const store = new RecordingStore();
     const observer = new RecordingObserver();
@@ -262,6 +333,60 @@ describe("ArgueEngine", () => {
     expect(
       result.report.opinionShiftTimeline?.some((x) => x.participantId === "onevclaw" && x.from === "disagree" && x.to === "agree")
     ).toBe(true);
+  });
+
+  it("forwards constraints and context into dispatched round tasks", async () => {
+    const scenarios: Record<string, { type: "success"; output: ParticipantRoundOutput }> = {};
+
+    for (const participant of PARTICIPANTS) {
+      scenarios[`initial:0:${participant}`] = {
+        type: "success",
+        output: mkOutput({ participantId: participant, phase: "initial", round: 0 })
+      };
+      for (let round = 1; round <= 3; round += 1) {
+        scenarios[`debate:${round}:${participant}`] = {
+          type: "success",
+          output: mkOutput({ participantId: participant, phase: "debate", round })
+        };
+      }
+      scenarios[`final_vote:4:${participant}`] = {
+        type: "success",
+        output: mkOutput({ participantId: participant, phase: "final_vote", round: 4, vote: "accept" })
+      };
+    }
+
+    const delegate = new StubAgentTaskDelegate(scenarios);
+    const engine = new ArgueEngine({ taskDelegate: delegate });
+
+    await engine.start({
+      requestId: "req-context",
+      topic: "Thread runtime hints",
+      objective: "Preserve caller-provided execution context",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      constraints: {
+        language: "ja",
+        tokenBudgetHint: 2048
+      },
+      context: {
+        repository: "onevcat/argue",
+        pr: 1
+      }
+    });
+
+    const firstDispatch = delegate.dispatchCalls[0];
+    expect(firstDispatch?.prompt).toContain("language=ja");
+    expect(firstDispatch?.prompt).toContain("token_budget_hint=2048");
+    expect(firstDispatch?.metadata).toMatchObject({
+      peerContextPassMode: "full-response-preferred",
+      constraints: {
+        language: "ja",
+        tokenBudgetHint: 2048
+      },
+      context: {
+        repository: "onevcat/argue",
+        pr: 1
+      }
+    });
   });
 
   it("uses delegate-agent report composer when requested", async () => {

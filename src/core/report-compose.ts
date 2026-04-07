@@ -39,7 +39,7 @@ function buildOpinionShiftTimeline(
   const lastStance = new Map<string, "agree" | "disagree" | "revise">();
   const timeline: OpinionShift[] = [];
 
-  for (const roundRecord of rounds.sort((a, b) => a.round - b.round)) {
+  for (const roundRecord of [...rounds].sort((a, b) => a.round - b.round)) {
     for (const output of roundRecord.outputs) {
       for (const judgement of output.judgements) {
         const key = `${output.participantId}::${judgement.claimId}`;

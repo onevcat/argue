@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type {
   AgentTaskDelegate,
   ArgueObserver,
@@ -45,7 +46,7 @@ export class ArgueEngine {
     this.waitCoordinator = deps.waitCoordinator ?? new DefaultWaitCoordinator(deps.taskDelegate);
     this.store = deps.sessionStore ?? new MemorySessionStore();
     this.now = deps.now ?? (() => Date.now());
-    this.idFactory = deps.idFactory ?? (() => `argue_${Date.now()}`);
+    this.idFactory = deps.idFactory ?? (() => `argue_${randomUUID()}`);
   }
 
   async start(input: ArgueStartInput): Promise<ArgueResult> {
@@ -285,7 +286,10 @@ export class ArgueEngine {
         claimCatalog: args.claimCatalog,
         metadata: {
           participantSessionKey: args.participantSessionMap.get(participant.id),
-          role: participant.role
+          role: participant.role,
+          peerContextPassMode: args.normalized.peerContextPolicy.passMode,
+          constraints: args.normalized.constraints,
+          context: args.normalized.context
         }
       });
 
@@ -400,13 +404,23 @@ export class ArgueEngine {
   }
 
   private buildPrompt(input: NormalizedArgueStartInput, phase: Phase, round: number): string {
-    return [
+    const lines = [
       `phase=${phase}`,
       `round=${round}`,
       `topic=${input.topic}`,
       `objective=${input.objective}`,
       "Use claim-level judgements for all relevant claims."
-    ].join("\n");
+    ];
+
+    if (input.constraints?.language) {
+      lines.push(`language=${input.constraints.language}`);
+    }
+
+    if (typeof input.constraints?.tokenBudgetHint === "number") {
+      lines.push(`token_budget_hint=${input.constraints.tokenBudgetHint}`);
+    }
+
+    return lines.join("\n");
   }
 
   private async composeReport(args: {

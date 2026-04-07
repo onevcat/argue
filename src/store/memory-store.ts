@@ -13,7 +13,8 @@ export class MemorySessionStore implements SessionStore {
   }
 
   async update(sessionId: string, patch: unknown): Promise<void> {
-    const current = (this.sessions.get(sessionId) as Record<string, unknown> | undefined) ?? {};
+    const existing = this.sessions.get(sessionId);
+    const current = isObject(existing) ? existing : {};
     const next = {
       ...current,
       ...(isObject(patch) ? patch : { patch })

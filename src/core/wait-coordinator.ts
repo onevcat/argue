@@ -57,11 +57,19 @@ export class DefaultWaitCoordinator implements WaitCoordinator {
         });
     }
 
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<"timeout">((resolve) => {
-      setTimeout(() => resolve("timeout"), args.policy.perRoundTimeoutMs);
+      timeoutHandle = setTimeout(() => resolve("timeout"), args.policy.perRoundTimeoutMs);
+      timeoutHandle.unref?.();
     });
 
-    await Promise.race([allDone, timeoutPromise]);
+    try {
+      await Promise.race([allDone, timeoutPromise]);
+    } finally {
+      if (timeoutHandle !== undefined) {
+        clearTimeout(timeoutHandle);
+      }
+    }
 
     const completed: ParticipantRoundOutput[] = [];
     const timedOutTaskIds: string[] = [];
