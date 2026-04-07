@@ -27,7 +27,12 @@ import { computeParticipantScores, chooseRepresentative } from "./scoring.js";
 import { ArgueStateMachine } from "./state-machine.js";
 import { DefaultWaitCoordinator } from "./wait-coordinator.js";
 import { MemorySessionStore } from "../store/memory-store.js";
-import { RoundTaskInputSchema, type AgentTaskInput, type ReportTaskInput } from "../contracts/task.js";
+import {
+  ReportTaskResultSchema,
+  RoundTaskInputSchema,
+  type AgentTaskInput,
+  type ReportTaskInput
+} from "../contracts/task.js";
 
 export interface ArgueEngineDeps {
   taskDelegate: AgentTaskDelegate;
@@ -102,6 +107,7 @@ export class ArgueEngine {
 
       const initialResult = await this.runRound({
         normalized,
+        startAt,
         sessionId,
         participantSessionMap,
         activeParticipants,
@@ -131,6 +137,7 @@ export class ArgueEngine {
 
         const debateResult = await this.runRound({
           normalized,
+          startAt,
           sessionId,
           participantSessionMap,
           activeParticipants,
@@ -160,22 +167,31 @@ export class ArgueEngine {
       const finalVoteRound = (rounds.at(-1)?.round ?? 0) + 1;
       let finalVoteOutputs: ParticipantRoundOutput[] = [];
       if (!metrics.globalDeadlineHit) {
-        const finalVoteResult = await this.runRound({
-          normalized,
-          sessionId,
-          participantSessionMap,
-          activeParticipants,
-          phase: "final_vote",
-          round: finalVoteRound,
-          claimCatalog,
-          previousOutputs,
-          metrics,
-          eliminations
-        });
-        this.ensureMinParticipants(normalized, activeParticipants.size);
-        finalVoteOutputs = finalVoteResult.outputs;
-        rounds.push({ round: finalVoteRound, outputs: finalVoteOutputs });
-        claimCatalog = finalVoteResult.claimCatalog;
+        if (this.isGlobalDeadlineHit(normalized, startAt)) {
+          metrics.globalDeadlineHit = true;
+          await this.emit(normalized, sessionId, "GlobalDeadlineHit", {
+            round: finalVoteRound,
+            globalDeadlineMs: normalized.waitingPolicy.globalDeadlineMs
+          });
+        } else {
+          const finalVoteResult = await this.runRound({
+            normalized,
+            startAt,
+            sessionId,
+            participantSessionMap,
+            activeParticipants,
+            phase: "final_vote",
+            round: finalVoteRound,
+            claimCatalog,
+            previousOutputs,
+            metrics,
+            eliminations
+          });
+          this.ensureMinParticipants(normalized, activeParticipants.size);
+          finalVoteOutputs = finalVoteResult.outputs;
+          rounds.push({ round: finalVoteRound, outputs: finalVoteOutputs });
+          claimCatalog = finalVoteResult.claimCatalog;
+        }
       }
 
       const claimResolutions = buildClaimResolutions({
@@ -303,6 +319,7 @@ export class ArgueEngine {
 
   private async runRound(args: {
     normalized: NormalizedArgueStartInput;
+    startAt: number;
     sessionId: string;
     participantSessionMap: Map<string, string>;
     activeParticipants: Set<string>;
@@ -383,7 +400,7 @@ export class ArgueEngine {
     const waited = await this.waitCoordinator.waitRound({
       round: args.round,
       taskIds,
-      policy: args.normalized.waitingPolicy
+      policy: this.resolveRoundWaitingPolicy(args.normalized, args.startAt)
     });
 
     args.metrics.waitTimeouts += waited.timedOutTaskIds.length;
@@ -437,7 +454,9 @@ export class ArgueEngine {
       });
     }
 
-    const { claims, newClaimCount, mergeEvents } = updateClaims(args.claimCatalog, outputs);
+    const { claims, newClaimCount, mergeEvents } = args.phase === "final_vote"
+      ? { claims: [...args.claimCatalog], newClaimCount: 0, mergeEvents: [] }
+      : updateClaims(args.claimCatalog, outputs);
 
     for (const merge of mergeEvents) {
       await this.emit(args.normalized, args.sessionId, "ClaimsMerged", {
@@ -527,18 +546,46 @@ export class ArgueEngine {
       return fallback();
     }
 
-    const awaited = await this.deps.taskDelegate.awaitResult(
-      dispatched.taskId,
-      args.normalized.waitingPolicy.perTaskTimeoutMs
-    );
+    let awaited: Awaited<ReturnType<AgentTaskDelegate["awaitResult"]>>;
+    try {
+      awaited = await this.deps.taskDelegate.awaitResult(
+        dispatched.taskId,
+        args.normalized.waitingPolicy.perTaskTimeoutMs
+      );
+    } catch {
+      return fallback();
+    }
 
-    if (!awaited.ok || !awaited.output || awaited.output.kind !== "report") {
+    if (!awaited.ok || !awaited.output) {
+      return fallback();
+    }
+
+    const parsed = ReportTaskResultSchema.safeParse(awaited.output);
+    if (!parsed.success) {
       return fallback();
     }
 
     return {
-      ...awaited.output.output,
+      ...parsed.data.output,
       mode: "representative"
+    };
+  }
+
+  private resolveRoundWaitingPolicy(
+    normalized: NormalizedArgueStartInput,
+    startAt: number
+  ): NonNullable<ArgueStartInput["waitingPolicy"]> {
+    const policy = normalized.waitingPolicy;
+    const deadline = policy.globalDeadlineMs;
+    if (typeof deadline !== "number") {
+      return policy;
+    }
+
+    const elapsed = this.now() - startAt;
+    const remaining = Math.max(1, deadline - elapsed);
+    return {
+      ...policy,
+      perRoundTimeoutMs: Math.min(policy.perRoundTimeoutMs, remaining)
     };
   }
 

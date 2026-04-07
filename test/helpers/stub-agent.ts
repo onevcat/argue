@@ -4,6 +4,7 @@ import type { AgentTaskInput, AgentTaskResult } from "../../src/contracts/task.j
 type Scenario =
   | { type: "success"; output: AgentTaskResult; delayMs?: number }
   | { type: "fail"; error: string; delayMs?: number }
+  | { type: "throw"; error: string; delayMs?: number }
   | { type: "timeout" };
 
 function keyOf(task: AgentTaskInput): string {
@@ -50,6 +51,10 @@ export class StubAgentTaskDelegate implements AgentTaskDelegate {
 
     if (scenario.type === "fail") {
       return { ok: false, error: scenario.error };
+    }
+
+    if (scenario.type === "throw") {
+      throw new Error(scenario.error);
     }
 
     return { ok: true, output: scenario.output };

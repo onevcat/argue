@@ -206,6 +206,244 @@ describe("ArgueEngine M2", () => {
     expect(PARTICIPANTS).toContain(result.representative.participantId as (typeof PARTICIPANTS)[number]);
   });
 
+  it("falls back to builtin report when representative await throws", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult } | { type: "throw"; error: string }> = {};
+
+    for (const participant of PARTICIPANTS) {
+      scenarios[`round:initial:0:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
+      };
+      scenarios[`round:debate:1:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 1 }))
+      };
+      scenarios[`round:final_vote:2:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "final_vote", round: 2 }))
+      };
+    }
+
+    scenarios["report:external-reporter"] = {
+      type: "throw",
+      error: "delegate await crashed"
+    };
+
+    const result = await new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) }).start({
+      requestId: "req-report-throw-fallback",
+      topic: "Report fallback",
+      objective: "fallback to builtin when representative await throws",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      roundPolicy: { minRounds: 1, maxRounds: 1 },
+      reportPolicy: {
+        composer: "representative",
+        representativeId: "external-reporter"
+      }
+    });
+
+    expect(result.report.mode).toBe("builtin");
+  });
+
+  it("falls back to builtin report when representative payload is malformed", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {};
+
+    for (const participant of PARTICIPANTS) {
+      scenarios[`round:initial:0:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
+      };
+      scenarios[`round:debate:1:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 1 }))
+      };
+      scenarios[`round:final_vote:2:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "final_vote", round: 2 }))
+      };
+    }
+
+    scenarios["report:external-reporter"] = {
+      type: "success",
+      output: {
+        kind: "report",
+        output: {
+          mode: "representative",
+          traceIncluded: false,
+          traceLevel: "compact",
+          finalSummary: "malformed"
+        }
+      } as unknown as AgentTaskResult
+    };
+
+    const result = await new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) }).start({
+      requestId: "req-report-malformed-fallback",
+      topic: "Report fallback",
+      objective: "fallback to builtin when representative payload is malformed",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      roundPolicy: { minRounds: 1, maxRounds: 1 },
+      reportPolicy: {
+        composer: "representative",
+        representativeId: "external-reporter"
+      }
+    });
+
+    expect(result.report.mode).toBe("builtin");
+  });
+
+  it("marks unresolved when global deadline is reached before final_vote", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {};
+
+    for (const participant of PARTICIPANTS) {
+      scenarios[`round:initial:0:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
+      };
+      scenarios[`round:debate:1:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 1 }))
+      };
+    }
+
+    let nowMs = 0;
+    const engine = new ArgueEngine({
+      taskDelegate: new StubAgentTaskDelegate(scenarios),
+      now: () => nowMs,
+      observer: {
+        onEvent(event) {
+          if (event.type !== "RoundCompleted") return;
+          if (event.payload?.phase !== "debate") return;
+          nowMs = 2000;
+        }
+      }
+    });
+
+    const result = await engine.start({
+      requestId: "req-deadline-before-final-vote",
+      topic: "deadline",
+      objective: "should skip final vote when deadline is hit",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      roundPolicy: { minRounds: 1, maxRounds: 1 },
+      waitingPolicy: {
+        perTaskTimeoutMs: 1000,
+        perRoundTimeoutMs: 5000,
+        globalDeadlineMs: 1500
+      }
+    });
+
+    expect(result.status).toBe("unresolved");
+    expect(result.metrics.globalDeadlineHit).toBe(true);
+    expect(result.rounds.some((round) => round.outputs.some((output) => output.phase === "final_vote"))).toBe(false);
+  });
+
+  it("freezes claim catalog during final_vote", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {
+      "round:initial:0:onevclaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevclaw",
+          phase: "initial",
+          round: 0,
+          extractedClaims: [{ claimId: "c1", title: "C1", statement: "baseline", category: "pro" }],
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:initial:0:onevpaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevpaw",
+          phase: "initial",
+          round: 0,
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:initial:0:onevtail": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevtail",
+          phase: "initial",
+          round: 0,
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:debate:1:onevclaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevclaw",
+          phase: "debate",
+          round: 1,
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:debate:1:onevpaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevpaw",
+          phase: "debate",
+          round: 1,
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:debate:1:onevtail": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevtail",
+          phase: "debate",
+          round: 1,
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:final_vote:2:onevclaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevclaw",
+          phase: "final_vote",
+          round: 2,
+          extractedClaims: [{ claimId: "c99", title: "C99", statement: "inject", category: "risk" }],
+          judgements: [{
+            claimId: "c1",
+            stance: "revise",
+            revisedStatement: "mutated",
+            mergesWith: "c99"
+          }],
+          claimVotes: [{ claimId: "c1", vote: "accept" }]
+        }))
+      },
+      "round:final_vote:2:onevpaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevpaw",
+          phase: "final_vote",
+          round: 2,
+          claimVotes: [{ claimId: "c1", vote: "accept" }]
+        }))
+      },
+      "round:final_vote:2:onevtail": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevtail",
+          phase: "final_vote",
+          round: 2,
+          claimVotes: [{ claimId: "c1", vote: "accept" }]
+        }))
+      }
+    };
+
+    const result = await new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) }).start({
+      requestId: "req-freeze-final-vote-claims",
+      topic: "freeze",
+      objective: "final vote should not mutate claim catalog",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      roundPolicy: { minRounds: 1, maxRounds: 1 }
+    });
+
+    const c1 = result.finalClaims.find((claim) => claim.claimId === "c1");
+    const c99 = result.finalClaims.find((claim) => claim.claimId === "c99");
+
+    expect(c99).toBeUndefined();
+    expect(c1?.statement).toBe("baseline");
+    expect(c1?.status).toBe("active");
+  });
+
   it("uses host-designated representative when designated participant is active", async () => {
     const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {};
 
