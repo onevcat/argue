@@ -68,7 +68,7 @@ Multiple AI agents analyze the same problem, debate claims across rounds, merge 
 
 Host implements a single delegate with task kind routing:
 
-- `kind="round"`: initial/debate/final_vote task
+- `kind="round"` + `phase="initial" | "debate" | "final_vote"`: round task
 - `kind="report"`: representative report composition task
 
 Both use the same `dispatch` + `awaitResult` interface.
