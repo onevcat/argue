@@ -52,9 +52,13 @@ export {
   ClaimResolutionSchema,
   ClaimSchema,
   ClaimStanceSchema,
+  ClaimVoteInputSchema,
   ClaimVoteSchema,
+  DebateParticipantRoundOutputSchema,
   EliminationRecordSchema,
   FinalReportSchema,
+  FinalVoteParticipantRoundOutputSchema,
+  InitialParticipantRoundOutputSchema,
   ParticipantRoundOutputSchema,
   ParticipantScoreSchema,
   PhaseSchema

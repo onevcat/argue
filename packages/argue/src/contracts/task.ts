@@ -1,5 +1,13 @@
 import { z } from "zod";
-import { ClaimResolutionSchema, ClaimSchema, FinalReportSchema, PhaseSchema, ParticipantRoundOutputSchema, ParticipantScoreSchema } from "./result.js";
+import {
+  ClaimResolutionSchema,
+  ClaimSchema,
+  ClaimVoteInputSchema,
+  FinalReportSchema,
+  PhaseSchema,
+  ParticipantRoundOutputSchema,
+  ParticipantScoreSchema
+} from "./result.js";
 
 const ClaimDraftSchema = ClaimSchema.pick({
   claimId: true,
@@ -80,6 +88,20 @@ export const ReportTaskResultSchema = z.object({
 });
 
 export type ReportTaskResult = z.infer<typeof ReportTaskResultSchema>;
+
+export const FinalVoteTaskOutputContentSchema = z.object({
+  fullResponse: z.string().min(1),
+  summary: z.string().min(1),
+  judgements: z.array(z.object({
+    claimId: z.string().min(1),
+    stance: z.enum(["agree", "disagree", "revise"]),
+    confidence: z.number().min(0).max(1),
+    rationale: z.string().min(1),
+    revisedStatement: z.string().min(1).optional(),
+    mergesWith: z.string().min(1).optional()
+  })),
+  claimVotes: z.array(ClaimVoteInputSchema).min(1)
+});
 
 export const AgentTaskResultSchema = z.discriminatedUnion("kind", [
   RoundTaskResultSchema,
