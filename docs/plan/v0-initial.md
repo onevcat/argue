@@ -9,9 +9,15 @@
 3. 输出采用 claim-level（逐论点）判断，而不是单条结论判断。
 4. 引入评分系统，最终由最高分参与者代表发言。
 5. 编排器负责等待机制（派发、等待、超时、补偿），不是宿主临时拼接。
-6. 最终报告新增可选“过程揭露”模式；开启时建议走独立 reporter 会话生成。
-7. “代表发言”与“报告生成方式（builtin/delegate-agent）”是两条独立维度。
+6. 最终报告新增可选”过程揭露”模式；开启时建议走独立 reporter 会话生成。
+7. “代表发言”与”报告生成方式（builtin/representative）”是两条独立维度。
 8. 最低参与人数为 2（`minParticipants=2`）。
+9. 支持 early-stop：跑满 `minRounds` 后，若所有参与者一致且无新议题，跳过剩余 debate 轮直接进入 `final_vote`。
+10. 等待模式仅 `event-first`；超时参与者永久剔除并保留记录。
+11. 共识判定在 claim 级别：每个 claim 按 `consensusThreshold` 独立投票判定，session 终态由 claim 判定结果聚合得出（`consensus` / `partial_consensus` / `unresolved`）。
+12. Claim 支持显式合并（merge）：辩论过程中参与者可声明 claim 合并，先出现的 claim 存活。
+13. argue 内置默认 prompt 模板（debate + report），host 可替换。
+14. `ArgueResult` 包含 `requestId` 与完整 run records，支持 JSONL run log 输出（host 可配）。
 
 ---
 
@@ -35,20 +41,28 @@
 
 ## 2. 核心流程（MVP）
 
-1. **Start**：接收 `ArgueStartInput`，创建会话。
-2. **Initial Round**：并行派发初始任务，收集完整回答。
-3. **Debate Rounds**（默认 3 轮）：
+1. **Start**：接收 `ArgueStartInput`，创建会话，启动 `globalDeadlineMs` 计时（如已配置）。
+2. **Initial Round**：并行派发初始任务，收集完整回答与初始 claims。
+3. **Debate Rounds**（`minRounds` ~ `maxRounds` 轮）：
    - 每个参与者在同一 sticky session 继续。
    - 带入他人上一轮完整回答（预算内）。
-   - 输出 claim-level judgement（agree/disagree/revise）。
-4. **Synthesis**：聚合成统一 `finalClaims`。
-5. **Final Vote**：各参与者 `accept/reject` 并可附修正。
-6. **Scoring**：按 rubric 计算分数。
-7. **Representative**：按分数选出代表发言。
-8. **Report Compose**：
-   - 默认 `builtin`：结构化模板快速生成
-   - 可选 `delegate-agent`：使用独立 reporter 会话，汇总初始/圆桌/投票全过程
-9. **Finalize**：输出 `consensus / unresolved / failed`。
+   - 输出 claim-level judgement（agree/disagree/revise），可声明 claim 合并（`mergesWith`）。
+   - 超时参与者永久剔除，后续轮次不再派发；剔除记录保留在 session 中。
+   - 引擎每轮结束处理 claim 合并：先出现的 claim 存活，链式合并递归解析。
+   - **Early-stop 检查**（`round >= minRounds` 时）：所有活跃参与者一致 + 无新 claim / revise → 跳过剩余 debate 轮。
+   - **globalDeadlineMs 检查**：超时则不开启新 round，以当前数据进入终态。
+4. **Synthesis**：聚合成统一 `finalClaims`（含合并后状态）。
+5. **Final Vote**：各参与者对**每个 active claim** 独立投票 `accept/reject`。
+6. **Consensus**：每个 claim 按 `consensusThreshold` 判定（accept 比例 ≥ 阈值 → resolved）。session 终态：
+   - 全部 resolved → `consensus`
+   - 部分 resolved → `partial_consensus`
+   - 全未通过 → `unresolved`
+7. **Scoring**：按 rubric 计算分数，correctness 核心指标为 peer review（claims 被他人 agree 的比例）。
+8. **Representative**：按分数选出代表。
+9. **Report Compose**：
+   - `builtin`：结构化模板快速生成
+   - `representative`：argue 组织 prompt → 调用代表者 agent（得分最高或 host 指定）→ 校验返回的 `FinalReport`
+10. **Finalize**：输出 `ArgueResult`，包含 `requestId`、完整 run records、per-claim 投票明细。
 
 ---
 
@@ -100,20 +114,26 @@ export type ArgueStartInput = {
     };
   };
 
+  consensusPolicy?: {
+    threshold?: number;             // 0~1, default: 1.0 (unanimous)
+  };
+
   reportPolicy?: {
     includeDeliberationTrace?: boolean;     // default: false
     traceLevel?: "compact" | "full";       // default: compact
-    composer?: "builtin" | "delegate-agent"; // default: builtin
-    reporterId?: string;                    // composer=delegate-agent 时可选
-    maxReportChars?: number;
+    composer?: "builtin" | "representative"; // default: builtin
+    representativeId?: string;              // composer=representative 时可选，host 强制指定代表者
+  };
+
+  promptPolicy?: {
+    debateTemplate?: string;        // host 可替换 debate 轮 prompt 模板
+    reportTemplate?: string;        // host 可替换 report 轮 prompt 模板
   };
 
   waitingPolicy?: {
-    mode: "event-first" | "polling" | "hybrid";
     perTaskTimeoutMs?: number;      // default: 10m
     perRoundTimeoutMs?: number;     // default: 20m
-    globalDeadlineMs?: number;
-    lateArrivalPolicy?: "accept-if-before-finalize" | "drop";
+    globalDeadlineMs?: number;      // 从 start() 计时，超时不开新 round，进入 unresolved
   };
 
   constraints?: {
@@ -156,11 +176,16 @@ export type RoundTaskInput = {
 ## 3.3 论点与轮次输出
 
 ```ts
+export type ClaimStatus = "active" | "merged" | "withdrawn";
+
 export type Claim = {
   claimId: string;
   title: string;
   statement: string;
   category?: "pro" | "con" | "risk" | "tradeoff" | "todo";
+  proposedBy: string[];          // participant IDs of original proposers
+  status: ClaimStatus;           // default: "active"
+  mergedInto?: string;           // claimId of the surviving claim (when status=merged)
 };
 
 export type ClaimJudgement = {
@@ -169,6 +194,13 @@ export type ClaimJudgement = {
   confidence: number; // 0~1
   rationale: string;
   revisedStatement?: string;
+  mergesWith?: string;           // claimId — declare this claim is the same as another
+};
+
+export type ClaimVote = {
+  claimId: string;
+  vote: "accept" | "reject";
+  reason?: string;
 };
 
 export type ParticipantRoundOutput = {
@@ -181,9 +213,9 @@ export type ParticipantRoundOutput = {
   extractedClaims?: Claim[];
   judgements: ClaimJudgement[];
 
-  selfScore?: number;
-  vote?: "accept" | "reject";
+  claimVotes?: ClaimVote[];      // final_vote phase: per-claim accept/reject
 
+  selfScore?: number;
   summary: string;
 };
 ```
@@ -212,8 +244,17 @@ export type OpinionShift = {
   reason?: string;
 };
 
+export type ClaimResolution = {
+  claimId: string;
+  status: "resolved" | "unresolved";
+  acceptCount: number;
+  rejectCount: number;
+  totalVoters: number;
+  votes: ClaimVote[];
+};
+
 export type FinalReport = {
-  mode: "builtin" | "delegate-agent";
+  mode: "builtin" | "representative";
   traceIncluded: boolean;
   traceLevel: "compact" | "full";
   finalSummary: string;
@@ -226,27 +267,30 @@ export type FinalReport = {
   }>;
 };
 
+export type EliminationRecord = {
+  participantId: string;
+  round: number;
+  reason: "timeout" | "error";
+  at: string;                    // ISO timestamp
+};
+
 export type ArgueResult = {
   requestId: string;
   sessionId: string;
-  status: "consensus" | "unresolved" | "failed";
+  status: "consensus" | "partial_consensus" | "unresolved" | "failed";
 
   finalClaims: Claim[];
+  claimResolutions: ClaimResolution[];  // per-claim voting results
 
   representative: {
     participantId: string;
-    reason: "top-score" | "tie-breaker";
+    reason: "top-score" | "tie-breaker" | "host-designated";
     score: number;
     speech: string;
   };
 
   scoreboard: ParticipantScore[];
-
-  votes: Array<{
-    participantId: string;
-    vote: "accept" | "reject";
-    reason?: string;
-  }>;
+  eliminations: EliminationRecord[];    // participants removed during session
 
   report: FinalReport;
 
@@ -263,9 +307,12 @@ export type ArgueResult = {
 
   metrics: {
     elapsedMs: number;
+    totalRounds: number;            // actual rounds run (may be < maxRounds due to early-stop)
     totalTurns: number;
     retries: number;
     waitTimeouts: number;
+    earlyStopTriggered: boolean;
+    globalDeadlineHit: boolean;
   };
 
   error?: { code: string; message: string };
@@ -291,28 +338,10 @@ export interface AgentTaskDelegate {
   cancel?(taskId: string): Promise<void>;
 }
 
-export interface ReportComposerDelegate {
-  compose(input: {
-    requestId: string;
-    sessionId: string;
-    representative: {
-      participantId: string;
-      speech: string;
-      score: number;
-    };
-    rounds: Array<{
-      round: number;
-      outputs: ParticipantRoundOutput[];
-    }>;
-    votes: Array<{
-      participantId: string;
-      vote: "accept" | "reject";
-      reason?: string;
-    }>;
-    scoreboard: ParticipantScore[];
-    policy: NonNullable<ArgueStartInput["reportPolicy"]>;
-  }): Promise<FinalReport>;
-}
+// ReportComposerDelegate is removed in M2.
+// In "representative" mode, argue composes the prompt itself and calls the
+// representative agent via AgentTaskDelegate. Host no longer needs to implement
+// a separate report composer interface.
 
 export interface ArgueObserver {
   onEvent(event: {
@@ -322,7 +351,11 @@ export interface ArgueObserver {
       | "SessionStarted"
       | "RoundDispatched"
       | "ParticipantResponded"
+      | "ParticipantEliminated"
+      | "ClaimsMerged"
       | "RoundCompleted"
+      | "EarlyStopTriggered"
+      | "GlobalDeadlineHit"
       | "ConsensusDrafted"
       | "Finalized"
       | "Failed";
@@ -353,28 +386,31 @@ export interface WaitCoordinator {
 ## 4.2 waitRound 策略（v0）
 
 1. 会话启动前校验参与人数：`participants.length >= minParticipants`，且 `minParticipants` 默认 2。
-2. 每轮派发后必须进入 `waitRound`。
-3. 优先 event-first；无事件时按策略轮询。
-4. 到达 `perRoundTimeoutMs`：
-   - 有效参与人数 >= 2：继续并记录缺席
-   - 否则 `failed`
-5. 迟到结果按 `lateArrivalPolicy` 处理。
+2. 每轮派发后必须进入 `waitRound`（event-first 模式，无其他模式）。
+3. 到达 `perRoundTimeoutMs`：
+   - 超时参与者**永久剔除**，后续轮次不再派发。
+   - 剔除记录写入 session（`EliminationRecord`：participantId、round、reason、timestamp）。
+   - 迟到结果直接丢弃（drop），不合并。
+   - 剩余活跃参与者 >= `minParticipants`：继续。否则 `failed`。
+4. `globalDeadlineMs`（可选）：从 `start()` 开始计时，超时后不开启新 round，以当前数据进入 `unresolved` 终态。
 
 ## 4.3 报告生成策略（v0）
 
 1. `reportPolicy.composer=builtin`：引擎内部模板生成报告。
-2. `reportPolicy.composer=delegate-agent`：通过 `ReportComposerDelegate` 走独立 reporter 会话。
-3. 当 `includeDeliberationTrace=true` 且 `traceLevel=full`，推荐 `delegate-agent`。
+2. `reportPolicy.composer=representative`：argue 组织 prompt（注入 `ReportInput`），通过 `AgentTaskDelegate` 调用代表者 agent 生成报告。代表者默认为得分最高的参与者，host 可通过 `reportPolicy.representativeId` 强制指定。argue 校验返回的 `FinalReport` 符合 schema。
+3. 当 `includeDeliberationTrace=true` 且 `traceLevel=full`，推荐 `representative` 模式。
 
 ---
 
 ## 5. 共识、评分与报告规则（v0）
 
-1. 共识判断 = claim-level judgement + final vote。
-2. 每位参与者按统一 rubric 计分。
-3. 最高分者作为代表发言（立场输出）。
-4. 报告生成方式（builtin/delegate-agent）只影响呈现，不改变共识结果。
-5. 平分时执行 tie-breaker。
+1. **共识判定在 claim 级别**：final vote 阶段每个参与者对每个 active claim 独立投票（accept/reject）。单个 claim 的 accept 比例 ≥ `consensusPolicy.threshold` → resolved。
+2. **Session 终态聚合**：全部 claim resolved → `consensus`；部分 → `partial_consensus`；全未通过 → `unresolved`。`globalDeadlineMs` 超时也进入 `unresolved`。
+3. **评分 rubric**：四维（correctness / completeness / actionability / consistency），host 可配权重。correctness 核心指标为 **peer review**：该参与者提出的 claims 被其他参与者 agree 的比例。
+4. **Claim 合并**：辩论过程中参与者可通过 `ClaimJudgement.mergesWith` 声明合并。引擎每轮结束处理合并，先出现的 claim 存活，链式合并递归解析。被合并 claim 的 credit 归属所有共同提出者。
+5. 最高分者作为代表（立场输出 + `representative` 模式下生成报告）。
+6. 报告生成方式（builtin/representative）只影响呈现，不改变共识结果。
+7. 平分时执行 tie-breaker。
 
 ---
 
@@ -389,46 +425,66 @@ sequenceDiagram
     participant H as Host(MeowHook)
     participant A as argue Engine
     participant D as AgentTaskDelegate
-    participant C as Participants Sessions(A/B/C)
-    participant P as Report Composer(builtin/delegate)
+    participant C as Participant Sessions(A/B/C)
     participant R as Host Writeback
 
     U->>H: @A @B @C /argue + prompt
     H->>A: start(ArgueStartInput)
-    A->>A: create session + sticky participant mapping
+    A->>A: create session + sticky mapping + start globalDeadline timer
 
-    loop Initial Round
-      A->>D: dispatch(initial task for A/B/C)
-      D->>C: run in sticky sessions
+    rect rgb(240, 248, 255)
+    note over A,C: Initial Round (round=0)
+    A->>A: compose prompt (builtin template or host override)
+    A->>D: dispatch(initial task for A/B/C)
+    D->>C: run in sticky sessions
+    A->>A: waitRound(event-first)
+    C-->>D: ParticipantRoundOutput (fullResponse + extractedClaims)
+    D-->>A: results (timeout → eliminate participant)
     end
 
-    A->>A: waitRound(event-first, timeout policy)
-    C-->>D: ParticipantRoundOutput (fullResponse + claim judgements)
-    D-->>A: callback/result per participant
-
-    loop Debate Rounds (N)
-      A->>A: build peer context (full responses within budget)
-      A->>D: dispatch(debate task for A/B/C)
+    rect rgb(245, 245, 220)
+    note over A,C: Debate Rounds (round=1..maxRounds)
+    loop each debate round
+      A->>A: check globalDeadlineMs → abort if exceeded
+      A->>A: build peer context + claim catalog (active claims only)
+      A->>A: compose debate prompt (builtin template or host override)
+      A->>D: dispatch(debate task for active participants)
       D->>C: continue in same sessions
-      A->>A: waitRound(...)
-      C-->>D: round outputs
-      D-->>A: callback/result
+      A->>A: waitRound(event-first)
+      C-->>D: judgements + mergesWith declarations + new claims
+      D-->>A: results (timeout → permanently eliminate + record)
+      A->>A: process claim merges (earliest survives, chain resolve)
+      A->>A: early-stop check (round ≥ minRounds + all agree + no new claims?)
+      note right of A: if early-stop → skip remaining rounds
+    end
     end
 
-    A->>A: score participants + synthesize finalClaims
-    A->>D: dispatch(final_vote task)
-    A->>A: waitRound(...)
-    D-->>A: votes + adjustments
-    A->>A: choose representative(top-score)
+    rect rgb(255, 240, 245)
+    note over A,C: Final Vote (round=maxRounds+1)
+    A->>A: synthesize finalClaims (active only, with proposedBy)
+    A->>A: score participants (peer-review correctness)
+    A->>D: dispatch(final_vote: per-claim accept/reject)
+    A->>A: waitRound(event-first)
+    D-->>A: ClaimVotes per participant
+    A->>A: per-claim consensus (accept ratio ≥ threshold → resolved)
+    A->>A: aggregate → consensus / partial_consensus / unresolved
+    A->>A: choose representative(top-score or host-designated)
+    end
 
-    alt reportPolicy.composer = delegate-agent
-      A->>P: compose report with initial/debate/vote artifacts
-      P-->>A: enriched final report
-    else reportPolicy.composer = builtin
+    rect rgb(240, 255, 240)
+    note over A,D: Report Compose
+    alt composer = representative
+      A->>A: compose report prompt (inject ReportInput)
+      A->>D: dispatch to representative agent
+      D->>C: representative generates report
+      C-->>D: report response
+      D-->>A: FinalReport (argue validates schema)
+    else composer = builtin
       A->>A: template-based report compose
     end
+    end
 
-    A-->>H: ArgueResult(consensus/unresolved/failed + report)
+    A-->>H: ArgueResult (status + claims + resolutions + run records)
     H->>R: publish result to source platform
     R-->>U: final reply / progress
 ```
@@ -483,34 +539,32 @@ argue/
 
 ## 9. MVP 里程碑
 
-### M1（先跑通）
+### M1（先跑通）✅
 
 - 至少 2 参与者（默认示例 3）
-- initial + 3 轮 debate + final vote
+- initial + 固定轮数 debate + final vote
 - sticky-per-participant session
 - claim-level judgement
 - event-first waitRound + timeout
 - builtin 报告生成
+- 启发式评分（4 维 rubric）
 
 ### M2（可集成）
 
-- 持久化 SessionStore
-- 评分细化与 tie-breaker 完整实现
-- 迟到结果与失败补偿策略完善
-- delegate-agent 报告生成路径
+- **Early-stop**：`minRounds` 后检测共识信号，提前结束 debate
+- **参与者剔除**：超时永久剔除 + `EliminationRecord` 追踪；迟到结果 drop
+- **`globalDeadlineMs`**：session 级总时限，超时进入 `unresolved`
+- **Claim 合并**：显式 `mergesWith` 机制，先出现者存活，链式解析；`Claim` 加 `proposedBy` / `status` / `mergedInto`
+- **Claim 级共识**：final vote 改为 per-claim 投票 + `consensusThreshold`；session 终态：`consensus` / `partial_consensus` / `unresolved`
+- **评分改进**：correctness 核心指标改为 peer review（claims 被他人 agree 的比例）
+- **Representative 报告模式**：argue 组织 prompt → 调用代表者 agent → 校验 FinalReport；移除 `ReportComposerDelegate`
+- **Prompt 模板**：argue 内置默认 debate + report prompt 模板，host 可替换
+- **Run log**：JSONL 事件日志（host 可配路径/开关）；`ArgueResult` 包含 `requestId` + 完整 run records
+- **Schema 清理**：移除 `waitingPolicy.mode`（固定 event-first）、`lateArrivalPolicy`、`maxReportChars`
 
 ### M3（增强）
 
+- Agent reputation 系统（历史表现加权投票）
 - 多种共识策略（majority/judge 等）
 - 参与者动态增减
 - 更丰富质量指标与观测面板
-
----
-
-## 10. 待细化项
-
-1. `consensus` 硬判定阈值（全票 vs 加权）
-2. rubric 默认权重与可配置边界
-3. `unresolved` 时是否必须输出行动建议
-4. round prompt 模板规范与长度预算
-5. `includeDeliberationTrace=true` 时的隐私/脱敏规则
