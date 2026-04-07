@@ -68,3 +68,17 @@ The following schema fields remain reserved in M1 and are accepted but not yet e
 - `reportPolicy.maxReportChars`
 
 Reason: keep the contract shape aligned with the plan while making the current implementation boundary explicit.
+
+## D8. Reserved fields handoff table
+
+This table exists so the next agent can continue from the current M1 boundary without guessing which fields are already live, which are only accepted by schema, and what semantic decisions still need to be nailed down before implementation.
+
+| Field | Current M1 status | Next semantic decision to make | Suggested completion/test anchor |
+| --- | --- | --- | --- |
+| `roundPolicy.minRounds` | Parsed and validated by schema (`maxRounds >= minRounds`), but not consulted by runtime control flow. The engine still runs `initial + 1..maxRounds + final_vote`. | Decide whether `minRounds` means "do not allow early finalize before N debate rounds" or some other gating rule. Also decide whether future early-stop logic can still emit `consensus` before `maxRounds`. | Add engine tests that demonstrate a path where `minRounds < maxRounds` and early-stop is either forbidden or allowed according to the chosen rule. |
+| `waitingPolicy.mode` | Schema accepts `event-first | polling | hybrid`, but `DefaultWaitCoordinator` currently behaves as event-first only. | Define whether `polling` and `hybrid` are implemented inside `WaitCoordinator` itself or delegated to host/runtime adapters. | Add coordinator-level tests showing distinct behavior for `event-first`, `polling`, and `hybrid`. |
+| `waitingPolicy.globalDeadlineMs` | Accepted by schema, ignored by runtime. No session-level deadline is tracked after `start()`. | Decide whether the deadline applies to the whole orchestration session, only to waiting windows, or both. Also decide whether deadline expiry produces `failed` or `unresolved`. | Add a test where cumulative round progress crosses the global deadline and assert terminal state, stored error/result, and observer event sequence. |
+| `waitingPolicy.lateArrivalPolicy` | Accepted by schema. Current implementation cancels timed-out tasks and never merges late results back in. | Define what counts as "before finalize" and whether late results can mutate an already completed round, only the current round, or only metrics/trace. | Add tests for both `accept-if-before-finalize` and `drop`, including a delayed participant result arriving after round timeout. |
+| `reportPolicy.maxReportChars` | Accepted by schema, ignored by builtin and delegate-agent report composition paths. | Decide whether the limit applies to the whole serialized report, `finalSummary`, `representativeSpeech`, or only builtin composition. Also decide whether delegate composers must hard-enforce it or just receive it as a hint. | Add report composition tests that assert truncation or bounded output length for builtin mode, and contract tests for delegate-agent mode. |
+
+Practical handoff rule: until a field has both (1) explicit semantics captured here or in a follow-up ADR and (2) a matching automated test, treat it as **accepted by contract but not part of the guaranteed M1 runtime behavior**.
