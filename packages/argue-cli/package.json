@@ -1,0 +1,25 @@
+{
+  "name": "argue-cli",
+  "version": "0.1.0",
+  "description": "CLI host skeleton for argue multi-agent orchestration.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "argue": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "argue": "file:../argue"
+  }
+}
