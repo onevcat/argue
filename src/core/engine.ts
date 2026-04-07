@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import type {
   AgentTaskDelegate,
   ArgueObserver,
-  ReportComposerDelegate,
   SessionStore,
   WaitCoordinator
 } from "../contracts/delegate.js";
@@ -15,21 +14,29 @@ import {
   ArgueResultSchema,
   type ArgueResult,
   type Claim,
+  type ClaimResolution,
+  type ClaimVote,
+  type EliminationRecord,
+  type FinalReport,
   type ParticipantRoundOutput,
   type ParticipantScore,
   type Phase
 } from "../contracts/result.js";
-import { RoundTaskInputSchema } from "../contracts/task.js";
 import { buildBuiltinReport } from "./report-compose.js";
 import { computeParticipantScores, chooseRepresentative } from "./scoring.js";
 import { ArgueStateMachine } from "./state-machine.js";
 import { DefaultWaitCoordinator } from "./wait-coordinator.js";
 import { MemorySessionStore } from "../store/memory-store.js";
+import {
+  ReportTaskResultSchema,
+  RoundTaskInputSchema,
+  type AgentTaskInput,
+  type ReportTaskInput
+} from "../contracts/task.js";
 
 export interface ArgueEngineDeps {
   taskDelegate: AgentTaskDelegate;
   observer?: ArgueObserver;
-  reportComposer?: ReportComposerDelegate;
   waitCoordinator?: WaitCoordinator;
   sessionStore?: SessionStore;
   now?: () => number;
@@ -54,10 +61,11 @@ export class ArgueEngine {
     const normalized = normalizeStartInput(input);
     const sessionId = this.idFactory();
     const state = new ArgueStateMachine();
-    const participants = normalized.participants.map((participant) => participant.id);
+    const allParticipants = normalized.participants.map((participant) => participant.id);
 
+    const activeParticipants = new Set<string>(allParticipants);
     const participantSessionMap = new Map<string, string>(
-      participants.map((participantId) => [
+      allParticipants.map((participantId) => [
         participantId,
         `${normalized.sessionPolicy.sessionKeyPrefix ?? "argue"}:${sessionId}:${participantId}`
       ])
@@ -65,16 +73,22 @@ export class ArgueEngine {
 
     const rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }> = [];
     let claimCatalog: Claim[] = [];
+    const eliminations: EliminationRecord[] = [];
+
     const metrics = {
       retries: 0,
       waitTimeouts: 0,
-      totalTurns: 0
+      totalTurns: 0,
+      earlyStopTriggered: false,
+      globalDeadlineHit: false
     };
 
     await this.store.save({
       sessionId,
       requestId: normalized.requestId,
-      participants,
+      participants: allParticipants,
+      activeParticipants: [...activeParticipants],
+      eliminations,
       state: state.current,
       startedAt: new Date(startAt).toISOString()
     });
@@ -87,87 +101,159 @@ export class ArgueEngine {
       });
 
       await this.emit(normalized, sessionId, "SessionStarted", {
-        participants,
+        participants: allParticipants,
         minParticipants: normalized.participantsPolicy.minParticipants
       });
 
-      const initialOutputs = await this.runRound({
+      const initialResult = await this.runRound({
         normalized,
+        startAt,
         sessionId,
         participantSessionMap,
+        activeParticipants,
         phase: "initial",
         round: 0,
         claimCatalog,
         previousOutputs: [],
-        metrics
+        metrics,
+        eliminations
       });
 
-      this.ensureMinParticipants(normalized, initialOutputs.length);
-      rounds.push({ round: 0, outputs: initialOutputs });
-      claimCatalog = this.mergeClaims(claimCatalog, initialOutputs);
+      this.ensureMinParticipants(normalized, activeParticipants.size);
+      rounds.push({ round: 0, outputs: initialResult.outputs });
+      claimCatalog = initialResult.claimCatalog;
 
-      let previousOutputs = initialOutputs;
+      let previousOutputs = initialResult.outputs;
+
       for (let round = 1; round <= normalized.roundPolicy.maxRounds; round += 1) {
-        const debateOutputs = await this.runRound({
+        if (this.isGlobalDeadlineHit(normalized, startAt)) {
+          metrics.globalDeadlineHit = true;
+          await this.emit(normalized, sessionId, "GlobalDeadlineHit", {
+            round,
+            globalDeadlineMs: normalized.waitingPolicy.globalDeadlineMs
+          });
+          break;
+        }
+
+        const debateResult = await this.runRound({
           normalized,
+          startAt,
           sessionId,
           participantSessionMap,
+          activeParticipants,
           phase: "debate",
           round,
           claimCatalog,
           previousOutputs,
-          metrics
+          metrics,
+          eliminations
         });
 
-        this.ensureMinParticipants(normalized, debateOutputs.length);
-        rounds.push({ round, outputs: debateOutputs });
+        this.ensureMinParticipants(normalized, activeParticipants.size);
+        rounds.push({ round, outputs: debateResult.outputs });
+        claimCatalog = debateResult.claimCatalog;
+        previousOutputs = debateResult.outputs;
 
-        claimCatalog = this.applyRevisions(claimCatalog, debateOutputs);
-        previousOutputs = debateOutputs;
+        if (round >= normalized.roundPolicy.minRounds && shouldEarlyStop(debateResult.outputs, debateResult.newClaimCount)) {
+          metrics.earlyStopTriggered = true;
+          await this.emit(normalized, sessionId, "EarlyStopTriggered", {
+            round,
+            reason: "all_agree_no_new_claims"
+          });
+          break;
+        }
       }
 
-      await this.emit(normalized, sessionId, "ConsensusDrafted", {
-        claimCount: claimCatalog.length
+      const finalVoteRound = (rounds.at(-1)?.round ?? 0) + 1;
+      let finalVoteOutputs: ParticipantRoundOutput[] = [];
+      if (!metrics.globalDeadlineHit) {
+        if (this.isGlobalDeadlineHit(normalized, startAt)) {
+          metrics.globalDeadlineHit = true;
+          await this.emit(normalized, sessionId, "GlobalDeadlineHit", {
+            round: finalVoteRound,
+            globalDeadlineMs: normalized.waitingPolicy.globalDeadlineMs
+          });
+        } else {
+          const finalVoteResult = await this.runRound({
+            normalized,
+            startAt,
+            sessionId,
+            participantSessionMap,
+            activeParticipants,
+            phase: "final_vote",
+            round: finalVoteRound,
+            claimCatalog,
+            previousOutputs,
+            metrics,
+            eliminations
+          });
+          this.ensureMinParticipants(normalized, activeParticipants.size);
+          finalVoteOutputs = finalVoteResult.outputs;
+          rounds.push({ round: finalVoteRound, outputs: finalVoteOutputs });
+          claimCatalog = finalVoteResult.claimCatalog;
+        }
+      }
+
+      const claimResolutions = buildClaimResolutions({
+        claims: claimCatalog,
+        finalVoteOutputs,
+        threshold: normalized.consensusPolicy.threshold,
+        forceUnresolved: metrics.globalDeadlineHit
       });
 
-      const finalVoteRound = normalized.roundPolicy.maxRounds + 1;
-      const finalVoteOutputs = await this.runRound({
-        normalized,
-        sessionId,
-        participantSessionMap,
-        phase: "final_vote",
-        round: finalVoteRound,
-        claimCatalog,
-        previousOutputs,
-        metrics
+      await this.emit(normalized, sessionId, "ConsensusDrafted", {
+        claimCount: claimCatalog.filter((claim) => claim.status === "active").length,
+        resolvedCount: claimResolutions.filter((x) => x.status === "resolved").length
       });
-      this.ensureMinParticipants(normalized, finalVoteOutputs.length);
-      rounds.push({ round: finalVoteRound, outputs: finalVoteOutputs });
 
       const scoreboard = computeParticipantScores({
-        participants,
+        participants: allParticipants,
         rounds,
+        finalClaims: claimCatalog,
         scoringPolicy: normalized.scoringPolicy
       });
 
-      const representative = chooseRepresentative({
-        scores: scoreboard,
-        rounds,
-        tieBreaker: normalized.scoringPolicy.tieBreaker
+      const activeScoreboard = scoreboard.filter((score) => activeParticipants.has(score.participantId));
+      this.ensureMinParticipants(normalized, activeScoreboard.length);
+
+      const designated = normalized.reportPolicy.representativeId;
+      const designatedIsActive = typeof designated === "string" && activeParticipants.has(designated);
+
+      const selected = designatedIsActive
+        ? {
+          participantId: designated,
+          score: activeScoreboard.find((x) => x.participantId === designated)?.total ?? 0,
+          reason: "host-designated" as const
+        }
+        : chooseRepresentative({
+          scores: activeScoreboard,
+          rounds,
+          tieBreaker: normalized.scoringPolicy.tieBreaker
+        });
+
+      const representativeSpeech = this.pickRepresentativeSpeech(selected.participantId, rounds);
+
+      const status = aggregateSessionStatus({
+        claimResolutions,
+        globalDeadlineHit: metrics.globalDeadlineHit
       });
 
-      const representativeSpeech = this.pickRepresentativeSpeech(representative.participantId, rounds);
-
-      const votes = finalVoteOutputs
-        .filter((output) => typeof output.vote === "string")
-        .map((output) => ({
-          participantId: output.participantId,
-          vote: output.vote as "accept" | "reject",
-          reason: output.summary
-        }));
-
-      const accepts = votes.filter((vote) => vote.vote === "accept").length;
-      const rejects = votes.filter((vote) => vote.vote === "reject").length;
+      const report = await this.composeReport({
+        normalized,
+        requestId: normalized.requestId,
+        sessionId,
+        status,
+        representative: {
+          participantId: selected.participantId,
+          speech: representativeSpeech,
+          score: selected.score
+        },
+        finalClaims: claimCatalog,
+        claimResolutions,
+        rounds,
+        scoreboard,
+        activeParticipants
+      });
 
       state.transition("finalizing");
       await this.store.update(sessionId, {
@@ -175,46 +261,31 @@ export class ArgueEngine {
         finalizingAt: new Date(this.now()).toISOString()
       });
 
-      const status: ArgueResult["status"] = accepts >= normalized.participantsPolicy.minParticipants && rejects === 0
-        ? "consensus"
-        : "unresolved";
-
-      const report = await this.composeReport({
-        normalized,
-        requestId: normalized.requestId,
-        sessionId,
-        representative: {
-          participantId: representative.participantId,
-          speech: representativeSpeech,
-          score: representative.score
-        },
-        rounds,
-        votes,
-        scoreboard,
-        status
-      });
-
       const result: ArgueResult = ArgueResultSchema.parse({
         requestId: normalized.requestId,
         sessionId,
         status,
         finalClaims: claimCatalog,
+        claimResolutions,
         representative: {
-          participantId: representative.participantId,
-          reason: representative.reason,
-          score: representative.score,
+          participantId: selected.participantId,
+          reason: selected.reason,
+          score: selected.score,
           speech: representativeSpeech
         },
         scoreboard,
-        votes,
+        eliminations,
         report,
         disagreements: collectDisagreements(rounds),
         rounds,
         metrics: {
           elapsedMs: Math.max(0, this.now() - startAt),
+          totalRounds: rounds.length,
           totalTurns: metrics.totalTurns,
           retries: metrics.retries,
-          waitTimeouts: metrics.waitTimeouts
+          waitTimeouts: metrics.waitTimeouts,
+          earlyStopTriggered: metrics.earlyStopTriggered,
+          globalDeadlineHit: metrics.globalDeadlineHit
         }
       });
 
@@ -222,12 +293,14 @@ export class ArgueEngine {
       await this.store.update(sessionId, {
         state: state.current,
         result,
+        activeParticipants: [...activeParticipants],
+        eliminations,
         finishedAt: new Date(this.now()).toISOString()
       });
 
       await this.emit(normalized, sessionId, "Finalized", {
         status,
-        representative: representative.participantId
+        representative: selected.participantId
       });
 
       return result;
@@ -236,7 +309,9 @@ export class ArgueEngine {
         error,
         normalized,
         sessionId,
-        state
+        state,
+        activeParticipants,
+        eliminations
       });
       throw error;
     }
@@ -244,8 +319,10 @@ export class ArgueEngine {
 
   private async runRound(args: {
     normalized: NormalizedArgueStartInput;
+    startAt: number;
     sessionId: string;
     participantSessionMap: Map<string, string>;
+    activeParticipants: Set<string>;
     phase: Phase;
     round: number;
     claimCatalog: Claim[];
@@ -254,11 +331,20 @@ export class ArgueEngine {
       retries: number;
       waitTimeouts: number;
       totalTurns: number;
+      earlyStopTriggered: boolean;
+      globalDeadlineHit: boolean;
     };
-  }): Promise<ParticipantRoundOutput[]> {
-    const dispatches = await Promise.all(args.normalized.participants.map(async (participant) => {
+    eliminations: EliminationRecord[];
+  }): Promise<{ outputs: ParticipantRoundOutput[]; claimCatalog: Claim[]; newClaimCount: number }> {
+    const participantIds = [...args.activeParticipants];
+    const dispatches = await Promise.all(participantIds.map(async (participantId) => {
+      const participant = args.normalized.participants.find((item) => item.id === participantId);
+      if (!participant) {
+        throw new Error(`Missing participant configuration for ${participantId}`);
+      }
+
       const peerRoundInputs = args.previousOutputs
-        .filter((output) => output.participantId !== participant.id)
+        .filter((output) => output.participantId !== participantId)
         .slice(0, args.normalized.peerContextPolicy.maxPeersPerRound ?? Number.MAX_SAFE_INTEGER)
         .map((output) => {
           const { text, truncated } = applyTextBudget(
@@ -275,17 +361,18 @@ export class ArgueEngine {
         });
 
       const task = RoundTaskInputSchema.parse({
+        kind: "round",
         sessionId: args.sessionId,
         requestId: args.normalized.requestId,
-        participantId: participant.id,
+        participantId,
         phase: args.phase,
         round: args.round,
-        prompt: this.buildPrompt(args.normalized, args.phase, args.round),
+        prompt: this.buildRoundPrompt(args.normalized, args.phase, args.round),
         selfHistoryRef: { stickySession: true },
         peerRoundInputs,
         claimCatalog: args.claimCatalog,
         metadata: {
-          participantSessionKey: args.participantSessionMap.get(participant.id),
+          participantSessionKey: args.participantSessionMap.get(participantId),
           role: participant.role,
           peerContextPassMode: args.normalized.peerContextPolicy.passMode,
           constraints: args.normalized.constraints,
@@ -293,26 +380,72 @@ export class ArgueEngine {
         }
       });
 
-      return this.deps.taskDelegate.dispatch(task);
+      const dispatched = await this.deps.taskDelegate.dispatch(task);
+      return {
+        taskId: dispatched.taskId,
+        participantId
+      };
     }));
 
     const taskIds = dispatches.map((dispatch) => dispatch.taskId);
+    const taskParticipantMap = new Map(dispatches.map((item) => [item.taskId, item.participantId]));
 
     await this.emit(args.normalized, args.sessionId, "RoundDispatched", {
       phase: args.phase,
       round: args.round,
+      participants: participantIds,
       taskIds
     });
 
     const waited = await this.waitCoordinator.waitRound({
       round: args.round,
       taskIds,
-      policy: args.normalized.waitingPolicy
+      policy: this.resolveRoundWaitingPolicy(args.normalized, args.startAt)
     });
 
     args.metrics.waitTimeouts += waited.timedOutTaskIds.length;
 
-    for (const output of waited.completed) {
+    for (const taskId of waited.timedOutTaskIds) {
+      const participantId = taskParticipantMap.get(taskId);
+      if (!participantId) continue;
+      this.eliminateParticipant({
+        participantId,
+        round: args.round,
+        reason: "timeout",
+        activeParticipants: args.activeParticipants,
+        eliminations: args.eliminations
+      });
+      await this.emit(args.normalized, args.sessionId, "ParticipantEliminated", {
+        phase: args.phase,
+        round: args.round,
+        participantId,
+        reason: "timeout"
+      });
+    }
+
+    for (const taskId of waited.failedTaskIds) {
+      const participantId = taskParticipantMap.get(taskId);
+      if (!participantId) continue;
+      this.eliminateParticipant({
+        participantId,
+        round: args.round,
+        reason: "error",
+        activeParticipants: args.activeParticipants,
+        eliminations: args.eliminations
+      });
+      await this.emit(args.normalized, args.sessionId, "ParticipantEliminated", {
+        phase: args.phase,
+        round: args.round,
+        participantId,
+        reason: "error"
+      });
+    }
+
+    const outputs = waited.completed
+      .filter((output) => output.phase === args.phase && output.round === args.round)
+      .filter((output) => args.activeParticipants.has(output.participantId));
+
+    for (const output of outputs) {
       args.metrics.totalTurns += 1;
       await this.emit(args.normalized, args.sessionId, "ParticipantResponded", {
         phase: args.phase,
@@ -321,62 +454,159 @@ export class ArgueEngine {
       });
     }
 
+    const { claims, newClaimCount, mergeEvents } = args.phase === "final_vote"
+      ? { claims: [...args.claimCatalog], newClaimCount: 0, mergeEvents: [] }
+      : updateClaims(args.claimCatalog, outputs);
+
+    for (const merge of mergeEvents) {
+      await this.emit(args.normalized, args.sessionId, "ClaimsMerged", {
+        phase: args.phase,
+        round: args.round,
+        sourceClaimId: merge.sourceClaimId,
+        mergedInto: merge.mergedInto
+      });
+    }
+
     await this.emit(args.normalized, args.sessionId, "RoundCompleted", {
       phase: args.phase,
       round: args.round,
-      completed: waited.completed.length,
+      completed: outputs.length,
       timedOut: waited.timedOutTaskIds.length,
-      failed: waited.failedTaskIds.length
+      failed: waited.failedTaskIds.length,
+      activeParticipants: [...args.activeParticipants]
     });
 
-    return waited.completed
-      .filter((output) => output.phase === args.phase && output.round === args.round)
-      .filter((output) => args.normalized.participants.some((participant) => participant.id === output.participantId));
+    await this.store.update(args.sessionId, {
+      activeParticipants: [...args.activeParticipants],
+      eliminations: args.eliminations
+    });
+
+    return {
+      outputs,
+      claimCatalog: claims,
+      newClaimCount
+    };
   }
 
-  private mergeClaims(base: Claim[], outputs: ParticipantRoundOutput[]): Claim[] {
-    const claimMap = new Map<string, Claim>(base.map((claim) => [claim.claimId, claim]));
+  private async composeReport(args: {
+    normalized: NormalizedArgueStartInput;
+    requestId: string;
+    sessionId: string;
+    status: ArgueResult["status"];
+    representative: { participantId: string; speech: string; score: number };
+    finalClaims: Claim[];
+    claimResolutions: ClaimResolution[];
+    rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }>;
+    scoreboard: ParticipantScore[];
+    activeParticipants: Set<string>;
+  }): Promise<FinalReport> {
+    const fallback = (): FinalReport => buildBuiltinReport({
+      includeDeliberationTrace: args.normalized.reportPolicy.includeDeliberationTrace,
+      traceLevel: args.normalized.reportPolicy.traceLevel,
+      status: args.status,
+      representativeSpeech: args.representative.speech,
+      rounds: args.rounds,
+      representativeId: args.representative.participantId
+    });
 
-    for (const output of outputs) {
-      for (const claim of output.extractedClaims ?? []) {
-        if (!claimMap.has(claim.claimId)) {
-          claimMap.set(claim.claimId, claim);
-        }
-      }
+    if (args.normalized.reportPolicy.composer !== "representative") {
+      return fallback();
     }
 
-    if (claimMap.size === 0) {
-      for (const output of outputs) {
-        claimMap.set(`seed:${output.participantId}:${output.round}`, {
-          claimId: `seed:${output.participantId}:${output.round}`,
-          title: `Seed from ${output.participantId}`,
-          statement: output.summary,
-          category: "todo"
-        });
+    const reporterId = args.normalized.reportPolicy.representativeId ?? args.representative.participantId;
+    const reportSessionId = `${args.normalized.sessionPolicy.sessionKeyPrefix ?? "argue"}:${args.sessionId}:report:${reporterId}`;
+
+    const task: ReportTaskInput = {
+      kind: "report",
+      sessionId: reportSessionId,
+      requestId: args.requestId,
+      participantId: reporterId,
+      prompt: this.buildReportPrompt(args.normalized),
+      reportInput: {
+        status: args.status,
+        representative: args.representative,
+        finalClaims: args.finalClaims,
+        claimResolutions: args.claimResolutions,
+        scoreboard: args.scoreboard,
+        rounds: args.rounds
+      },
+      metadata: {
+        separateSession: true,
+        reporterIsActiveParticipant: args.activeParticipants.has(reporterId),
+        requestedRepresentativeId: args.normalized.reportPolicy.representativeId,
+        constraints: args.normalized.constraints,
+        context: args.normalized.context
       }
+    };
+
+    let dispatched: Awaited<ReturnType<AgentTaskDelegate["dispatch"]>>;
+    try {
+      dispatched = await this.deps.taskDelegate.dispatch(task as AgentTaskInput);
+    } catch {
+      return fallback();
     }
 
-    return [...claimMap.values()];
+    let awaited: Awaited<ReturnType<AgentTaskDelegate["awaitResult"]>>;
+    try {
+      awaited = await this.deps.taskDelegate.awaitResult(
+        dispatched.taskId,
+        args.normalized.waitingPolicy.perTaskTimeoutMs
+      );
+    } catch {
+      return fallback();
+    }
+
+    if (!awaited.ok || !awaited.output) {
+      return fallback();
+    }
+
+    const parsed = ReportTaskResultSchema.safeParse(awaited.output);
+    if (!parsed.success) {
+      return fallback();
+    }
+
+    return {
+      ...parsed.data.output,
+      mode: "representative"
+    };
   }
 
-  private applyRevisions(base: Claim[], outputs: ParticipantRoundOutput[]): Claim[] {
-    const claimMap = new Map<string, Claim>(base.map((claim) => [claim.claimId, claim]));
-
-    for (const output of outputs) {
-      for (const judgement of output.judgements) {
-        const claim = claimMap.get(judgement.claimId);
-        if (!claim) continue;
-
-        if (judgement.revisedStatement && (judgement.stance === "revise" || judgement.stance === "disagree")) {
-          claimMap.set(judgement.claimId, {
-            ...claim,
-            statement: judgement.revisedStatement
-          });
-        }
-      }
+  private resolveRoundWaitingPolicy(
+    normalized: NormalizedArgueStartInput,
+    startAt: number
+  ): NonNullable<ArgueStartInput["waitingPolicy"]> {
+    const policy = normalized.waitingPolicy;
+    const deadline = policy.globalDeadlineMs;
+    if (typeof deadline !== "number") {
+      return policy;
     }
 
-    return [...claimMap.values()];
+    const elapsed = this.now() - startAt;
+    const remaining = Math.max(1, deadline - elapsed);
+    return {
+      ...policy,
+      perRoundTimeoutMs: Math.min(policy.perRoundTimeoutMs, remaining)
+    };
+  }
+
+  private eliminateParticipant(args: {
+    participantId: string;
+    round: number;
+    reason: "timeout" | "error";
+    activeParticipants: Set<string>;
+    eliminations: EliminationRecord[];
+  }): void {
+    if (!args.activeParticipants.has(args.participantId)) {
+      return;
+    }
+
+    args.activeParticipants.delete(args.participantId);
+    args.eliminations.push({
+      participantId: args.participantId,
+      round: args.round,
+      reason: args.reason,
+      at: new Date(this.now()).toISOString()
+    });
   }
 
   private pickRepresentativeSpeech(
@@ -396,20 +626,32 @@ export class ArgueEngine {
     return latest.fullResponse;
   }
 
-  private ensureMinParticipants(normalized: NormalizedArgueStartInput, completedCount: number): void {
-    if (completedCount >= normalized.participantsPolicy.minParticipants) return;
+  private isGlobalDeadlineHit(normalized: NormalizedArgueStartInput, startAt: number): boolean {
+    const deadline = normalized.waitingPolicy.globalDeadlineMs;
+    if (typeof deadline !== "number") return false;
+    return this.now() - startAt >= deadline;
+  }
+
+  private ensureMinParticipants(normalized: NormalizedArgueStartInput, count: number): void {
+    if (count >= normalized.participantsPolicy.minParticipants) return;
     throw new Error(
-      `Round failed minimum participant requirement: completed=${completedCount}, required=${normalized.participantsPolicy.minParticipants}`
+      `Round failed minimum participant requirement: completed=${count}, required=${normalized.participantsPolicy.minParticipants}`
     );
   }
 
-  private buildPrompt(input: NormalizedArgueStartInput, phase: Phase, round: number): string {
+  private buildRoundPrompt(input: NormalizedArgueStartInput, phase: Phase, round: number): string {
+    if (phase === "debate" && input.promptPolicy?.debateTemplate) {
+      return input.promptPolicy.debateTemplate;
+    }
+
     const lines = [
       `phase=${phase}`,
       `round=${round}`,
       `topic=${input.topic}`,
       `objective=${input.objective}`,
-      "Use claim-level judgements for all relevant claims."
+      phase === "final_vote"
+        ? "Vote each active claim independently using claimVotes[] (accept/reject)."
+        : "Use claim-level judgements for all relevant claims."
     ];
 
     if (input.constraints?.language) {
@@ -423,36 +665,22 @@ export class ArgueEngine {
     return lines.join("\n");
   }
 
-  private async composeReport(args: {
-    normalized: NormalizedArgueStartInput;
-    requestId: string;
-    sessionId: string;
-    representative: { participantId: string; speech: string; score: number };
-    rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }>;
-    votes: Array<{ participantId: string; vote: "accept" | "reject"; reason?: string }>;
-    scoreboard: ParticipantScore[];
-    status: "consensus" | "unresolved" | "failed";
-  }) {
-    if (args.normalized.reportPolicy.composer === "delegate-agent" && this.deps.reportComposer) {
-      return this.deps.reportComposer.compose({
-        requestId: args.requestId,
-        sessionId: args.sessionId,
-        representative: args.representative,
-        rounds: args.rounds,
-        votes: args.votes,
-        scoreboard: args.scoreboard,
-        policy: args.normalized.reportPolicy
-      });
+  private buildReportPrompt(input: NormalizedArgueStartInput): string {
+    if (input.promptPolicy?.reportTemplate) {
+      return input.promptPolicy.reportTemplate;
     }
 
-    return buildBuiltinReport({
-      includeDeliberationTrace: args.normalized.reportPolicy.includeDeliberationTrace,
-      traceLevel: args.normalized.reportPolicy.traceLevel,
-      status: args.status,
-      representativeSpeech: args.representative.speech,
-      rounds: args.rounds,
-      representativeId: args.representative.participantId
-    });
+    const lines = [
+      "Generate FinalReport JSON with finalSummary and representativeSpeech.",
+      `trace=${input.reportPolicy.includeDeliberationTrace ? "on" : "off"}`,
+      `traceLevel=${input.reportPolicy.traceLevel}`
+    ];
+
+    if (input.constraints?.language) {
+      lines.push(`language=${input.constraints.language}`);
+    }
+
+    return lines.join("\n");
   }
 
   private async handleFailure(args: {
@@ -460,6 +688,8 @@ export class ArgueEngine {
     normalized: NormalizedArgueStartInput;
     sessionId: string;
     state: ArgueStateMachine;
+    activeParticipants: Set<string>;
+    eliminations: EliminationRecord[];
   }): Promise<void> {
     if (args.state.current === "finished" || args.state.current === "failed") {
       return;
@@ -471,6 +701,8 @@ export class ArgueEngine {
     await Promise.allSettled([
       this.store.update(args.sessionId, {
         state: args.state.current,
+        activeParticipants: [...args.activeParticipants],
+        eliminations: args.eliminations,
         error: failure,
         failedAt: new Date(this.now()).toISOString()
       }),
@@ -481,7 +713,18 @@ export class ArgueEngine {
   private async emit(
     normalized: NormalizedArgueStartInput,
     sessionId: string,
-    type: "SessionStarted" | "RoundDispatched" | "ParticipantResponded" | "RoundCompleted" | "ConsensusDrafted" | "Finalized" | "Failed",
+    type:
+      | "SessionStarted"
+      | "RoundDispatched"
+      | "ParticipantResponded"
+      | "ParticipantEliminated"
+      | "ClaimsMerged"
+      | "RoundCompleted"
+      | "EarlyStopTriggered"
+      | "GlobalDeadlineHit"
+      | "ConsensusDrafted"
+      | "Finalized"
+      | "Failed",
     payload?: Record<string, unknown>
   ): Promise<void> {
     if (!this.deps.observer) return;
@@ -494,6 +737,210 @@ export class ArgueEngine {
       payload
     });
   }
+}
+
+function shouldEarlyStop(outputs: ParticipantRoundOutput[], newClaimCount: number): boolean {
+  if (outputs.length === 0) return false;
+  if (newClaimCount > 0) return false;
+
+  for (const output of outputs) {
+    if (output.judgements.length === 0) return false;
+    for (const judgement of output.judgements) {
+      if (judgement.stance !== "agree") return false;
+      if (typeof judgement.revisedStatement === "string") return false;
+    }
+  }
+
+  return true;
+}
+
+function updateClaims(
+  base: Claim[],
+  outputs: ParticipantRoundOutput[]
+): { claims: Claim[]; newClaimCount: number; mergeEvents: Array<{ sourceClaimId: string; mergedInto: string }> } {
+  const claimMap = new Map<string, Claim>(base.map((claim) => [claim.claimId, { ...claim, proposedBy: [...claim.proposedBy] }]));
+  const order = new Map<string, number>([...claimMap.keys()].map((id, idx) => [id, idx]));
+  let nextOrder = order.size;
+  let newClaimCount = 0;
+
+  for (const output of outputs) {
+    for (const extracted of output.extractedClaims ?? []) {
+      const existing = claimMap.get(extracted.claimId);
+      if (!existing) {
+        claimMap.set(extracted.claimId, {
+          claimId: extracted.claimId,
+          title: extracted.title,
+          statement: extracted.statement,
+          category: extracted.category,
+          proposedBy: [output.participantId],
+          status: "active"
+        });
+        order.set(extracted.claimId, nextOrder++);
+        newClaimCount += 1;
+        continue;
+      }
+
+      if (!existing.proposedBy.includes(output.participantId)) {
+        existing.proposedBy.push(output.participantId);
+      }
+    }
+  }
+
+  if (claimMap.size === 0) {
+    for (const output of outputs) {
+      const claimId = `seed:${output.participantId}:${output.round}`;
+      claimMap.set(claimId, {
+        claimId,
+        title: `Seed from ${output.participantId}`,
+        statement: output.summary,
+        category: "todo",
+        proposedBy: [output.participantId],
+        status: "active"
+      });
+      order.set(claimId, nextOrder++);
+      newClaimCount += 1;
+    }
+  }
+
+  const mergeEvents: Array<{ sourceClaimId: string; mergedInto: string }> = [];
+
+  for (const output of outputs) {
+    for (const judgement of output.judgements) {
+      const targetId = resolveClaimId(claimMap, judgement.claimId);
+      const claim = claimMap.get(targetId);
+      if (!claim) continue;
+
+      if (judgement.revisedStatement && (judgement.stance === "revise" || judgement.stance === "disagree")) {
+        claim.statement = judgement.revisedStatement;
+      }
+
+      if (!judgement.mergesWith) continue;
+
+      const mergeIntoId = resolveClaimId(claimMap, judgement.mergesWith);
+      if (!claimMap.has(mergeIntoId)) continue;
+      if (targetId === mergeIntoId) continue;
+
+      const leftOrder = order.get(targetId) ?? Number.MAX_SAFE_INTEGER;
+      const rightOrder = order.get(mergeIntoId) ?? Number.MAX_SAFE_INTEGER;
+      const survivorId = leftOrder <= rightOrder ? targetId : mergeIntoId;
+      const loserId = survivorId === targetId ? mergeIntoId : targetId;
+
+      const survivor = claimMap.get(survivorId);
+      const loser = claimMap.get(loserId);
+      if (!survivor || !loser) continue;
+
+      loser.status = "merged";
+      loser.mergedInto = survivorId;
+      survivor.proposedBy = [...new Set([...survivor.proposedBy, ...loser.proposedBy])];
+
+      for (const [id, entry] of claimMap.entries()) {
+        if (entry.status === "merged" && entry.mergedInto === loserId) {
+          entry.mergedInto = survivorId;
+          claimMap.set(id, entry);
+        }
+      }
+
+      mergeEvents.push({
+        sourceClaimId: loserId,
+        mergedInto: survivorId
+      });
+    }
+  }
+
+  return {
+    claims: [...claimMap.values()],
+    newClaimCount,
+    mergeEvents
+  };
+}
+
+function resolveClaimId(claimMap: Map<string, Claim>, claimId: string): string {
+  let current = claimId;
+  const seen = new Set<string>();
+
+  while (!seen.has(current)) {
+    seen.add(current);
+    const claim = claimMap.get(current);
+    if (!claim || claim.status !== "merged" || !claim.mergedInto) {
+      return current;
+    }
+    current = claim.mergedInto;
+  }
+
+  return current;
+}
+
+function buildClaimResolutions(args: {
+  claims: Claim[];
+  finalVoteOutputs: ParticipantRoundOutput[];
+  threshold: number;
+  forceUnresolved: boolean;
+}): ClaimResolution[] {
+  const activeClaims = args.claims.filter((claim) => claim.status === "active");
+  const activeClaimIds = new Set(activeClaims.map((claim) => claim.claimId));
+
+  const votesByClaim = new Map<string, Map<string, ClaimVote>>();
+  for (const claim of activeClaims) {
+    votesByClaim.set(claim.claimId, new Map());
+  }
+
+  for (const output of args.finalVoteOutputs) {
+    if (output.phase !== "final_vote") continue;
+
+    for (const vote of output.claimVotes ?? []) {
+      if (!activeClaimIds.has(vote.claimId)) continue;
+      const normalized: ClaimVote = {
+        participantId: output.participantId,
+        claimId: vote.claimId,
+        vote: vote.vote,
+        reason: vote.reason
+      };
+      votesByClaim.get(vote.claimId)?.set(output.participantId, normalized);
+    }
+  }
+
+  return activeClaims.map((claim) => {
+    const votes = [...(votesByClaim.get(claim.claimId)?.values() ?? [])];
+    const acceptCount = votes.filter((vote) => vote.vote === "accept").length;
+    const rejectCount = votes.filter((vote) => vote.vote === "reject").length;
+    const totalVoters = votes.length;
+
+    const ratio = totalVoters > 0 ? acceptCount / totalVoters : 0;
+    const resolved = !args.forceUnresolved && totalVoters > 0 && ratio >= args.threshold;
+
+    return {
+      claimId: claim.claimId,
+      status: resolved ? "resolved" : "unresolved",
+      acceptCount,
+      rejectCount,
+      totalVoters,
+      votes
+    };
+  });
+}
+
+function aggregateSessionStatus(args: {
+  claimResolutions: ClaimResolution[];
+  globalDeadlineHit: boolean;
+}): ArgueResult["status"] {
+  if (args.globalDeadlineHit) {
+    return "unresolved";
+  }
+
+  if (args.claimResolutions.length === 0) {
+    return "unresolved";
+  }
+
+  const resolvedCount = args.claimResolutions.filter((item) => item.status === "resolved").length;
+  if (resolvedCount === args.claimResolutions.length) {
+    return "consensus";
+  }
+
+  if (resolvedCount > 0) {
+    return "partial_consensus";
+  }
+
+  return "unresolved";
 }
 
 function applyTextBudget(

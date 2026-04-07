@@ -9,18 +9,22 @@ export const ArgueStartInputSchema = z.object({
   requestId: z.string().min(1),
   topic: z.string().min(1),
   objective: z.string().min(1),
-  participants: z.array(ParticipantInputSchema).min(1),
+  participants: z.array(ParticipantInputSchema).min(2),
+
   participantsPolicy: z.object({
     minParticipants: z.number().int().min(2).default(2)
   }).default({ minParticipants: 2 }),
+
   roundPolicy: z.object({
     minRounds: z.number().int().min(0).default(2),
     maxRounds: z.number().int().min(1).default(3)
   }).default({ minRounds: 2, maxRounds: 3 }),
+
   sessionPolicy: z.object({
     mode: z.literal("sticky-per-participant").default("sticky-per-participant"),
     sessionKeyPrefix: z.string().min(1).optional()
   }).default({ mode: "sticky-per-participant" }),
+
   peerContextPolicy: z.object({
     passMode: z.literal("full-response-preferred").default("full-response-preferred"),
     maxCharsPerPeerResponse: z.number().int().min(200).default(6000),
@@ -31,6 +35,7 @@ export const ArgueStartInputSchema = z.object({
     maxCharsPerPeerResponse: 6000,
     overflowStrategy: "truncate-tail"
   }),
+
   scoringPolicy: z.object({
     enabled: z.literal(true).default(true),
     representativeSelection: z.literal("top-score").default("top-score"),
@@ -57,33 +62,41 @@ export const ArgueStartInputSchema = z.object({
       consistency: 0.15
     }
   }),
+
+  consensusPolicy: z.object({
+    threshold: z.number().min(0).max(1).default(1)
+  }).default({ threshold: 1 }),
+
   reportPolicy: z.object({
     includeDeliberationTrace: z.boolean().default(false),
     traceLevel: z.enum(["compact", "full"]).default("compact"),
-    composer: z.enum(["builtin", "delegate-agent"]).default("builtin"),
-    reporterId: z.string().min(1).optional(),
-    maxReportChars: z.number().int().min(400).optional()
-  }).default({
+    composer: z.enum(["builtin", "representative"]).default("builtin"),
+    representativeId: z.string().min(1).optional()
+  }).strict().default({
     includeDeliberationTrace: false,
     traceLevel: "compact",
     composer: "builtin"
   }),
+
+  promptPolicy: z.object({
+    debateTemplate: z.string().min(1).optional(),
+    reportTemplate: z.string().min(1).optional()
+  }).optional(),
+
   waitingPolicy: z.object({
-    mode: z.enum(["event-first", "polling", "hybrid"]).default("event-first"),
     perTaskTimeoutMs: z.number().int().min(1_000).default(10 * 60 * 1_000),
     perRoundTimeoutMs: z.number().int().min(1_000).default(20 * 60 * 1_000),
-    globalDeadlineMs: z.number().int().min(1_000).optional(),
-    lateArrivalPolicy: z.enum(["accept-if-before-finalize", "drop"]).default("accept-if-before-finalize")
-  }).default({
-    mode: "event-first",
+    globalDeadlineMs: z.number().int().min(1_000).optional()
+  }).strict().default({
     perTaskTimeoutMs: 10 * 60 * 1_000,
-    perRoundTimeoutMs: 20 * 60 * 1_000,
-    lateArrivalPolicy: "accept-if-before-finalize"
+    perRoundTimeoutMs: 20 * 60 * 1_000
   }),
+
   constraints: z.object({
     language: z.string().min(1).optional(),
     tokenBudgetHint: z.number().int().positive().optional()
   }).optional(),
+
   context: z.record(z.unknown()).optional()
 }).superRefine((input, ctx) => {
   if (input.roundPolicy.maxRounds < input.roundPolicy.minRounds) {
@@ -104,7 +117,6 @@ export const ArgueStartInputSchema = z.object({
 });
 
 export type ArgueStartInput = z.input<typeof ArgueStartInputSchema>;
-
 export type NormalizedArgueStartInput = z.output<typeof ArgueStartInputSchema>;
 
 export function normalizeStartInput(input: unknown): NormalizedArgueStartInput {

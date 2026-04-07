@@ -1,40 +1,62 @@
 import { describe, expect, it } from "vitest";
 import { ArgueEngine } from "../src/core/engine.js";
+import type { AgentTaskResult } from "../src/contracts/task.js";
 import type { ParticipantRoundOutput } from "../src/contracts/result.js";
-import { StubAgentTaskDelegate, StubReportComposerDelegate } from "./helpers/stub-agent.js";
+import { StubAgentTaskDelegate } from "./helpers/stub-agent.js";
 
 const PARTICIPANTS = ["onevclaw", "onevpaw", "onevtail"] as const;
 
-function mkOutput(input: {
+function mkRoundOutput(input: {
   participantId: string;
   phase: "initial" | "debate" | "final_vote";
   round: number;
   stance?: "agree" | "disagree" | "revise";
-  confidence?: number;
-  vote?: "accept" | "reject";
+  claimVotes?: Array<{ claimId: string; vote: "accept" | "reject"; reason?: string }>;
+  extractedClaimId?: string;
+  extractedClaims?: Array<{
+    claimId: string;
+    title: string;
+    statement: string;
+    category?: "pro" | "con" | "risk" | "tradeoff" | "todo";
+  }>;
+  judgements?: Array<{
+    claimId: string;
+    stance: "agree" | "disagree" | "revise";
+    confidence?: number;
+    rationale?: string;
+    revisedStatement?: string;
+    mergesWith?: string;
+  }>;
   summary?: string;
-  selfScore?: number;
-  revisedStatement?: string;
 }): ParticipantRoundOutput {
-  const judgements = [{
-    claimId: "c1",
-    stance: input.stance ?? "agree",
-    confidence: input.confidence ?? 0.8,
-    rationale: `${input.participantId} rationale ${input.phase} ${input.round}`,
-    revisedStatement: input.revisedStatement
-  }] as const;
-  const summary = input.summary ?? `${input.participantId} summary ${input.phase} ${input.round}`;
-  const fullResponse = `${input.participantId}:${input.phase}:${input.round}`;
+  const claimId = input.extractedClaimId ?? "c1";
+  const judgements = (input.judgements ?? [{
+    claimId,
+    stance: input.stance ?? "agree"
+  }]).map((judgement) => ({
+    claimId: judgement.claimId,
+    stance: judgement.stance,
+    confidence: judgement.confidence ?? 0.9,
+    rationale: judgement.rationale ?? `${input.participantId} rationale ${input.phase} ${input.round}`,
+    revisedStatement: judgement.revisedStatement,
+    mergesWith: judgement.mergesWith
+  }));
+  const extractedClaims = input.extractedClaims ?? [{
+    claimId,
+    title: "Claim",
+    statement: "Claim statement",
+    category: "pro" as const
+  }];
+  const summary = input.summary ?? `${input.participantId} summary`;
 
   if (input.phase === "initial") {
     return {
       participantId: input.participantId,
       phase: "initial",
       round: input.round,
-      fullResponse,
-      extractedClaims: [{ claimId: "c1", title: "Claim 1", statement: "Start from baseline", category: "pro" }],
-      judgements: [...judgements],
-      selfScore: input.selfScore,
+      fullResponse: `${input.participantId}:${input.phase}:${input.round}`,
+      extractedClaims,
+      judgements,
       summary
     };
   }
@@ -44,9 +66,8 @@ function mkOutput(input: {
       participantId: input.participantId,
       phase: "debate",
       round: input.round,
-      fullResponse,
-      judgements: [...judgements],
-      selfScore: input.selfScore,
+      fullResponse: `${input.participantId}:${input.phase}:${input.round}`,
+      judgements,
       summary
     };
   }
@@ -55,388 +76,742 @@ function mkOutput(input: {
     participantId: input.participantId,
     phase: "final_vote",
     round: input.round,
-    fullResponse,
-    judgements: [...judgements],
-    vote: input.vote ?? "accept",
-    selfScore: input.selfScore,
+    fullResponse: `${input.participantId}:${input.phase}:${input.round}`,
+    judgements,
+    claimVotes: input.claimVotes ?? [{ claimId, vote: "accept" }],
     summary
   };
 }
 
-class RecordingStore {
-  private readonly sessions = new Map<string, Record<string, unknown>>();
-  lastSessionId?: string;
-
-  async save(session: unknown): Promise<void> {
-    const record = session as Record<string, unknown>;
-    this.lastSessionId = record.sessionId as string;
-    this.sessions.set(this.lastSessionId, record);
-  }
-
-  async load(sessionId: string): Promise<Record<string, unknown> | null> {
-    return this.sessions.get(sessionId) ?? null;
-  }
-
-  async update(sessionId: string, patch: unknown): Promise<void> {
-    const current = this.sessions.get(sessionId) ?? {};
-    this.sessions.set(sessionId, {
-      ...current,
-      ...(patch as Record<string, unknown>)
-    });
-  }
+function roundResult(output: ParticipantRoundOutput): AgentTaskResult {
+  return {
+    kind: "round",
+    output
+  };
 }
 
-class RecordingObserver {
-  readonly events: Array<{ type: string; payload?: Record<string, unknown> }> = [];
-
-  async onEvent(event: { type: string; payload?: Record<string, unknown> }): Promise<void> {
-    this.events.push(event);
-  }
-}
-
-describe("ArgueEngine", () => {
-  it("runs M1 happy-path with consensus", async () => {
-    const scenarios: Record<string, { type: "success"; output: ParticipantRoundOutput }> = {};
+describe("ArgueEngine M2", () => {
+  it("uses effective voters as claim-consensus denominator", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult } | { type: "timeout" }> = {};
 
     for (const participant of PARTICIPANTS) {
-      scenarios[`initial:0:${participant}`] = {
+      scenarios[`round:initial:0:${participant}`] = {
         type: "success",
-        output: mkOutput({ participantId: participant, phase: "initial", round: 0, selfScore: 70 })
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
       };
-
-      for (let round = 1; round <= 3; round += 1) {
-        scenarios[`debate:${round}:${participant}`] = {
-          type: "success",
-          output: mkOutput({
-            participantId: participant,
-            phase: "debate",
-            round,
-            stance: round === 2 && participant === "onevpaw" ? "revise" : "agree",
-            revisedStatement: round === 2 && participant === "onevpaw" ? "Revised by onevpaw" : undefined,
-            selfScore: participant === "onevpaw" ? 95 : 80
-          })
-        };
-      }
-
-      scenarios[`final_vote:4:${participant}`] = {
+      scenarios[`round:debate:1:${participant}`] = {
         type: "success",
-        output: mkOutput({
-          participantId: participant,
-          phase: "final_vote",
-          round: 4,
-          vote: "accept",
-          selfScore: participant === "onevpaw" ? 98 : 82
-        })
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 1 }))
+      };
+      scenarios[`round:debate:2:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 2 }))
       };
     }
+
+    scenarios["round:final_vote:3:onevclaw"] = {
+      type: "success",
+      output: roundResult(mkRoundOutput({
+        participantId: "onevclaw",
+        phase: "final_vote",
+        round: 3,
+        claimVotes: [{ claimId: "c1", vote: "accept" }]
+      }))
+    };
+    scenarios["round:final_vote:3:onevpaw"] = {
+      type: "success",
+      output: roundResult(mkRoundOutput({
+        participantId: "onevpaw",
+        phase: "final_vote",
+        round: 3,
+        claimVotes: [{ claimId: "c1", vote: "accept" }]
+      }))
+    };
+    scenarios["round:final_vote:3:onevtail"] = { type: "timeout" };
 
     const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) });
 
     const result = await engine.start({
-      requestId: "req-1",
-      topic: "How to roll out argue",
-      objective: "Deliver an implementation plan",
-      participants: PARTICIPANTS.map((id) => ({ id }))
+      requestId: "req-effective-voters",
+      topic: "Consensus denominator",
+      objective: "Validate effective-voters denominator",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      participantsPolicy: { minParticipants: 2 },
+      roundPolicy: { minRounds: 2, maxRounds: 3 },
+      consensusPolicy: { threshold: 1 },
+      waitingPolicy: {
+        perTaskTimeoutMs: 1000,
+        perRoundTimeoutMs: 1000
+      }
     });
 
     expect(result.status).toBe("consensus");
-    expect(result.rounds).toHaveLength(5); // initial + 3 debate + final_vote
-    expect(result.representative.participantId).toBe("onevpaw");
-    expect(result.report.mode).toBe("builtin");
-    expect(result.metrics.totalTurns).toBe(15);
+    expect(result.claimResolutions[0]?.totalVoters).toBe(2);
+    expect(result.eliminations).toContainEqual(expect.objectContaining({
+      participantId: "onevtail",
+      round: 3,
+      reason: "timeout"
+    }));
+    expect(result.metrics.earlyStopTriggered).toBe(true);
   });
 
-  it("enforces minimum participants >= 2", async () => {
-    const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate({}) });
-
-    await expect(
-      engine.start({
-        requestId: "req-invalid",
-        topic: "single participant should fail",
-        objective: "none",
-        participants: [{ id: "only-one" }]
-      })
-    ).rejects.toThrow();
-  });
-
-  it("supports round timeout and still finalizes when minParticipants are satisfied", async () => {
-    const scenarios: Record<string, { type: "success"; output: ParticipantRoundOutput } | { type: "timeout" }> = {};
+  it("falls back to builtin report when representative report task fails", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult } | { type: "fail"; error: string }> = {};
 
     for (const participant of PARTICIPANTS) {
-      scenarios[`initial:0:${participant}`] = {
+      scenarios[`round:initial:0:${participant}`] = {
         type: "success",
-        output: mkOutput({ participantId: participant, phase: "initial", round: 0, selfScore: 70 })
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
       };
-      for (let round = 1; round <= 3; round += 1) {
-        scenarios[`debate:${round}:${participant}`] = {
-          type: "success",
-          output: mkOutput({ participantId: participant, phase: "debate", round, selfScore: 80 })
-        };
-      }
+      scenarios[`round:debate:1:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 1 }))
+      };
+      scenarios[`round:final_vote:2:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "final_vote", round: 2 }))
+      };
     }
 
-    scenarios["final_vote:4:onevclaw"] = {
-      type: "success",
-      output: mkOutput({ participantId: "onevclaw", phase: "final_vote", round: 4, vote: "accept", selfScore: 80 })
+    scenarios["report:external-reporter"] = {
+      type: "fail",
+      error: "reporter unavailable"
     };
-    scenarios["final_vote:4:onevpaw"] = {
-      type: "success",
-      output: mkOutput({ participantId: "onevpaw", phase: "final_vote", round: 4, vote: "accept", selfScore: 90 })
-    };
-    scenarios["final_vote:4:onevtail"] = { type: "timeout" };
 
     const delegate = new StubAgentTaskDelegate(scenarios);
     const engine = new ArgueEngine({ taskDelegate: delegate });
 
     const result = await engine.start({
-      requestId: "req-timeout",
-      topic: "Timeout tolerance",
-      objective: "Keep going with two participants",
+      requestId: "req-report-fallback",
+      topic: "Report fallback",
+      objective: "fallback to builtin when representative report fails",
       participants: PARTICIPANTS.map((id) => ({ id })),
-      waitingPolicy: {
-        mode: "event-first",
-        perTaskTimeoutMs: 1_000,
-        perRoundTimeoutMs: 1_000,
-        lateArrivalPolicy: "accept-if-before-finalize"
+      roundPolicy: { minRounds: 1, maxRounds: 1 },
+      reportPolicy: {
+        composer: "representative",
+        representativeId: "external-reporter"
       }
     });
 
-    expect(result.status).toBe("consensus");
-    expect(result.metrics.waitTimeouts).toBeGreaterThanOrEqual(1);
-    expect(delegate.canceledTaskIds.length).toBeGreaterThanOrEqual(1);
-  });
+    const reportDispatch = delegate.dispatchCalls.find((x) => x.kind === "report");
 
-  it("rejects final_vote outputs that omit vote when all participants are required", async () => {
-    const scenarios: Record<string, { type: "success"; output: ParticipantRoundOutput }> = {};
-
-    for (const participant of PARTICIPANTS) {
-      scenarios[`initial:0:${participant}`] = {
-        type: "success",
-        output: mkOutput({ participantId: participant, phase: "initial", round: 0 })
-      };
-      for (let round = 1; round <= 3; round += 1) {
-        scenarios[`debate:${round}:${participant}`] = {
-          type: "success",
-          output: mkOutput({ participantId: participant, phase: "debate", round })
-        };
-      }
+    expect(reportDispatch?.kind).toBe("report");
+    if (reportDispatch?.kind === "report") {
+      expect(reportDispatch.sessionId).toContain(":report:");
+      expect(reportDispatch.participantId).toBe("external-reporter");
+      expect(reportDispatch.metadata?.separateSession).toBe(true);
     }
 
-    scenarios["final_vote:4:onevclaw"] = {
-      type: "success",
-      output: mkOutput({ participantId: "onevclaw", phase: "final_vote", round: 4, vote: "accept" })
+    expect(result.report.mode).toBe("builtin");
+    expect(PARTICIPANTS).toContain(result.representative.participantId as (typeof PARTICIPANTS)[number]);
+  });
+
+  it("falls back to builtin report when representative await throws", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult } | { type: "throw"; error: string }> = {};
+
+    for (const participant of PARTICIPANTS) {
+      scenarios[`round:initial:0:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
+      };
+      scenarios[`round:debate:1:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 1 }))
+      };
+      scenarios[`round:final_vote:2:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "final_vote", round: 2 }))
+      };
+    }
+
+    scenarios["report:external-reporter"] = {
+      type: "throw",
+      error: "delegate await crashed"
     };
-    scenarios["final_vote:4:onevpaw"] = {
-      type: "success",
-      output: mkOutput({ participantId: "onevpaw", phase: "final_vote", round: 4, vote: "accept" })
-    };
-    scenarios["final_vote:4:onevtail"] = {
+
+    const result = await new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) }).start({
+      requestId: "req-report-throw-fallback",
+      topic: "Report fallback",
+      objective: "fallback to builtin when representative await throws",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      roundPolicy: { minRounds: 1, maxRounds: 1 },
+      reportPolicy: {
+        composer: "representative",
+        representativeId: "external-reporter"
+      }
+    });
+
+    expect(result.report.mode).toBe("builtin");
+  });
+
+  it("falls back to builtin report when representative payload is malformed", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {};
+
+    for (const participant of PARTICIPANTS) {
+      scenarios[`round:initial:0:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
+      };
+      scenarios[`round:debate:1:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 1 }))
+      };
+      scenarios[`round:final_vote:2:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "final_vote", round: 2 }))
+      };
+    }
+
+    scenarios["report:external-reporter"] = {
       type: "success",
       output: {
-        ...mkOutput({ participantId: "onevtail", phase: "final_vote", round: 4, vote: "accept" }),
-        vote: undefined
-      } as ParticipantRoundOutput
+        kind: "report",
+        output: {
+          mode: "representative",
+          traceIncluded: false,
+          traceLevel: "compact",
+          finalSummary: "malformed"
+        }
+      } as unknown as AgentTaskResult
     };
 
-    const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) });
-
-    await expect(
-      engine.start({
-        requestId: "req-missing-vote",
-        topic: "Missing final vote",
-        objective: "Reject invalid final vote payloads",
-        participants: PARTICIPANTS.map((id) => ({ id })),
-        participantsPolicy: { minParticipants: 3 }
-      })
-    ).rejects.toThrow(/minimum participant requirement/);
-  });
-
-  it("marks the session failed and emits Failed when orchestration throws", async () => {
-    const store = new RecordingStore();
-    const observer = new RecordingObserver();
-    const engine = new ArgueEngine({
-      taskDelegate: new StubAgentTaskDelegate({
-        "initial:0:onevclaw": {
-          type: "success",
-          output: mkOutput({ participantId: "onevclaw", phase: "initial", round: 0 })
-        }
-      }),
-      sessionStore: store,
-      observer
+    const result = await new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) }).start({
+      requestId: "req-report-malformed-fallback",
+      topic: "Report fallback",
+      objective: "fallback to builtin when representative payload is malformed",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      roundPolicy: { minRounds: 1, maxRounds: 1 },
+      reportPolicy: {
+        composer: "representative",
+        representativeId: "external-reporter"
+      }
     });
 
-    await expect(
-      engine.start({
-        requestId: "req-failed",
-        topic: "Failure path",
-        objective: "Persist failed terminal state",
-        participants: PARTICIPANTS.map((id) => ({ id }))
-      })
-    ).rejects.toThrow(/No scenario configured/);
-
-    const session = await store.load(store.lastSessionId ?? "missing");
-    expect(session?.state).toBe("failed");
-    expect(session?.error).toMatchObject({
-      code: "Error"
-    });
-    expect(String((session?.error as { message?: string } | undefined)?.message ?? "")).toContain("No scenario configured");
-    expect(observer.events.at(-1)?.type).toBe("Failed");
+    expect(result.report.mode).toBe("builtin");
   });
 
-  it("includes deliberation trace when requested", async () => {
-    const scenarios: Record<string, { type: "success"; output: ParticipantRoundOutput }> = {};
+  it("marks unresolved when global deadline is reached before final_vote", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {};
 
     for (const participant of PARTICIPANTS) {
-      scenarios[`initial:0:${participant}`] = {
+      scenarios[`round:initial:0:${participant}`] = {
         type: "success",
-        output: mkOutput({
-          participantId: participant,
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
+      };
+      scenarios[`round:debate:1:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 1 }))
+      };
+    }
+
+    let nowMs = 0;
+    const engine = new ArgueEngine({
+      taskDelegate: new StubAgentTaskDelegate(scenarios),
+      now: () => nowMs,
+      observer: {
+        onEvent(event) {
+          if (event.type !== "RoundCompleted") return;
+          if (event.payload?.phase !== "debate") return;
+          nowMs = 2000;
+        }
+      }
+    });
+
+    const result = await engine.start({
+      requestId: "req-deadline-before-final-vote",
+      topic: "deadline",
+      objective: "should skip final vote when deadline is hit",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      roundPolicy: { minRounds: 1, maxRounds: 1 },
+      waitingPolicy: {
+        perTaskTimeoutMs: 1000,
+        perRoundTimeoutMs: 5000,
+        globalDeadlineMs: 1500
+      }
+    });
+
+    expect(result.status).toBe("unresolved");
+    expect(result.metrics.globalDeadlineHit).toBe(true);
+    expect(result.rounds.some((round) => round.outputs.some((output) => output.phase === "final_vote"))).toBe(false);
+  });
+
+  it("freezes claim catalog during final_vote", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {
+      "round:initial:0:onevclaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevclaw",
           phase: "initial",
           round: 0,
-          stance: participant === "onevclaw" ? "disagree" : "agree"
-        })
-      };
-
-      for (let round = 1; round <= 3; round += 1) {
-        scenarios[`debate:${round}:${participant}`] = {
-          type: "success",
-          output: mkOutput({
-            participantId: participant,
-            phase: "debate",
-            round,
-            stance: participant === "onevclaw" && round === 1 ? "agree" : "agree"
-          })
-        };
-      }
-
-      scenarios[`final_vote:4:${participant}`] = {
+          extractedClaims: [{ claimId: "c1", title: "C1", statement: "baseline", category: "pro" }],
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:initial:0:onevpaw": {
         type: "success",
-        output: mkOutput({ participantId: participant, phase: "final_vote", round: 4, vote: "accept" })
+        output: roundResult(mkRoundOutput({
+          participantId: "onevpaw",
+          phase: "initial",
+          round: 0,
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:initial:0:onevtail": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevtail",
+          phase: "initial",
+          round: 0,
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:debate:1:onevclaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevclaw",
+          phase: "debate",
+          round: 1,
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:debate:1:onevpaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevpaw",
+          phase: "debate",
+          round: 1,
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:debate:1:onevtail": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevtail",
+          phase: "debate",
+          round: 1,
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:final_vote:2:onevclaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevclaw",
+          phase: "final_vote",
+          round: 2,
+          extractedClaims: [{ claimId: "c99", title: "C99", statement: "inject", category: "risk" }],
+          judgements: [{
+            claimId: "c1",
+            stance: "revise",
+            revisedStatement: "mutated",
+            mergesWith: "c99"
+          }],
+          claimVotes: [{ claimId: "c1", vote: "accept" }]
+        }))
+      },
+      "round:final_vote:2:onevpaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevpaw",
+          phase: "final_vote",
+          round: 2,
+          claimVotes: [{ claimId: "c1", vote: "accept" }]
+        }))
+      },
+      "round:final_vote:2:onevtail": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevtail",
+          phase: "final_vote",
+          round: 2,
+          claimVotes: [{ claimId: "c1", vote: "accept" }]
+        }))
+      }
+    };
+
+    const result = await new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) }).start({
+      requestId: "req-freeze-final-vote-claims",
+      topic: "freeze",
+      objective: "final vote should not mutate claim catalog",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      roundPolicy: { minRounds: 1, maxRounds: 1 }
+    });
+
+    const c1 = result.finalClaims.find((claim) => claim.claimId === "c1");
+    const c99 = result.finalClaims.find((claim) => claim.claimId === "c99");
+
+    expect(c99).toBeUndefined();
+    expect(c1?.statement).toBe("baseline");
+    expect(c1?.status).toBe("active");
+  });
+
+  it("uses host-designated representative when designated participant is active", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {};
+
+    for (const participant of PARTICIPANTS) {
+      scenarios[`round:initial:0:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
+      };
+      scenarios[`round:debate:1:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 1 }))
+      };
+      scenarios[`round:final_vote:2:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "final_vote", round: 2 }))
       };
     }
 
     const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) });
+
     const result = await engine.start({
-      requestId: "req-trace",
-      topic: "Trace evolution",
-      objective: "Show stance change",
+      requestId: "req-designated",
+      topic: "Designated representative",
+      objective: "choose host-designated active representative",
       participants: PARTICIPANTS.map((id) => ({ id })),
+      roundPolicy: { minRounds: 1, maxRounds: 1 },
       reportPolicy: {
-        includeDeliberationTrace: true,
-        traceLevel: "full",
-        composer: "builtin"
+        composer: "builtin",
+        representativeId: "onevpaw"
       }
     });
 
-    expect(result.report.traceIncluded).toBe(true);
-    expect(result.report.opinionShiftTimeline?.length ?? 0).toBeGreaterThan(1);
-    expect(
-      result.report.opinionShiftTimeline?.some((x) => x.participantId === "onevclaw" && x.from === "disagree" && x.to === "agree")
-    ).toBe(true);
+    expect(result.representative.participantId).toBe("onevpaw");
+    expect(result.representative.reason).toBe("host-designated");
   });
 
-  it("forwards constraints and context into dispatched round tasks", async () => {
-    const scenarios: Record<string, { type: "success"; output: ParticipantRoundOutput }> = {};
-
-    for (const participant of PARTICIPANTS) {
-      scenarios[`initial:0:${participant}`] = {
+  it("runs full DI flow with absence, merge, oscillation, and representative report", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult } | { type: "timeout" }> = {
+      "round:initial:0:onevclaw": {
         type: "success",
-        output: mkOutput({ participantId: participant, phase: "initial", round: 0 })
-      };
-      for (let round = 1; round <= 3; round += 1) {
-        scenarios[`debate:${round}:${participant}`] = {
-          type: "success",
-          output: mkOutput({ participantId: participant, phase: "debate", round })
-        };
+        output: roundResult(mkRoundOutput({
+          participantId: "onevclaw",
+          phase: "initial",
+          round: 0,
+          extractedClaims: [{ claimId: "c1", title: "C1", statement: "claim 1", category: "pro" }],
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:initial:0:onevpaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevpaw",
+          phase: "initial",
+          round: 0,
+          extractedClaims: [{ claimId: "c2", title: "C2", statement: "claim 2", category: "pro" }],
+          judgements: [{ claimId: "c2", stance: "agree" }]
+        }))
+      },
+      "round:initial:0:onevtail": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevtail",
+          phase: "initial",
+          round: 0,
+          extractedClaims: [{ claimId: "c3", title: "C3", statement: "claim 3", category: "risk" }],
+          judgements: [{ claimId: "c3", stance: "agree" }]
+        }))
+      },
+      "round:debate:1:onevclaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevclaw",
+          phase: "debate",
+          round: 1,
+          judgements: [{
+            claimId: "c2",
+            stance: "revise",
+            revisedStatement: "c2 is actually same as c1",
+            mergesWith: "c1"
+          }]
+        }))
+      },
+      "round:debate:1:onevpaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevpaw",
+          phase: "debate",
+          round: 1,
+          judgements: [{ claimId: "c1", stance: "disagree" }]
+        }))
+      },
+      "round:debate:1:onevtail": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevtail",
+          phase: "debate",
+          round: 1,
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:debate:2:onevclaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevclaw",
+          phase: "debate",
+          round: 2,
+          judgements: [{ claimId: "c1", stance: "disagree" }]
+        }))
+      },
+      "round:debate:2:onevpaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevpaw",
+          phase: "debate",
+          round: 2,
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:debate:2:onevtail": {
+        type: "timeout"
+      },
+      "round:debate:3:onevclaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevclaw",
+          phase: "debate",
+          round: 3,
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:debate:3:onevpaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevpaw",
+          phase: "debate",
+          round: 3,
+          judgements: [{ claimId: "c1", stance: "disagree" }]
+        }))
+      },
+      "round:final_vote:4:onevclaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevclaw",
+          phase: "final_vote",
+          round: 4,
+          judgements: [{ claimId: "c1", stance: "agree" }],
+          claimVotes: [
+            { claimId: "c1", vote: "accept" },
+            { claimId: "c3", vote: "reject" }
+          ]
+        }))
+      },
+      "round:final_vote:4:onevpaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevpaw",
+          phase: "final_vote",
+          round: 4,
+          judgements: [{ claimId: "c1", stance: "agree" }],
+          claimVotes: [
+            { claimId: "c1", vote: "accept" },
+            { claimId: "c3", vote: "reject" }
+          ]
+        }))
+      },
+      "report:external-reporter": {
+        type: "success",
+        output: {
+          kind: "report",
+          output: {
+            mode: "representative",
+            traceIncluded: false,
+            traceLevel: "compact",
+            finalSummary: "external reporter summary",
+            representativeSpeech: "external report speech"
+          }
+        }
       }
-      scenarios[`final_vote:4:${participant}`] = {
-        type: "success",
-        output: mkOutput({ participantId: participant, phase: "final_vote", round: 4, vote: "accept" })
-      };
-    }
+    };
 
     const delegate = new StubAgentTaskDelegate(scenarios);
     const engine = new ArgueEngine({ taskDelegate: delegate });
 
-    await engine.start({
-      requestId: "req-context",
-      topic: "Thread runtime hints",
-      objective: "Preserve caller-provided execution context",
+    const result = await engine.start({
+      requestId: "req-full-di",
+      topic: "full DI edge cases",
+      objective: "run edge cases through full orchestration",
       participants: PARTICIPANTS.map((id) => ({ id })),
-      constraints: {
-        language: "ja",
-        tokenBudgetHint: 2048
+      participantsPolicy: { minParticipants: 2 },
+      roundPolicy: { minRounds: 1, maxRounds: 3 },
+      consensusPolicy: { threshold: 1 },
+      reportPolicy: {
+        composer: "representative",
+        representativeId: "external-reporter"
       },
-      context: {
-        repository: "onevcat/argue",
-        pr: 1
+      waitingPolicy: {
+        perTaskTimeoutMs: 1000,
+        perRoundTimeoutMs: 1000
       }
     });
 
-    const firstDispatch = delegate.dispatchCalls[0];
-    expect(firstDispatch?.prompt).toContain("language=ja");
-    expect(firstDispatch?.prompt).toContain("token_budget_hint=2048");
-    expect(firstDispatch?.metadata).toMatchObject({
-      peerContextPassMode: "full-response-preferred",
-      constraints: {
-        language: "ja",
-        tokenBudgetHint: 2048
-      },
-      context: {
-        repository: "onevcat/argue",
-        pr: 1
-      }
-    });
-  });
+    expect(result.status).toBe("partial_consensus");
+    expect(result.report.mode).toBe("representative");
+    expect(delegate.dispatchCalls.some((x) => x.kind === "report")).toBe(true);
 
-  it("uses delegate-agent report composer when requested", async () => {
-    const scenarios: Record<string, { type: "success"; output: ParticipantRoundOutput }> = {};
-
-    for (const participant of PARTICIPANTS) {
-      scenarios[`initial:0:${participant}`] = {
-        type: "success",
-        output: mkOutput({ participantId: participant, phase: "initial", round: 0 })
-      };
-      for (let round = 1; round <= 3; round += 1) {
-        scenarios[`debate:${round}:${participant}`] = {
-          type: "success",
-          output: mkOutput({ participantId: participant, phase: "debate", round })
-        };
-      }
-      scenarios[`final_vote:4:${participant}`] = {
-        type: "success",
-        output: mkOutput({ participantId: participant, phase: "final_vote", round: 4, vote: "accept" })
-      };
-    }
-
-    const reportDelegate = new StubReportComposerDelegate((input) => ({
-      mode: "delegate-agent",
-      traceIncluded: Boolean(input.policy.includeDeliberationTrace),
-      traceLevel: input.policy.traceLevel ?? "compact",
-      finalSummary: `delegate report for ${input.requestId}`,
-      representativeSpeech: input.representative.speech
+    expect(result.eliminations).toContainEqual(expect.objectContaining({
+      participantId: "onevtail",
+      round: 2,
+      reason: "timeout"
     }));
 
-    const engine = new ArgueEngine({
-      taskDelegate: new StubAgentTaskDelegate(scenarios),
-      reportComposer: reportDelegate
-    });
+    const c2 = result.finalClaims.find((claim) => claim.claimId === "c2");
+    const c1 = result.finalClaims.find((claim) => claim.claimId === "c1");
+    expect(c2?.status).toBe("merged");
+    expect(c2?.mergedInto).toBe("c1");
+    expect(c1?.proposedBy.sort()).toEqual(["onevclaw", "onevpaw"].sort());
 
-    const result = await engine.start({
-      requestId: "req-delegate-report",
-      topic: "Delegate report mode",
-      objective: "use external composer",
-      participants: PARTICIPANTS.map((id) => ({ id })),
-      reportPolicy: {
-        includeDeliberationTrace: true,
-        traceLevel: "full",
-        composer: "delegate-agent",
-        reporterId: "reporter-1"
+    const c1Resolution = result.claimResolutions.find((item) => item.claimId === "c1");
+    const c3Resolution = result.claimResolutions.find((item) => item.claimId === "c3");
+    expect(c1Resolution?.status).toBe("resolved");
+    expect(c3Resolution?.status).toBe("unresolved");
+
+    expect(result.metrics.earlyStopTriggered).toBe(false);
+
+    const onevpawDebateStances = result.rounds
+      .filter((round) => round.round >= 1 && round.round <= 3)
+      .map((round) => round.outputs.find((output) => output.participantId === "onevpaw")?.judgements[0]?.stance)
+      .filter((x): x is "agree" | "disagree" | "revise" => typeof x === "string");
+    expect(onevpawDebateStances).toEqual(["disagree", "agree", "disagree"]);
+  });
+
+  it("resolves chained claim merges to the earliest surviving claim", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {
+      "round:initial:0:onevclaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevclaw",
+          phase: "initial",
+          round: 0,
+          extractedClaims: [{ claimId: "c1", title: "C1", statement: "claim 1", category: "pro" }],
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:initial:0:onevpaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevpaw",
+          phase: "initial",
+          round: 0,
+          extractedClaims: [{ claimId: "c2", title: "C2", statement: "claim 2", category: "pro" }],
+          judgements: [{ claimId: "c2", stance: "agree" }]
+        }))
+      },
+      "round:initial:0:onevtail": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevtail",
+          phase: "initial",
+          round: 0,
+          extractedClaims: [{ claimId: "c3", title: "C3", statement: "claim 3", category: "pro" }],
+          judgements: [{ claimId: "c3", stance: "agree" }]
+        }))
+      },
+      "round:debate:1:onevclaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevclaw",
+          phase: "debate",
+          round: 1,
+          judgements: [{ claimId: "c2", stance: "agree", mergesWith: "c1" }]
+        }))
+      },
+      "round:debate:1:onevpaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevpaw",
+          phase: "debate",
+          round: 1,
+          judgements: [{ claimId: "c3", stance: "agree", mergesWith: "c2" }]
+        }))
+      },
+      "round:debate:1:onevtail": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevtail",
+          phase: "debate",
+          round: 1,
+          judgements: [{ claimId: "c1", stance: "agree" }]
+        }))
+      },
+      "round:final_vote:2:onevclaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevclaw",
+          phase: "final_vote",
+          round: 2,
+          claimVotes: [{ claimId: "c1", vote: "accept" }]
+        }))
+      },
+      "round:final_vote:2:onevpaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevpaw",
+          phase: "final_vote",
+          round: 2,
+          claimVotes: [{ claimId: "c1", vote: "accept" }]
+        }))
+      },
+      "round:final_vote:2:onevtail": {
+        type: "success",
+        output: roundResult(mkRoundOutput({
+          participantId: "onevtail",
+          phase: "final_vote",
+          round: 2,
+          claimVotes: [{ claimId: "c1", vote: "accept" }]
+        }))
       }
+    };
+
+    const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) });
+    const result = await engine.start({
+      requestId: "req-chain-merge",
+      topic: "chain merge",
+      objective: "merge c3 -> c2 -> c1",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      roundPolicy: { minRounds: 1, maxRounds: 1 }
     });
 
-    expect(reportDelegate.called).toBe(1);
-    expect(result.report.mode).toBe("delegate-agent");
-    expect(result.report.finalSummary).toContain("delegate report");
+    const c1 = result.finalClaims.find((claim) => claim.claimId === "c1");
+    const c2 = result.finalClaims.find((claim) => claim.claimId === "c2");
+    const c3 = result.finalClaims.find((claim) => claim.claimId === "c3");
+
+    expect(c1?.status).toBe("active");
+    expect(c2?.status).toBe("merged");
+    expect(c2?.mergedInto).toBe("c1");
+    expect(c3?.status).toBe("merged");
+    expect(c3?.mergedInto).toBe("c1");
+  });
+
+  it("rejects removed waiting/report policy fields", async () => {
+    const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate({}) });
+
+    await expect(engine.start({
+      requestId: "req-invalid-fields",
+      topic: "invalid",
+      objective: "invalid",
+      participants: [{ id: "a" }, { id: "b" }],
+      waitingPolicy: {
+        perTaskTimeoutMs: 1000,
+        perRoundTimeoutMs: 1000,
+        mode: "event-first"
+      } as unknown as {
+        perTaskTimeoutMs: number;
+        perRoundTimeoutMs: number;
+      }
+    })).rejects.toThrow();
+
+    await expect(engine.start({
+      requestId: "req-invalid-report-fields",
+      topic: "invalid",
+      objective: "invalid",
+      participants: [{ id: "a" }, { id: "b" }],
+      reportPolicy: {
+        composer: "builtin",
+        maxReportChars: 1000
+      } as unknown as {
+        composer: "builtin";
+      }
+    })).rejects.toThrow();
   });
 });

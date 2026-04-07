@@ -2,108 +2,88 @@
 
 A harness-agnostic orchestration engine for multi-agent consensus workflows.
 
-Multiple AI agents analyze the same problem, debate each other's claims across rounds, merge overlapping findings, vote per-claim, and converge on a structured consensus — all driven by a single `start()` call.
+Multiple AI agents analyze the same problem, debate claims across rounds, merge overlaps, vote per claim, and converge on structured consensus via one `start()` call.
 
 ## Why argue
 
 | Problem | How argue solves it |
-|---------|-------------------|
-| Agents work in isolation, each producing a partial view | Parallel initial round → every agent sees the full picture |
-| No structured way to challenge or refine claims | Claim-level judgement (agree / disagree / revise) across debate rounds |
-| Duplicate findings scattered across agents | Explicit claim merge — agents declare overlaps, engine deduplicates |
-| "Majority wins" ignores nuance | Per-claim consensus with configurable threshold; each claim resolves independently |
-| Hard to tell which agent is most reliable | Peer-review scoring — correctness measured by how often others agree with your claims |
-| Orchestration logic leaks into host code | argue owns the full state machine; host only implements a thin delegate (`dispatch` + `awaitResult`) |
+| --- | --- |
+| Agents produce isolated partial answers | Parallel initial round + cross-round peer context |
+| Debate quality is ad-hoc | Claim-level judgements (`agree` / `disagree` / `revise`) |
+| Duplicate findings pollute results | Explicit claim merge with deterministic survivor rule |
+| Binary final vote loses nuance | Per-claim consensus with configurable threshold |
+| Hard to choose a final spokesperson | Peer-review weighted scoring + representative selection |
+| Host code gets orchestration-heavy | Engine owns state machine, wait, elimination, and consensus |
 
-## Key Concepts
+## Architecture at a glance
 
+```text
+┌──────────────────────────────────────────────────────┐
+│                     argue Engine                     │
+│                                                      │
+│  ┌────────┐   ┌────────┐   ┌────────────┐            │
+│  │Initial │──>│ Debate │──>│ Final Vote │            │
+│  │ Round  │   │ Rounds │   │ per claim  │            │
+│  │  (0)   │   │ (1..N) │   │  (N+1)     │            │
+│  └────────┘   └────────┘   └──────┬─────┘            │
+│              early-stop? + claim merge               │
+│                              │                       │
+│                              v                       │
+│                 threshold consensus +                │
+│                 elimination-aware voting             │
+│                              │                       │
+│                              v                       │
+│                        ┌──────────────┐              │
+│                        │   Scoring    │              │
+│                        │ peer-review  │              │
+│                        └──────┬───────┘              │
+│                              │                       │
+│                              v                       │
+│                        ┌──────────────┐              │
+│                        │    Report    │              │
+│                        │  builtin /   │              │
+│                        │representative│              │
+│                        └──────┬───────┘              │
+└───────────────────────────────|──────────────────────┘
+                                |
+      ^                         v
+      | AgentTaskDelegate   ArgueResult
+  host dispatches          status + claims + rounds
+  round/report tasks       + representative + metrics
 ```
-┌──────────────────────────────────────────────────┐
-│                  argue Engine                    │
-│                                                  │
-│  ┌───────┐   ┌────────┐   ┌────────┐             │
-│  │Initial├──>│ Debate ├──>│ Final  │             │
-│  │ Round │   │ Rounds │   │  Vote  │             │
-│  │  (0)  │   │ (1..N) │   │ (N+1)  │             │
-│  └───────┘   └────────┘   └───┬────┘             │
-│                   |       per-claim              │
-│              early-stop?  consensus              │
-│              claim merge  threshold              │
-│              elimination      |                  │
-│                               v                  │
-│                       ┌───────────┐              │
-│                       │  Scoring  │              │
-│                       │peer-review│              │
-│                       └─────┬─────┘              │
-│                             |                    │
-│                             v                    │
-│                       ┌───────────┐              │
-│                       │  Report   │              │
-│                       │  Compose  │              │
-│                       └─────┬─────┘              │
-└─────────────────────────────|────────────────────┘
-     ^                        |
-     | AgentTaskDelegate      v  ArgueResult
-  host dispatches        consensus status
-  agent calls            + claim resolutions
-                         + full run records
-```
 
-### Flow
+## Core flow
 
-1. **Initial round** — all participants receive the topic in parallel and produce their initial claims.
-2. **Debate rounds** — each participant sees others' full responses, judges each claim (`agree` / `disagree` / `revise`), and can declare claim merges. Engine processes merges and eliminates timed-out participants each round.
-3. **Early-stop** — after `minRounds`, if all active participants agree on everything and no new claims emerge, remaining debate rounds are skipped.
-4. **Final vote** — each participant votes `accept` / `reject` on every active claim independently.
-5. **Consensus** — each claim is resolved when `accept` ratio ≥ `consensusThreshold`. Session outcome: `consensus` (all resolved) / `partial_consensus` / `unresolved`.
-6. **Scoring** — four-dimension rubric where **correctness = peer review** (how often others agree with your claims). Top scorer becomes the representative.
-7. **Report** — `builtin` template, or the representative agent generates the report via an argue-composed prompt.
+1. **Initial round**: all participants produce claims.
+2. **Debate rounds** (`1..N`): participants judge claims, can propose merges, and can revise statements.
+3. **Early-stop**: after `minRounds`, stop early if all returned judgements agree and no new claims appear.
+4. **Final vote**: participants vote `accept/reject` per active claim.
+5. **Claim consensus**: each claim is resolved by `acceptCount / totalVoters >= threshold`.
+6. **Representative**: selected from active participants by score (or host-designated active id).
+7. **Report compose**:
+   - `builtin`: engine-generated report
+   - `representative`: engine dispatches a separate `kind="report"` task; failures fallback to builtin
 
-### Claims & Merging
+## Delegate contract
 
-Claims are first-class objects tracked across rounds. Each claim knows who proposed it (`proposedBy`), its lifecycle status (`active` / `merged` / `withdrawn`), and — if merged — which claim it was folded into.
+Host implements a single delegate with task kind routing:
 
-During debate, any participant can declare `mergesWith` on a claim they believe duplicates another. The engine resolves merges deterministically: **the earliest claim survives**, with chain merges resolved recursively. All original proposers share credit.
+- `kind="round"` + `phase="initial" | "debate" | "final_vote"`: round task
+- `kind="report"`: representative report composition task
 
-### Scoring & Representative
+Both use the same `dispatch` + `awaitResult` interface.
 
-Participants are scored on four dimensions (host-configurable weights):
-
-- **Correctness** — peer review: what proportion of your claims were agreed upon by others
-- **Completeness** — breadth of claim coverage and response depth
-- **Actionability** — concrete suggestions and revised statements
-- **Consistency** — stance coherence across rounds
-
-The highest scorer is selected as the session's **representative**, producing the final speech and (optionally) composing the report.
-
-## What argue Does — and What It Doesn't
-
-argue **only does orchestration**:
-
-- State machine & round sequencing
-- Claim tracking, merging, and per-claim consensus
-- Wait coordination with timeout + permanent elimination
-- Peer-review scoring & representative selection
-- Prompt composition (built-in templates, host-overridable)
-- Structured event emission & JSONL run log
-
-argue **does not**:
-
-- Fetch input from external sources (GitHub, Discord, Slack, etc.)
-- Bind to any specific agent runtime or LLM provider
-- Write results back to external platforms
-
-The host injects these via a single delegate interface: `AgentTaskDelegate` (`dispatch` + `awaitResult`).
-
-## Quick Start
+## Quick start
 
 ```ts
 import { ArgueEngine, MemorySessionStore, DefaultWaitCoordinator } from "argue";
 
+const taskDelegate = myTaskDelegate;
+
 const engine = new ArgueEngine({
-  delegate: myAgentDelegate,    // you implement: dispatch + awaitResult
-  store: new MemorySessionStore(),
-  waitCoordinator: new DefaultWaitCoordinator(myAgentDelegate),
+  taskDelegate,
+  sessionStore: new MemorySessionStore(),
+  waitCoordinator: new DefaultWaitCoordinator(taskDelegate)
 });
 
 const result = await engine.start({
@@ -113,24 +93,38 @@ const result = await engine.start({
   participants: [
     { id: "agent-a", role: "security-reviewer" },
     { id: "agent-b", role: "architecture-reviewer" },
-    { id: "agent-c", role: "correctness-reviewer" },
+    { id: "agent-c", role: "correctness-reviewer" }
   ],
   roundPolicy: { minRounds: 2, maxRounds: 4 },
   consensusPolicy: { threshold: 0.67 },
+  reportPolicy: { composer: "representative" }
 });
 
-// result.status — "consensus" | "partial_consensus" | "unresolved" | "failed"
-// result.claimResolutions — per-claim accept/reject breakdown
-// result.representative — top-scored agent's final speech
-// result.rounds — full run records for audit
+// result.status: consensus | partial_consensus | unresolved | failed
+// result.claimResolutions: per-claim vote outcome
+// result.representative: selected spokesperson
+// result.eliminations: timeout/error removals
+// result.rounds: full round records
 ```
 
-## Status
+## M2 status
 
-- **M1 (core engine)** — shipped. State machine, sticky sessions, claim-level judgement, event-first wait, builtin reports, heuristic scoring.
-- **M2 (integration-ready)** — in progress. Early-stop, claim merging, per-claim consensus, peer-review scoring, representative report mode, prompt templates, JSONL run log.
+Implemented in current `master`:
 
-Design doc: [`docs/plan/v0-initial.md`](docs/plan/v0-initial.md)
+- Early-stop (`minRounds` gated)
+- Claim merge lifecycle (`active/merged/withdrawn`, `mergedInto`, proposer union)
+- Claim-level final vote + `consensus / partial_consensus / unresolved`
+- Effective-voter denominator per claim
+- Permanent elimination on timeout/error (including final_vote)
+- Representative report mode via separate report session
+- Builtin fallback on representative report failure
+- Strict schema cleanup (removed `waitingPolicy.mode`, `lateArrivalPolicy`, `reportPolicy.maxReportChars`)
+
+Reference implementation ADR: [`docs/adr/0002-m2-implementation.md`](docs/adr/0002-m2-implementation.md)
+
+## Current known gap
+
+- JSONL run-log output is not implemented yet.
 
 ## License
 

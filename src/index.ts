@@ -6,7 +6,6 @@ export { MemorySessionStore } from "./store/memory-store.js";
 export type {
   AgentTaskDelegate,
   ArgueObserver,
-  ReportComposerDelegate,
   SessionStore,
   WaitCoordinator
 } from "./contracts/delegate.js";
@@ -14,14 +13,32 @@ export type {
 export type { ArgueStartInput, NormalizedArgueStartInput } from "./contracts/request.js";
 export { ArgueStartInputSchema, normalizeStartInput } from "./contracts/request.js";
 
-export type { RoundTaskInput } from "./contracts/task.js";
-export { RoundTaskInputSchema } from "./contracts/task.js";
+export type {
+  AgentTaskInput,
+  AgentTaskResult,
+  ReportTaskInput,
+  ReportTaskResult,
+  RoundTaskInput,
+  RoundTaskResult
+} from "./contracts/task.js";
+
+export {
+  AgentTaskInputSchema,
+  AgentTaskResultSchema,
+  ReportTaskInputSchema,
+  ReportTaskResultSchema,
+  RoundTaskInputSchema,
+  RoundTaskResultSchema
+} from "./contracts/task.js";
 
 export type {
   ArgueResult,
   Claim,
   ClaimJudgement,
+  ClaimResolution,
   ClaimStance,
+  ClaimVote,
+  EliminationRecord,
   FinalReport,
   OpinionShift,
   ParticipantRoundOutput,
@@ -32,8 +49,11 @@ export type {
 export {
   ArgueResultSchema,
   ClaimJudgementSchema,
+  ClaimResolutionSchema,
   ClaimSchema,
   ClaimStanceSchema,
+  ClaimVoteSchema,
+  EliminationRecordSchema,
   FinalReportSchema,
   ParticipantRoundOutputSchema,
   ParticipantScoreSchema,

@@ -1,5 +1,5 @@
 import type { NormalizedArgueStartInput } from "../contracts/request.js";
-import type { ParticipantRoundOutput, ParticipantScore } from "../contracts/result.js";
+import type { Claim, ParticipantRoundOutput, ParticipantScore } from "../contracts/result.js";
 
 type RubricWeights = NonNullable<NonNullable<NormalizedArgueStartInput["scoringPolicy"]>["rubric"]>;
 
@@ -19,10 +19,12 @@ type WeightedRoundScore = {
 export function computeParticipantScores(args: {
   participants: string[];
   rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }>;
+  finalClaims: Claim[];
   scoringPolicy: NonNullable<NormalizedArgueStartInput["scoringPolicy"]>;
 }): ParticipantScore[] {
   const byParticipantRound = new Map<string, WeightedRoundScore[]>();
   const weights = normalizeWeights(args.scoringPolicy.rubric);
+  const correctnessByParticipant = computePeerReviewCorrectness(args.participants, args.rounds, args.finalClaims);
 
   for (const participant of args.participants) {
     byParticipantRound.set(participant, []);
@@ -38,7 +40,12 @@ export function computeParticipantScores(args: {
       const roundScores = byParticipantRound.get(output.participantId);
       if (!roundScores) continue;
 
-      const breakdown = scoreOutputBreakdown(output, roundClaimTarget);
+      const nonCorrectness = scoreOutputNonCorrectness(output, roundClaimTarget);
+      const breakdown: ScoreBreakdown = {
+        correctness: correctnessByParticipant.get(output.participantId) ?? 50,
+        ...nonCorrectness
+      };
+
       roundScores.push({
         round: roundRecord.round,
         score: weightedTotal(breakdown, weights),
@@ -106,6 +113,84 @@ export function chooseRepresentative(args: {
   };
 }
 
+function computePeerReviewCorrectness(
+  participants: string[],
+  rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }>,
+  finalClaims: Claim[]
+): Map<string, number> {
+  const canonicalClaimId = buildCanonicalClaimMap(finalClaims);
+  const claimOwners = new Map<string, string[]>();
+
+  for (const claim of finalClaims) {
+    const canonical = canonicalClaimId.get(claim.claimId) ?? claim.claimId;
+    const existing = claimOwners.get(canonical) ?? [];
+    const nextOwners = new Set([...existing, ...claim.proposedBy]);
+    claimOwners.set(canonical, [...nextOwners]);
+  }
+
+  const stats = new Map<string, { agree: number; total: number }>();
+  for (const participant of participants) {
+    stats.set(participant, { agree: 0, total: 0 });
+  }
+
+  for (const round of rounds) {
+    for (const output of round.outputs) {
+      for (const judgement of output.judgements) {
+        const canonical = canonicalClaimId.get(judgement.claimId) ?? judgement.claimId;
+        const owners = claimOwners.get(canonical) ?? [];
+        for (const owner of owners) {
+          if (owner === output.participantId) continue;
+          const item = stats.get(owner);
+          if (!item) continue;
+          item.total += 1;
+          if (judgement.stance === "agree") {
+            item.agree += 1;
+          }
+        }
+      }
+    }
+  }
+
+  const out = new Map<string, number>();
+  for (const participant of participants) {
+    const item = stats.get(participant);
+    if (!item || item.total === 0) {
+      out.set(participant, 50);
+      continue;
+    }
+    out.set(participant, roundTo2((item.agree / item.total) * 100));
+  }
+
+  return out;
+}
+
+function buildCanonicalClaimMap(finalClaims: Claim[]): Map<string, string> {
+  const direct = new Map<string, string>();
+  for (const claim of finalClaims) {
+    if (claim.status === "merged" && claim.mergedInto) {
+      direct.set(claim.claimId, claim.mergedInto);
+    }
+  }
+
+  const resolve = (id: string): string => {
+    let current = id;
+    const seen = new Set<string>();
+    while (direct.has(current) && !seen.has(current)) {
+      seen.add(current);
+      const next = direct.get(current);
+      if (!next) break;
+      current = next;
+    }
+    return current;
+  };
+
+  const out = new Map<string, string>();
+  for (const claim of finalClaims) {
+    out.set(claim.claimId, resolve(claim.claimId));
+  }
+  return out;
+}
+
 function breakTieByLatestRoundScore(candidates: ParticipantScore[]): ParticipantScore {
   const sorted = [...candidates].sort((a, b) => {
     const latestA = a.byRound.at(-1)?.score ?? 0;
@@ -150,31 +235,30 @@ function breakTieByLeastObjection(
   return winner;
 }
 
-function scoreOutputBreakdown(output: ParticipantRoundOutput, roundClaimTarget: number): ScoreBreakdown {
-  const confidenceAvg = output.judgements.length > 0
-    ? output.judgements.reduce((sum, judgement) => sum + judgement.confidence, 0) / output.judgements.length
-    : 0.5;
-
+function scoreOutputNonCorrectness(output: ParticipantRoundOutput, roundClaimTarget: number): Omit<ScoreBreakdown, "correctness"> {
   const stanceAvg = output.judgements.length > 0
     ? output.judgements.reduce((sum, judgement) => sum + stanceFactor(judgement.stance), 0) / output.judgements.length
     : 0.7;
 
-  const correctness = roundTo2(clamp(output.selfScore ?? confidenceAvg * 100, 0, 100));
   const completeness = roundTo2((
     clamp(output.judgements.length / Math.max(1, roundClaimTarget), 0, 1) * 0.5 +
     clamp(output.fullResponse.trim().length / 160, 0, 1) * 0.3 +
     clamp(output.summary.trim().length / 80, 0, 1) * 0.2
   ) * 100);
+
+  const hasRevision = output.judgements.some((judgement) => typeof judgement.revisedStatement === "string");
+  const hasVotes = output.phase === "final_vote" && (output.claimVotes?.length ?? 0) > 0;
+
   const actionability = roundTo2((
     clamp(output.summary.trim().length / 60, 0, 1) * 0.45 +
     clamp(output.fullResponse.trim().length / 180, 0, 1) * 0.25 +
-    (output.judgements.some((judgement) => typeof judgement.revisedStatement === "string") ? 1 : 0.55) * 0.2 +
-    (output.phase === "final_vote" ? (output.vote === "accept" ? 1 : 0.4) : 0.7) * 0.1
+    (hasRevision ? 1 : 0.55) * 0.2 +
+    (hasVotes ? 1 : 0.7) * 0.1
   ) * 100);
+
   const consistency = roundTo2(clamp(stanceAvg * 100, 0, 100));
 
   return {
-    correctness,
     completeness,
     actionability,
     consistency
