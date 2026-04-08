@@ -9,6 +9,14 @@ Multiple AI agents analyze the same problem, debate claims across rounds, merge 
 - `packages/argue`: reusable NPM library (engine + contracts)
 - `packages/argue-cli`: command line host skeleton (`argue` command)
 
+CLI config lookup order:
+
+1. `--config <path>`
+2. `./argue.config.json`
+3. `~/.config/argue/config.json`
+
+Run input (`--input <path>`, e.g. `topic.json`) is optional and overrides config defaults for the current run. CLI flags override both.
+
 Quick workspace commands:
 
 - `npm run check`

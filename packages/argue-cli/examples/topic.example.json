@@ -1,0 +1,16 @@
+{
+  "requestId": "demo-001",
+  "topic": "Should we adopt a strict release freeze policy for production incidents?",
+  "objective": "Reach an actionable decision with tradeoffs and rollout steps.",
+  "agents": ["architect", "bughunter"],
+  "minRounds": 2,
+  "maxRounds": 4,
+  "consensusThreshold": 0.67,
+  "composer": "representative",
+  "includeDeliberationTrace": true,
+  "traceLevel": "compact",
+  "context": {
+    "repo": "onevcat/argue",
+    "environment": "staging"
+  }
+}
