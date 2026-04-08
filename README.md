@@ -7,7 +7,7 @@ Multiple AI agents analyze the same problem, debate claims across rounds, merge 
 ## Monorepo layout
 
 - `packages/argue`: reusable NPM library (engine + contracts)
-- `packages/argue-cli`: command line host skeleton (`argue` command)
+- `packages/argue-cli`: command line host (`argue` command)
 
 CLI config lookup order:
 
@@ -141,9 +141,17 @@ Implemented in current `master`:
 
 Reference implementation ADR: [`docs/adr/0002-m2-implementation.md`](docs/adr/0002-m2-implementation.md)
 
-## Current known gap
+## CLI status
 
-- JSONL observer is implemented in library, but CLI `run` command is still skeleton (runtime adapter wiring pending).
+Implemented in current `master`:
+
+- `argue run` / `argue exec` execute end-to-end
+- provider types: `mock`, `cli`, `api`, `sdk`
+- output artifacts: `result.json`, `events.jsonl`, `summary.md`
+
+Current known gap:
+
+- TUI entry exists, but still remains a skeleton for the next phase.
 
 ## License
 
