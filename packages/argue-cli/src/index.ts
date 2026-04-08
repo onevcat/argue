@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 export type CliRunOptions = {
   configPath?: string;
+  jsonlPath?: string;
 };
 
 export type CliResult = {
@@ -46,11 +47,16 @@ export async function runCli(argv: string[], io: Pick<typeof console, "log" | "e
       return { ok: false, code: 1 };
     }
 
+    const jsonlPath = options.value.jsonlPath
+      ? resolve(options.value.jsonlPath)
+      : resolve(process.cwd(), "out", "argue.events.jsonl");
+
     io.log(`[argue-cli] skeleton ready`);
     io.log(`- command: run`);
     io.log(`- config: ${configPath}`);
+    io.log(`- jsonl: ${jsonlPath}`);
     io.log("- runtime adapters: TODO (claude/codex/mock)");
-    io.log("- host orchestration: TODO (wire AgentTaskDelegate and start ArgueEngine)");
+    io.log("- host orchestration: TODO (wire AgentTaskDelegate + JsonlObserver + ArgueEngine.start)");
 
     return { ok: true, code: 0 };
   }
@@ -78,6 +84,16 @@ function parseRunOptions(args: string[]):
       continue;
     }
 
+    if (arg === "--jsonl") {
+      const value = args[i + 1];
+      if (!value) {
+        return { ok: false, error: "--jsonl requires a path" };
+      }
+      out.jsonlPath = value;
+      i += 1;
+      continue;
+    }
+
     return { ok: false, error: `Unknown option for run: ${arg}` };
   }
 
@@ -88,7 +104,7 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("argue-cli (skeleton)");
   io.log("");
   io.log("Usage:");
-  io.log("  argue run --config <path>");
+  io.log("  argue run --config <path> [--jsonl <path>]");
   io.log("  argue help");
   io.log("  argue version");
 }

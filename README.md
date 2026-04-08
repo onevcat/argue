@@ -135,7 +135,7 @@ Reference implementation ADR: [`docs/adr/0002-m2-implementation.md`](docs/adr/00
 
 ## Current known gap
 
-- JSONL run-log output is not implemented yet.
+- JSONL observer is implemented in library, but CLI `run` command is still skeleton (runtime adapter wiring pending).
 
 ## License
 

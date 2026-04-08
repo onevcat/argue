@@ -1,6 +1,7 @@
 import type { ArgueStartInput } from "./request.js";
 import type { ParticipantRoundOutput } from "./result.js";
 import type { AgentTaskInput, AgentTaskResult } from "./task.js";
+import type { ArgueEvent } from "./events.js";
 
 export interface AgentTaskDelegate {
   dispatch(task: AgentTaskInput): Promise<{
@@ -19,24 +20,7 @@ export interface AgentTaskDelegate {
 }
 
 export interface ArgueObserver {
-  onEvent(event: {
-    sessionId: string;
-    requestId: string;
-    type:
-      | "SessionStarted"
-      | "RoundDispatched"
-      | "ParticipantResponded"
-      | "ParticipantEliminated"
-      | "ClaimsMerged"
-      | "RoundCompleted"
-      | "EarlyStopTriggered"
-      | "GlobalDeadlineHit"
-      | "ConsensusDrafted"
-      | "Finalized"
-      | "Failed";
-    at: string;
-    payload?: Record<string, unknown>;
-  }): Promise<void> | void;
+  onEvent(event: ArgueEvent): Promise<void> | void;
 }
 
 export interface SessionStore {

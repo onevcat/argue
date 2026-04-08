@@ -5,10 +5,10 @@ CLI host skeleton for the `argue` engine.
 ## Usage (current skeleton)
 
 ```bash
-argue run --config ./argue.config.json
+argue run --config ./argue.config.json --jsonl ./out/run.events.jsonl
 ```
 
-Current behavior validates config path and prints host wiring TODOs.
+Current behavior validates config path and prints host wiring TODOs (including JSONL path).
 
 Next steps:
 
