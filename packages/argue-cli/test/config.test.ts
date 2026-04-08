@@ -7,6 +7,17 @@ import { runCli } from "../src/index.js";
 
 const VALID_CONFIG = {
   schemaVersion: 1,
+  output: {
+    jsonlPath: "./out/{requestId}.events.jsonl",
+    resultPath: "./out/{requestId}.result.json"
+  },
+  defaults: {
+    defaultAgents: ["a1", "a2"],
+    minRounds: 2,
+    maxRounds: 3,
+    consensusThreshold: 1,
+    composer: "builtin"
+  },
   providers: {
     p1: {
       type: "api",
@@ -25,8 +36,9 @@ const VALID_CONFIG = {
     }
   },
   agents: [
-    { id: "a1", provider: "p1", model: "m1" },
-    { id: "a2", provider: "p2", model: "m2" }
+    { id: "a1", provider: "p1", model: "m1", role: "r1" },
+    { id: "a2", provider: "p2", model: "m2", role: "r2" },
+    { id: "a3", provider: "p1", model: "m1", role: "r3" }
   ]
 };
 
@@ -42,8 +54,8 @@ describe("cli config loader", () => {
     const projectPath = join(cwd, "argue.config.json");
     const globalPath = join(home, ".config", "argue", "config.json");
 
-    await writeFile(projectPath, JSON.stringify(VALID_CONFIG), "utf8");
-    await writeFile(globalPath, JSON.stringify({ ...VALID_CONFIG, schemaVersion: 1 }), "utf8");
+    await writeJson(projectPath, VALID_CONFIG);
+    await writeJson(globalPath, VALID_CONFIG);
 
     const resolved = await resolveConfigPath({ cwd, homeDir: home });
     expect(resolved).toBe(projectPath);
@@ -53,43 +65,62 @@ describe("cli config loader", () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-validate-"));
     const configPath = join(root, "argue.config.json");
 
-    await writeFile(
-      configPath,
-      JSON.stringify({
-        schemaVersion: 1,
-        providers: {
-          p1: {
-            type: "api",
-            protocol: "openai-compatible",
-            models: { m1: {} }
-          }
-        },
-        agents: [
-          { id: "a1", provider: "p1", model: "m1" },
-          { id: "a2", provider: "p1", model: "missing" }
-        ]
-      }),
-      "utf8"
-    );
+    await writeJson(configPath, {
+      ...VALID_CONFIG,
+      agents: [
+        { id: "a1", provider: "p1", model: "m1" },
+        { id: "a2", provider: "p1", model: "missing" }
+      ]
+    });
 
     await expect(loadCliConfig({ explicitPath: configPath })).rejects.toThrow(/unknown model/);
   });
 
-  it("run command loads config and prints resolved paths", async () => {
+  it("run command resolves plan with precedence: flags > input > defaults", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-run-"));
     const configPath = join(root, "argue.config.json");
+    const inputPath = join(root, "topic.json");
 
-    await writeFile(
-      configPath,
-      JSON.stringify({
-        ...VALID_CONFIG,
-        output: {
-          jsonlPath: "./out/events.jsonl",
-          resultPath: "./out/result.json"
-        }
-      }),
-      "utf8"
+    await writeJson(configPath, VALID_CONFIG);
+    await writeJson(inputPath, {
+      requestId: "from-input",
+      topic: "Input topic",
+      objective: "Input objective",
+      agents: ["a1", "a2"],
+      composer: "representative"
+    });
+
+    const logs: string[] = [];
+    const errors: string[] = [];
+
+    const result = await runCli(
+      [
+        "run",
+        "--config", configPath,
+        "--input", inputPath,
+        "--topic", "Flag topic",
+        "--agents", "a2,a3",
+        "--composer", "builtin"
+      ],
+      {
+        log: (msg: string) => logs.push(msg),
+        error: (msg: string) => errors.push(msg)
+      }
     );
+
+    expect(result.ok).toBe(true);
+    expect(result.code).toBe(0);
+    expect(errors).toHaveLength(0);
+
+    expect(logs.some((x) => x.includes("topic: Flag topic"))).toBe(true);
+    expect(logs.some((x) => x.includes("agents: a2, a3"))).toBe(true);
+    expect(logs.some((x) => x.includes("composer: builtin"))).toBe(true);
+  });
+
+  it("run command fails when topic/objective are not provided by any source", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-run-fail-"));
+    const configPath = join(root, "argue.config.json");
+    await writeJson(configPath, VALID_CONFIG);
 
     const logs: string[] = [];
     const errors: string[] = [];
@@ -99,10 +130,12 @@ describe("cli config loader", () => {
       error: (msg: string) => errors.push(msg)
     });
 
-    expect(result.ok).toBe(true);
-    expect(result.code).toBe(0);
-    expect(errors).toHaveLength(0);
-    expect(logs.some((x) => x.includes("configuration loaded"))).toBe(true);
-    expect(logs.some((x) => x.includes("jsonl:"))).toBe(true);
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe(1);
+    expect(errors.some((x) => x.includes("Missing topic"))).toBe(true);
   });
 });
+
+async function writeJson(path: string, value: unknown): Promise<void> {
+  await writeFile(path, JSON.stringify(value), "utf8");
+}

@@ -1,0 +1,198 @@
+import type { CliConfig, LoadedCliConfig } from "./config.js";
+import { resolveOutputPath } from "./config.js";
+import type { RunInput } from "./run-input.js";
+
+export type RunOverrides = {
+  requestId?: string;
+  topic?: string;
+  objective?: string;
+  agents?: string[];
+  jsonlPath?: string;
+  resultPath?: string;
+  minRounds?: number;
+  maxRounds?: number;
+  perTaskTimeoutMs?: number;
+  perRoundTimeoutMs?: number;
+  globalDeadlineMs?: number;
+  consensusThreshold?: number;
+  composer?: "builtin" | "representative";
+  representativeId?: string;
+  includeDeliberationTrace?: boolean;
+  traceLevel?: "compact" | "full";
+  language?: string;
+  tokenBudgetHint?: number;
+};
+
+export type ResolvedRunPlan = {
+  requestId: string;
+  topic: string;
+  objective: string;
+  participantIds: string[];
+  jsonlPath: string;
+  resultPath: string;
+  startInput: {
+    requestId: string;
+    topic: string;
+    objective: string;
+    participants: Array<{ id: string; role?: string }>;
+    roundPolicy: { minRounds: number; maxRounds: number };
+    waitingPolicy: {
+      perTaskTimeoutMs: number;
+      perRoundTimeoutMs: number;
+      globalDeadlineMs?: number;
+    };
+    consensusPolicy: { threshold: number };
+    reportPolicy: {
+      composer: "builtin" | "representative";
+      representativeId?: string;
+      includeDeliberationTrace: boolean;
+      traceLevel: "compact" | "full";
+    };
+    constraints?: {
+      language?: string;
+      tokenBudgetHint?: number;
+    };
+    context?: Record<string, unknown>;
+  };
+};
+
+export function resolveRunPlan(args: {
+  loadedConfig: LoadedCliConfig;
+  runInput: RunInput;
+  overrides: RunOverrides;
+}): ResolvedRunPlan {
+  const { loadedConfig, runInput, overrides } = args;
+  const config = loadedConfig.config;
+
+  const requestId = overrides.requestId ?? runInput.requestId ?? `argue_${Date.now()}`;
+  const topic = (overrides.topic ?? runInput.topic ?? "").trim();
+  const objective = (overrides.objective ?? runInput.objective ?? "").trim();
+
+  if (!topic) {
+    throw new Error("Missing topic. Provide --topic or set topic in run input JSON.");
+  }
+  if (!objective) {
+    throw new Error("Missing objective. Provide --objective or set objective in run input JSON.");
+  }
+
+  const participantIds = resolveParticipants(config, runInput, overrides);
+  const participants = participantIds.map((id) => {
+    const agent = config.agents.find((item) => item.id === id);
+    if (!agent) {
+      throw new Error(`Unknown agent id: ${id}`);
+    }
+    return {
+      id: agent.id,
+      role: agent.role
+    };
+  });
+
+  const minRounds = overrides.minRounds ?? runInput.minRounds ?? config.defaults?.minRounds ?? 2;
+  const maxRounds = overrides.maxRounds ?? runInput.maxRounds ?? config.defaults?.maxRounds ?? 3;
+  if (maxRounds < minRounds) {
+    throw new Error(`maxRounds must be >= minRounds (got ${maxRounds} < ${minRounds})`);
+  }
+
+  const perTaskTimeoutMs =
+    overrides.perTaskTimeoutMs ?? runInput.perTaskTimeoutMs ?? config.defaults?.perTaskTimeoutMs ?? 10 * 60 * 1_000;
+  const perRoundTimeoutMs =
+    overrides.perRoundTimeoutMs ?? runInput.perRoundTimeoutMs ?? config.defaults?.perRoundTimeoutMs ?? 20 * 60 * 1_000;
+  const globalDeadlineMs =
+    overrides.globalDeadlineMs ?? runInput.globalDeadlineMs ?? config.defaults?.globalDeadlineMs;
+
+  const threshold = overrides.consensusThreshold
+    ?? runInput.consensusThreshold
+    ?? config.defaults?.consensusThreshold
+    ?? 1;
+
+  const composer = overrides.composer ?? runInput.composer ?? config.defaults?.composer ?? "builtin";
+  const representativeId =
+    overrides.representativeId ?? runInput.representativeId ?? config.defaults?.representativeId;
+  const includeDeliberationTrace =
+    overrides.includeDeliberationTrace
+    ?? runInput.includeDeliberationTrace
+    ?? config.defaults?.includeDeliberationTrace
+    ?? false;
+  const traceLevel =
+    overrides.traceLevel ?? runInput.traceLevel ?? config.defaults?.traceLevel ?? "compact";
+
+  const language = overrides.language ?? runInput.language ?? config.defaults?.language;
+  const tokenBudgetHint =
+    overrides.tokenBudgetHint ?? runInput.tokenBudgetHint ?? config.defaults?.tokenBudgetHint;
+
+  const jsonlRaw = overrides.jsonlPath ?? loadedConfig.config.output?.jsonlPath ?? "./out/{requestId}.events.jsonl";
+  const resultRaw = overrides.resultPath ?? loadedConfig.config.output?.resultPath ?? "./out/{requestId}.result.json";
+
+  return {
+    requestId,
+    topic,
+    objective,
+    participantIds,
+    jsonlPath: resolveOutputPath(jsonlRaw, loadedConfig.configDir, requestId),
+    resultPath: resolveOutputPath(resultRaw, loadedConfig.configDir, requestId),
+    startInput: {
+      requestId,
+      topic,
+      objective,
+      participants,
+      roundPolicy: { minRounds, maxRounds },
+      waitingPolicy: {
+        perTaskTimeoutMs,
+        perRoundTimeoutMs,
+        ...(typeof globalDeadlineMs === "number" ? { globalDeadlineMs } : {})
+      },
+      consensusPolicy: { threshold },
+      reportPolicy: {
+        composer,
+        ...(representativeId ? { representativeId } : {}),
+        includeDeliberationTrace,
+        traceLevel
+      },
+      ...(language || typeof tokenBudgetHint === "number"
+        ? {
+          constraints: {
+            ...(language ? { language } : {}),
+            ...(typeof tokenBudgetHint === "number" ? { tokenBudgetHint } : {})
+          }
+        }
+        : {}),
+      ...(runInput.context ? { context: runInput.context } : {})
+    }
+  };
+}
+
+function resolveParticipants(
+  config: CliConfig,
+  runInput: RunInput,
+  overrides: RunOverrides
+): string[] {
+  const source = overrides.agents
+    ?? runInput.agents
+    ?? config.defaults?.defaultAgents
+    ?? config.agents.map((agent) => agent.id);
+
+  const normalized = dedupe(source);
+
+  if (normalized.length < 2) {
+    throw new Error("At least two agents are required for a run.");
+  }
+
+  for (const id of normalized) {
+    if (!config.agents.some((agent) => agent.id === id)) {
+      throw new Error(`Unknown agent id in selection: ${id}`);
+    }
+  }
+
+  return normalized;
+}
+
+function dedupe(list: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of list) {
+    if (seen.has(item)) continue;
+    seen.add(item);
+    out.push(item);
+  }
+  return out;
+}

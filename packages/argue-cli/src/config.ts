@@ -44,20 +44,31 @@ const AgentSchema = z.object({
   temperature: z.number().min(0).max(2).optional()
 }).strict();
 
+const DefaultsSchema = z.object({
+  defaultAgents: z.array(z.string().min(1)).min(2).optional(),
+  language: z.string().min(1).optional(),
+  tokenBudgetHint: z.number().int().positive().optional(),
+  minRounds: z.number().int().min(0).optional(),
+  maxRounds: z.number().int().min(1).optional(),
+  perTaskTimeoutMs: z.number().int().positive().optional(),
+  perRoundTimeoutMs: z.number().int().positive().optional(),
+  globalDeadlineMs: z.number().int().positive().optional(),
+  consensusThreshold: z.number().min(0).max(1).optional(),
+  composer: z.enum(["builtin", "representative"]).optional(),
+  representativeId: z.string().min(1).optional(),
+  includeDeliberationTrace: z.boolean().optional(),
+  traceLevel: z.enum(["compact", "full"]).optional()
+}).strict();
+
+const OutputSchema = z.object({
+  jsonlPath: z.string().min(1).optional(),
+  resultPath: z.string().min(1).optional()
+}).strict();
+
 const CliConfigSchemaBase = z.object({
   schemaVersion: z.literal(1),
-  output: z.object({
-    jsonlPath: z.string().min(1).optional(),
-    resultPath: z.string().min(1).optional()
-  }).strict().optional(),
-  defaults: z.object({
-    language: z.string().min(1).optional(),
-    minRounds: z.number().int().min(0).optional(),
-    maxRounds: z.number().int().min(1).optional(),
-    perTaskTimeoutMs: z.number().int().positive().optional(),
-    perRoundTimeoutMs: z.number().int().positive().optional(),
-    globalDeadlineMs: z.number().int().positive().optional()
-  }).strict().optional(),
+  output: OutputSchema.optional(),
+  defaults: DefaultsSchema.optional(),
   providers: z.record(ProviderSchema).refine((providers) => Object.keys(providers).length > 0, {
     message: "config.providers must contain at least one provider"
   }),
@@ -104,6 +115,16 @@ export const CliConfigSchema = CliConfigSchemaBase.superRefine((config, ctx) => 
       path: ["defaults", "maxRounds"],
       message: "defaults.maxRounds must be >= defaults.minRounds"
     });
+  }
+
+  for (const [index, agentId] of (config.defaults?.defaultAgents ?? []).entries()) {
+    if (!config.agents.some((agent) => agent.id === agentId)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["defaults", "defaultAgents", index],
+        message: `unknown default agent id: ${agentId}`
+      });
+    }
   }
 });
 
@@ -154,16 +175,9 @@ export async function resolveConfigPath(options: ResolveConfigPathOptions = {}):
 
 export async function loadCliConfig(options: ResolveConfigPathOptions = {}): Promise<LoadedCliConfig> {
   const configPath = await resolveConfigPath(options);
-  const raw = await readFile(configPath, "utf8");
-
-  let json: unknown;
-  try {
-    json = JSON.parse(raw);
-  } catch (error) {
-    throw new Error(`Invalid JSON in config: ${configPath} (${String(error)})`);
-  }
-
+  const json = await readJsonFile(configPath);
   const parsed = CliConfigSchema.parse(json);
+
   return {
     configPath,
     configDir: dirname(configPath),
@@ -171,9 +185,24 @@ export async function loadCliConfig(options: ResolveConfigPathOptions = {}): Pro
   };
 }
 
-export function resolveOutputPath(rawPath: string, baseDir: string): string {
+export async function readJsonFile(path: string): Promise<unknown> {
+  const raw = await readFile(path, "utf8");
+
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`Invalid JSON in file: ${path} (${String(error)})`);
+  }
+}
+
+export function resolvePath(rawPath: string, baseDir: string): string {
   if (isAbsolute(rawPath)) return rawPath;
   return resolve(baseDir, rawPath);
+}
+
+export function resolveOutputPath(rawPath: string, baseDir: string, requestId: string): string {
+  const withRequestId = rawPath.replaceAll("{requestId}", requestId);
+  return resolvePath(withRequestId, baseDir);
 }
 
 function toAbsolute(path: string, cwd: string): string {

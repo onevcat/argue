@@ -15,6 +15,8 @@ CLI config lookup order:
 2. `./argue.config.json`
 3. `~/.config/argue/config.json`
 
+Run input (`--input <path>`, e.g. `topic.json`) is optional and overrides config defaults for the current run. CLI flags override both.
+
 Quick workspace commands:
 
 - `npm run check`

@@ -5,11 +5,16 @@
     "resultPath": "./out/{requestId}.result.json"
   },
   "defaults": {
+    "defaultAgents": ["architect", "bughunter"],
     "language": "en",
     "minRounds": 2,
     "maxRounds": 3,
     "perTaskTimeoutMs": 600000,
-    "perRoundTimeoutMs": 1200000
+    "perRoundTimeoutMs": 1200000,
+    "consensusThreshold": 1,
+    "composer": "builtin",
+    "includeDeliberationTrace": false,
+    "traceLevel": "compact"
   },
   "providers": {
     "openai_local": {
