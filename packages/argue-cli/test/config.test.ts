@@ -42,6 +42,35 @@ const VALID_CONFIG = {
   ]
 };
 
+const RUNNABLE_CONFIG = {
+  schemaVersion: 1,
+  output: {
+    jsonlPath: "./out/{requestId}.events.jsonl",
+    resultPath: "./out/{requestId}.result.json",
+    summaryPath: "./out/{requestId}.summary.md"
+  },
+  defaults: {
+    defaultAgents: ["a1", "a2"],
+    minRounds: 1,
+    maxRounds: 1,
+    consensusThreshold: 1,
+    composer: "builtin"
+  },
+  providers: {
+    mock: {
+      type: "mock",
+      models: {
+        fake: {}
+      }
+    }
+  },
+  agents: [
+    { id: "a1", provider: "mock", model: "fake", role: "r1" },
+    { id: "a2", provider: "mock", model: "fake", role: "r2" },
+    { id: "a3", provider: "mock", model: "fake", role: "r3" }
+  ]
+};
+
 describe("cli config loader", () => {
   it("prefers project config over global config", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-config-"));
@@ -81,7 +110,7 @@ describe("cli config loader", () => {
     const configPath = join(root, "argue.config.json");
     const inputPath = join(root, "topic.json");
 
-    await writeJson(configPath, VALID_CONFIG);
+    await writeJson(configPath, RUNNABLE_CONFIG);
     await writeJson(inputPath, {
       requestId: "from-input",
       topic: "Input topic",
@@ -120,7 +149,7 @@ describe("cli config loader", () => {
   it("supports exec as alias of run", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-exec-"));
     const configPath = join(root, "argue.config.json");
-    await writeJson(configPath, VALID_CONFIG);
+    await writeJson(configPath, RUNNABLE_CONFIG);
 
     const logs: string[] = [];
     const errors: string[] = [];
