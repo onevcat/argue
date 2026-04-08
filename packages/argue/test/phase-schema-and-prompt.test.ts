@@ -194,10 +194,15 @@ describe("built-in prompt templates", () => {
     });
 
     const roundDispatches = delegate.dispatchCalls.filter((x) => x.kind === "round");
-    const initialPrompt = roundDispatches.find((x) => x.kind === "round" && x.phase === "initial")?.prompt ?? "";
-    const debatePrompt = roundDispatches.find((x) => x.kind === "round" && x.phase === "debate")?.prompt ?? "";
-    const finalPrompt = roundDispatches.find((x) => x.kind === "round" && x.phase === "final_vote")?.prompt ?? "";
-    const reportPrompt = delegate.dispatchCalls.find((x) => x.kind === "report")?.prompt ?? "";
+    const initialDispatch = roundDispatches.find((x) => x.kind === "round" && x.phase === "initial");
+    const debateDispatch = roundDispatches.find((x) => x.kind === "round" && x.phase === "debate");
+    const finalDispatch = roundDispatches.find((x) => x.kind === "round" && x.phase === "final_vote");
+    const reportDispatch = delegate.dispatchCalls.find((x) => x.kind === "report");
+
+    const initialPrompt = initialDispatch?.prompt ?? "";
+    const debatePrompt = debateDispatch?.prompt ?? "";
+    const finalPrompt = finalDispatch?.prompt ?? "";
+    const reportPrompt = reportDispatch?.prompt ?? "";
 
     expect(initialPrompt).toContain("Schema requirements (initial)");
     expect(initialPrompt).toContain("Initial phase JSON template");
@@ -210,5 +215,18 @@ describe("built-in prompt templates", () => {
 
     expect(reportPrompt).toContain("Generate FinalReport");
     expect(reportPrompt).toContain("FinalReport JSON template");
+
+    const initialMeta = initialDispatch?.metadata as Record<string, unknown> | undefined;
+    const debateMeta = debateDispatch?.metadata as Record<string, unknown> | undefined;
+    const finalMeta = finalDispatch?.metadata as Record<string, unknown> | undefined;
+    const reportMeta = reportDispatch?.metadata as Record<string, unknown> | undefined;
+
+    expect((initialMeta?.outputSchema as Record<string, unknown> | undefined)?.ref).toBe("argue.round.initial.output-content.v1");
+    expect((debateMeta?.outputSchema as Record<string, unknown> | undefined)?.ref).toBe("argue.round.debate.output-content.v1");
+    expect((finalMeta?.outputSchema as Record<string, unknown> | undefined)?.ref).toBe("argue.round.final_vote.output-content.v1");
+    expect((reportMeta?.outputSchema as Record<string, unknown> | undefined)?.ref).toBe("argue.report.output-content.v1");
+
+    const finalVoteSchema = (finalMeta?.outputSchema as Record<string, unknown> | undefined)?.jsonSchema as Record<string, unknown> | undefined;
+    expect((finalVoteSchema?.properties as Record<string, unknown> | undefined)?.claimVotes).toBeDefined();
   });
 });

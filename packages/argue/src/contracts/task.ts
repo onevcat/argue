@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  ClaimJudgementSchema,
   ClaimResolutionSchema,
   ClaimSchema,
   ClaimVoteInputSchema,
@@ -18,6 +19,173 @@ const ClaimDraftSchema = ClaimSchema.pick({
   status: true,
   mergedInto: true
 });
+
+const ExtractedClaimOutputSchema = ClaimSchema.pick({
+  claimId: true,
+  title: true,
+  statement: true,
+  category: true
+});
+
+export const InitialRoundTaskOutputContentSchema = z.object({
+  fullResponse: z.string().min(1),
+  summary: z.string().min(1),
+  extractedClaims: z.array(ExtractedClaimOutputSchema),
+  judgements: z.array(ClaimJudgementSchema)
+});
+
+export const DebateRoundTaskOutputContentSchema = z.object({
+  fullResponse: z.string().min(1),
+  summary: z.string().min(1),
+  extractedClaims: z.array(ExtractedClaimOutputSchema).optional(),
+  judgements: z.array(ClaimJudgementSchema).min(1)
+});
+
+export const FinalVoteTaskOutputContentSchema = z.object({
+  fullResponse: z.string().min(1),
+  summary: z.string().min(1),
+  judgements: z.array(ClaimJudgementSchema),
+  claimVotes: z.array(ClaimVoteInputSchema).min(1)
+});
+
+export const ReportTaskOutputContentSchema = FinalReportSchema;
+
+export type RoundOutputContentSchemaRef =
+  | "argue.round.initial.output-content.v1"
+  | "argue.round.debate.output-content.v1"
+  | "argue.round.final_vote.output-content.v1";
+
+export const ROUND_OUTPUT_CONTENT_SCHEMA_REF: Record<z.infer<typeof PhaseSchema>, RoundOutputContentSchemaRef> = {
+  initial: "argue.round.initial.output-content.v1",
+  debate: "argue.round.debate.output-content.v1",
+  final_vote: "argue.round.final_vote.output-content.v1"
+};
+
+export const REPORT_OUTPUT_CONTENT_SCHEMA_REF = "argue.report.output-content.v1" as const;
+
+const CLAIM_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["claimId", "title", "statement"],
+  properties: {
+    claimId: { type: "string" },
+    title: { type: "string" },
+    statement: { type: "string" },
+    category: { type: "string", enum: ["pro", "con", "risk", "tradeoff", "todo"] }
+  }
+} as const;
+
+const CLAIM_JUDGEMENT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["claimId", "stance", "confidence", "rationale"],
+  properties: {
+    claimId: { type: "string" },
+    stance: { type: "string", enum: ["agree", "disagree", "revise"] },
+    confidence: { type: "number", minimum: 0, maximum: 1 },
+    rationale: { type: "string" },
+    revisedStatement: { type: "string" },
+    mergesWith: { type: "string" }
+  }
+} as const;
+
+export const InitialRoundOutputContentJsonSchema = {
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  title: "ArgueInitialRoundOutputContentV1",
+  type: "object",
+  additionalProperties: false,
+  required: ["fullResponse", "summary", "extractedClaims", "judgements"],
+  properties: {
+    fullResponse: { type: "string" },
+    summary: { type: "string" },
+    extractedClaims: {
+      type: "array",
+      items: CLAIM_JSON_SCHEMA
+    },
+    judgements: {
+      type: "array",
+      items: CLAIM_JUDGEMENT_JSON_SCHEMA
+    }
+  }
+} as const;
+
+export const DebateRoundOutputContentJsonSchema = {
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  title: "ArgueDebateRoundOutputContentV1",
+  type: "object",
+  additionalProperties: false,
+  required: ["fullResponse", "summary", "judgements"],
+  properties: {
+    fullResponse: { type: "string" },
+    summary: { type: "string" },
+    extractedClaims: {
+      type: "array",
+      items: CLAIM_JSON_SCHEMA
+    },
+    judgements: {
+      type: "array",
+      minItems: 1,
+      items: CLAIM_JUDGEMENT_JSON_SCHEMA
+    }
+  }
+} as const;
+
+export const FinalVoteRoundOutputContentJsonSchema = {
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  title: "ArgueFinalVoteRoundOutputContentV1",
+  type: "object",
+  additionalProperties: false,
+  required: ["fullResponse", "summary", "judgements", "claimVotes"],
+  properties: {
+    fullResponse: { type: "string" },
+    summary: { type: "string" },
+    judgements: {
+      type: "array",
+      items: CLAIM_JUDGEMENT_JSON_SCHEMA
+    },
+    claimVotes: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["claimId", "vote"],
+        properties: {
+          claimId: { type: "string" },
+          vote: { type: "string", enum: ["accept", "reject"] },
+          reason: { type: "string" }
+        }
+      }
+    }
+  }
+} as const;
+
+export const ReportOutputContentJsonSchema = {
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  title: "ArgueReportOutputContentV1",
+  type: "object",
+  additionalProperties: false,
+  required: ["mode", "traceIncluded", "traceLevel", "finalSummary", "representativeSpeech"],
+  properties: {
+    mode: { type: "string", enum: ["builtin", "representative"] },
+    traceIncluded: { type: "boolean" },
+    traceLevel: { type: "string", enum: ["compact", "full"] },
+    finalSummary: { type: "string" },
+    representativeSpeech: { type: "string" },
+    opinionShiftTimeline: { type: "array" },
+    roundHighlights: { type: "array" }
+  }
+} as const;
+
+export function getRoundOutputContentSchemaRef(phase: z.infer<typeof PhaseSchema>): RoundOutputContentSchemaRef {
+  return ROUND_OUTPUT_CONTENT_SCHEMA_REF[phase];
+}
+
+export function getRoundOutputContentJsonSchema(phase: z.infer<typeof PhaseSchema>): Record<string, unknown> {
+  if (phase === "initial") return InitialRoundOutputContentJsonSchema;
+  if (phase === "debate") return DebateRoundOutputContentJsonSchema;
+  return FinalVoteRoundOutputContentJsonSchema;
+}
 
 export const RoundTaskInputSchema = z.object({
   kind: z.literal("round"),
@@ -88,20 +256,6 @@ export const ReportTaskResultSchema = z.object({
 });
 
 export type ReportTaskResult = z.infer<typeof ReportTaskResultSchema>;
-
-export const FinalVoteTaskOutputContentSchema = z.object({
-  fullResponse: z.string().min(1),
-  summary: z.string().min(1),
-  judgements: z.array(z.object({
-    claimId: z.string().min(1),
-    stance: z.enum(["agree", "disagree", "revise"]),
-    confidence: z.number().min(0).max(1),
-    rationale: z.string().min(1),
-    revisedStatement: z.string().min(1).optional(),
-    mergesWith: z.string().min(1).optional()
-  })),
-  claimVotes: z.array(ClaimVoteInputSchema).min(1)
-});
 
 export const AgentTaskResultSchema = z.discriminatedUnion("kind", [
   RoundTaskResultSchema,

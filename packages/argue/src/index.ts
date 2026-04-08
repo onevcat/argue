@@ -18,6 +18,7 @@ export type {
   AgentTaskResult,
   ReportTaskInput,
   ReportTaskResult,
+  RoundOutputContentSchemaRef,
   RoundTaskInput,
   RoundTaskResult
 } from "./contracts/task.js";
@@ -25,10 +26,22 @@ export type {
 export {
   AgentTaskInputSchema,
   AgentTaskResultSchema,
+  DebateRoundOutputContentJsonSchema,
+  DebateRoundTaskOutputContentSchema,
+  FinalVoteRoundOutputContentJsonSchema,
+  FinalVoteTaskOutputContentSchema,
+  InitialRoundOutputContentJsonSchema,
+  InitialRoundTaskOutputContentSchema,
+  REPORT_OUTPUT_CONTENT_SCHEMA_REF,
+  ROUND_OUTPUT_CONTENT_SCHEMA_REF,
+  ReportOutputContentJsonSchema,
   ReportTaskInputSchema,
+  ReportTaskOutputContentSchema,
   ReportTaskResultSchema,
   RoundTaskInputSchema,
-  RoundTaskResultSchema
+  RoundTaskResultSchema,
+  getRoundOutputContentJsonSchema,
+  getRoundOutputContentSchemaRef
 } from "./contracts/task.js";
 
 export type {
