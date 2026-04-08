@@ -29,7 +29,11 @@ import { DefaultWaitCoordinator } from "./wait-coordinator.js";
 import { MemorySessionStore } from "../store/memory-store.js";
 import {
   ReportTaskResultSchema,
+  REPORT_OUTPUT_CONTENT_SCHEMA_REF,
+  ReportOutputContentJsonSchema,
   RoundTaskInputSchema,
+  getRoundOutputContentJsonSchema,
+  getRoundOutputContentSchemaRef,
   type AgentTaskInput,
   type ReportTaskInput
 } from "../contracts/task.js";
@@ -376,7 +380,11 @@ export class ArgueEngine {
           role: participant.role,
           peerContextPassMode: args.normalized.peerContextPolicy.passMode,
           constraints: args.normalized.constraints,
-          context: args.normalized.context
+          context: args.normalized.context,
+          outputSchema: {
+            ref: getRoundOutputContentSchemaRef(args.phase),
+            jsonSchema: getRoundOutputContentJsonSchema(args.phase)
+          }
         }
       });
 
@@ -535,7 +543,11 @@ export class ArgueEngine {
         reporterIsActiveParticipant: args.activeParticipants.has(reporterId),
         requestedRepresentativeId: args.normalized.reportPolicy.representativeId,
         constraints: args.normalized.constraints,
-        context: args.normalized.context
+        context: args.normalized.context,
+        outputSchema: {
+          ref: REPORT_OUTPUT_CONTENT_SCHEMA_REF,
+          jsonSchema: ReportOutputContentJsonSchema
+        }
       }
     };
 
