@@ -644,25 +644,80 @@ export class ArgueEngine {
       return input.promptPolicy.debateTemplate;
     }
 
-    const lines = [
+    const shared = [
+      "You are a participant in a structured multi-agent argument session.",
+      "Return ONE valid JSON object only. Do not wrap with markdown/code fences.",
       `phase=${phase}`,
       `round=${round}`,
       `topic=${input.topic}`,
-      `objective=${input.objective}`,
-      phase === "final_vote"
-        ? "Vote each active claim independently using claimVotes[] (accept/reject)."
-        : "Use claim-level judgements for all relevant claims."
+      `objective=${input.objective}`
     ];
 
     if (input.constraints?.language) {
-      lines.push(`language=${input.constraints.language}`);
+      shared.push(`language=${input.constraints.language}`);
     }
 
     if (typeof input.constraints?.tokenBudgetHint === "number") {
-      lines.push(`token_budget_hint=${input.constraints.tokenBudgetHint}`);
+      shared.push(`token_budget_hint=${input.constraints.tokenBudgetHint}`);
     }
 
-    return lines.join("\n");
+    if (phase === "initial") {
+      return [
+        ...shared,
+        "",
+        "Phase goal:",
+        "- Produce your independent initial analysis.",
+        "- Propose concrete claims for later debate.",
+        "",
+        "Schema requirements (initial):",
+        "- fullResponse: string",
+        "- summary: string",
+        "- extractedClaims: array of { claimId, title, statement, category? }",
+        "- judgements: array of { claimId, stance, confidence, rationale, revisedStatement?, mergesWith? }",
+        "- claimVotes MUST NOT appear in initial phase",
+        "",
+        "Initial phase JSON template:",
+        '{"fullResponse":"...","summary":"...","extractedClaims":[{"claimId":"c1","title":"...","statement":"...","category":"pro"}],"judgements":[]}'
+      ].join("\n");
+    }
+
+    if (phase === "debate") {
+      return [
+        ...shared,
+        "",
+        "Phase goal:",
+        "- Critique and refine existing claims from claimCatalog and peerRoundInputs.",
+        "- Use mergesWith when two claims are duplicates; earliest claim should survive.",
+        "- Add extractedClaims only for genuinely new points.",
+        "",
+        "Schema requirements (debate):",
+        "- fullResponse: string",
+        "- summary: string",
+        "- judgements: NON-EMPTY array of { claimId, stance, confidence, rationale, revisedStatement?, mergesWith? }",
+        "- extractedClaims: optional array of new claims",
+        "- claimVotes MUST NOT appear in debate phase",
+        "",
+        "Debate phase JSON template:",
+        '{"fullResponse":"...","summary":"...","judgements":[{"claimId":"c1","stance":"revise","confidence":0.82,"rationale":"...","revisedStatement":"...","mergesWith":"c0"}],"extractedClaims":[]}'
+      ].join("\n");
+    }
+
+    return [
+      ...shared,
+      "",
+      "Phase goal:",
+      "- Vote each active claim independently.",
+      "- Every active claim should appear exactly once in claimVotes.",
+      "",
+      "Schema requirements (final_vote):",
+      "- fullResponse: string",
+      "- summary: string",
+      "- judgements: array of { claimId, stance, confidence, rationale, revisedStatement?, mergesWith? } for traceability",
+      "- claimVotes: NON-EMPTY array of { claimId, vote: accept|reject, reason? }",
+      "",
+      "Final vote JSON template:",
+      '{"fullResponse":"...","summary":"...","judgements":[{"claimId":"c1","stance":"agree","confidence":0.9,"rationale":"..."}],"claimVotes":[{"claimId":"c1","vote":"accept","reason":"..."}]}'
+    ].join("\n");
   }
 
   private buildReportPrompt(input: NormalizedArgueStartInput): string {
@@ -671,9 +726,19 @@ export class ArgueEngine {
     }
 
     const lines = [
-      "Generate FinalReport JSON with finalSummary and representativeSpeech.",
+      "You are the report composer for argue.",
+      "Return ONE valid JSON object only. Do not wrap with markdown/code fences.",
+      "Generate FinalReport with required fields:",
+      "- finalSummary: concise conclusion",
+      "- representativeSpeech: polished spokesperson output",
+      "- mode: representative",
+      "- traceIncluded / traceLevel consistent with requested policy",
+      "- optional opinionShiftTimeline and roundHighlights",
       `trace=${input.reportPolicy.includeDeliberationTrace ? "on" : "off"}`,
-      `traceLevel=${input.reportPolicy.traceLevel}`
+      `traceLevel=${input.reportPolicy.traceLevel}`,
+      "",
+      "FinalReport JSON template:",
+      '{"mode":"representative","traceIncluded":false,"traceLevel":"compact","finalSummary":"...","representativeSpeech":"..."}'
     ];
 
     if (input.constraints?.language) {

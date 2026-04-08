@@ -36,6 +36,8 @@ export const ClaimVoteSchema = z.object({
   reason: z.string().optional()
 });
 
+export const ClaimVoteInputSchema = ClaimVoteSchema.omit({ participantId: true });
+
 export type ClaimVote = z.infer<typeof ClaimVoteSchema>;
 
 export const PhaseSchema = z.enum(["initial", "debate", "final_vote"]);
@@ -56,19 +58,25 @@ const ParticipantRoundOutputBaseSchema = z.object({
   summary: z.string().min(1)
 });
 
+export const InitialParticipantRoundOutputSchema = ParticipantRoundOutputBaseSchema.extend({
+  phase: z.literal("initial"),
+  claimVotes: z.undefined().optional()
+});
+
+export const DebateParticipantRoundOutputSchema = ParticipantRoundOutputBaseSchema.extend({
+  phase: z.literal("debate"),
+  claimVotes: z.undefined().optional()
+});
+
+export const FinalVoteParticipantRoundOutputSchema = ParticipantRoundOutputBaseSchema.extend({
+  phase: z.literal("final_vote"),
+  claimVotes: z.array(ClaimVoteInputSchema).min(1)
+});
+
 export const ParticipantRoundOutputSchema = z.discriminatedUnion("phase", [
-  ParticipantRoundOutputBaseSchema.extend({
-    phase: z.literal("initial"),
-    claimVotes: z.undefined().optional()
-  }),
-  ParticipantRoundOutputBaseSchema.extend({
-    phase: z.literal("debate"),
-    claimVotes: z.undefined().optional()
-  }),
-  ParticipantRoundOutputBaseSchema.extend({
-    phase: z.literal("final_vote"),
-    claimVotes: z.array(ClaimVoteSchema.omit({ participantId: true })).default([])
-  })
+  InitialParticipantRoundOutputSchema,
+  DebateParticipantRoundOutputSchema,
+  FinalVoteParticipantRoundOutputSchema
 ]);
 
 export type ParticipantRoundOutput = z.infer<typeof ParticipantRoundOutputSchema>;
