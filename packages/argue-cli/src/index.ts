@@ -356,14 +356,20 @@ function parseAgentList(raw: string): string[] {
 
 function parseIntArg(flag: string, raw: string | undefined): number | string {
   if (!raw) return `${flag} requires a value`;
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n)) return `${flag} must be an integer`;
+  if (!/^[+-]?\d+$/.test(raw)) return `${flag} must be an integer`;
+
+  const n = Number(raw);
+  if (!Number.isSafeInteger(n)) return `${flag} must be a safe integer`;
   return n;
 }
 
 function parseFloatArg(flag: string, raw: string | undefined): number | string {
   if (!raw) return `${flag} requires a value`;
-  const n = Number.parseFloat(raw);
+  if (!/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(raw)) {
+    return `${flag} must be a number`;
+  }
+
+  const n = Number(raw);
   if (!Number.isFinite(n)) return `${flag} must be a number`;
   return n;
 }

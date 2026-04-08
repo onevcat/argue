@@ -209,6 +209,9 @@ describe("argue-cli runtime e2e", () => {
         sdk: {
           type: "sdk",
           adapter: "./adapter.mjs",
+          env: {
+            ARGUE_SDK_E2E: "sdk-ok"
+          },
           models: {
             fake: {}
           }
@@ -231,6 +234,7 @@ describe("argue-cli runtime e2e", () => {
     expect(result.ok).toBe(true);
     const resultJson = JSON.parse(await readFile(join(root, "out", "sdk-e2e.result.json"), "utf8"));
     expect(resultJson.status).toBe("consensus");
+    expect(resultJson.rounds[0]?.outputs[0]?.fullResponse).toContain("env=sdk-ok");
   });
 
   it("runs openai-compatible api providers through AI SDK", async () => {
@@ -527,9 +531,13 @@ process.stdout.write("Here is the JSON you asked for.\\n\`\`\`json\\n" + JSON.st
 `;
 
 const SDK_ADAPTER_SCRIPT = `
-export function createArgueSdkAdapter() {
+export function createArgueSdkAdapter(args) {
+  const envMark = args?.environment?.ARGUE_SDK_E2E ?? "missing";
+
   return {
-    async runTask({ task }) {
+    async runTask({ task, environment }) {
+      const mark = environment?.ARGUE_SDK_E2E ?? envMark;
+
       if (task.kind === "report") {
         return {
           mode: "representative",
@@ -542,7 +550,8 @@ export function createArgueSdkAdapter() {
 
       if (task.phase === "initial") {
         return {
-          fullResponse: "SDK initial response",
+          fullResponse: 
+            "SDK initial response env=" + mark,
           summary: "SDK initial summary",
           extractedClaims: [
             { claimId: "shared-claim", title: "Shared claim", statement: "Shared statement", category: "pro" }

@@ -81,16 +81,21 @@ export async function createTaskDelegate(args: {
         return { ok: true, output };
       } catch (error) {
         if (error instanceof TimeoutError) {
+          entry.controller.abort();
           return { ok: false, error: "__timeout__" };
         }
 
         return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      } finally {
+        tasks.delete(taskId);
       }
     },
 
     async cancel(taskId: string) {
       const entry = tasks.get(taskId);
-      entry?.controller.abort();
+      if (!entry) return;
+      entry.controller.abort();
+      tasks.delete(taskId);
     }
   };
 

@@ -114,7 +114,9 @@ This file is for one run, while config holds the reusable provider/agent catalog
   - stdout can be either an `AgentTaskResult` JSON object or the bare round/report content JSON
 - `type="sdk"`:
   - adapter module should export `createArgueSdkAdapter` by default
-  - the factory returns `{ runTask(args) }`
+  - the factory receives `{ providerName, provider, resolvePath, environment }`
+  - `provider.env` is merged into `process.env` and passed as `environment`
+  - adapter `runTask(args)` receives the same merged `environment`
   - `argue-cli` exports `CliSdkProviderAdapter`, `CreateCliSdkProviderAdapter`, and `ProviderTaskRunnerArgs` types
 - `type="mock"`:
   - intended for CI and local validation

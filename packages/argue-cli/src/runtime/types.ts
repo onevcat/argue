@@ -20,6 +20,7 @@ export type ProviderTaskRunnerArgs = {
   task: AgentTaskInput;
   agent: ResolvedAgentRuntime;
   abortSignal?: AbortSignal;
+  environment?: NodeJS.ProcessEnv;
 };
 
 export interface ProviderTaskRunner {
@@ -34,6 +35,7 @@ export type CreateCliSdkProviderAdapter = (args: {
   providerName: string;
   provider: SdkProviderConfig;
   resolvePath: (path: string) => string;
+  environment: NodeJS.ProcessEnv;
 }) => Promise<CliSdkProviderAdapter> | CliSdkProviderAdapter;
 
 export type ProviderFactoryContext = {

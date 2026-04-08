@@ -8,10 +8,18 @@ export async function createSdkRunner(
   provider: SdkProviderConfig,
   configDir: string
 ): Promise<ProviderTaskRunner> {
-  const adapter = await loadAdapter(providerName, provider, configDir);
+  const environment: NodeJS.ProcessEnv = {
+    ...process.env,
+    ...(provider.env ?? {})
+  };
+
+  const adapter = await loadAdapter(providerName, provider, configDir, environment);
   return {
     runTask(args) {
-      return adapter.runTask(args);
+      return adapter.runTask({
+        ...args,
+        environment
+      });
     }
   };
 }
@@ -19,7 +27,8 @@ export async function createSdkRunner(
 async function loadAdapter(
   providerName: string,
   provider: SdkProviderConfig,
-  configDir: string
+  configDir: string,
+  environment: NodeJS.ProcessEnv
 ): Promise<CliSdkProviderAdapter> {
   const adapterPath = isLocalModuleSpecifier(provider.adapter)
     ? resolvePath(provider.adapter, configDir)
@@ -37,7 +46,8 @@ async function loadAdapter(
   return factory({
     providerName,
     provider,
-    resolvePath: (path) => resolvePath(path, configDir)
+    resolvePath: (path) => resolvePath(path, configDir),
+    environment
   });
 }
 

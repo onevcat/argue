@@ -198,6 +198,48 @@ describe("cli config loader", () => {
     expect(errors.some((x) => x.includes("No TTY detected"))).toBe(true);
   });
 
+  it("rejects loosely-typed integer arguments", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-int-parse-"));
+    const configPath = join(root, "argue.config.json");
+    await writeJson(configPath, VALID_CONFIG);
+
+    const logs: string[] = [];
+    const errors: string[] = [];
+
+    const result = await runCli(
+      ["run", "--config", configPath, "--topic", "t", "--objective", "o", "--max-rounds", "10abc"],
+      {
+        log: (msg: string) => logs.push(msg),
+        error: (msg: string) => errors.push(msg)
+      }
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe(1);
+    expect(errors.some((x) => x.includes("--max-rounds must be an integer"))).toBe(true);
+  });
+
+  it("rejects loosely-typed float arguments", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-float-parse-"));
+    const configPath = join(root, "argue.config.json");
+    await writeJson(configPath, VALID_CONFIG);
+
+    const logs: string[] = [];
+    const errors: string[] = [];
+
+    const result = await runCli(
+      ["run", "--config", configPath, "--topic", "t", "--objective", "o", "--threshold", "0.8foo"],
+      {
+        log: (msg: string) => logs.push(msg),
+        error: (msg: string) => errors.push(msg)
+      }
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe(1);
+    expect(errors.some((x) => x.includes("--threshold must be a number"))).toBe(true);
+  });
+
   it("run command fails when topic/objective are not provided by any source", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-run-fail-"));
     const configPath = join(root, "argue.config.json");
