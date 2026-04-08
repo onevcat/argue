@@ -4,7 +4,11 @@
     "rootDir": "src",
     "outDir": "dist",
     "noEmit": false,
-    "types": ["node"]
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "argue": ["../argue/dist/index.d.ts"]
+    }
   },
   "include": ["src/**/*.ts"]
 }

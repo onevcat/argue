@@ -2,7 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "argue": ["../argue/src/index.ts"]
+    }
   },
   "include": ["src/**/*.ts"]
 }

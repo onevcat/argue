@@ -3,8 +3,10 @@ import {
   loadCliConfig,
   type ResolveConfigPathOptions
 } from "./config.js";
+import { executeHeadlessRun } from "./headless-run.js";
 import { loadRunInput } from "./run-input.js";
 import { resolveRunPlan } from "./run-plan.js";
+export type { CliSdkProviderAdapter, CreateCliSdkProviderAdapter, ProviderTaskRunnerArgs } from "./runtime/types.js";
 
 export type CliRunOptions = {
   configPath?: string;
@@ -15,6 +17,7 @@ export type CliRunOptions = {
   objective?: string;
   jsonlPath?: string;
   resultPath?: string;
+  summaryPath?: string;
   minRounds?: number;
   maxRounds?: number;
   perTaskTimeoutMs?: number;
@@ -118,10 +121,25 @@ async function runHeadless(args: string[], io: Pick<typeof console, "log" | "err
   io.log(`- composer: ${plan.startInput.reportPolicy.composer}`);
   io.log(`- jsonl: ${plan.jsonlPath}`);
   io.log(`- result: ${plan.resultPath}`);
-  io.log("- runtime adapters: TODO (claude/codex/mock)");
-  io.log("- execution: TODO (map selected agents -> delegate -> ArgueEngine.start)");
+  io.log(`- summary: ${plan.summaryPath}`);
 
-  return { ok: true, code: 0 };
+  try {
+    const execution = await executeHeadlessRun({
+      loadedConfig,
+      plan
+    });
+
+    io.log("[argue-cli] run completed");
+    io.log(`- status: ${execution.result.status}`);
+    io.log(`- representative: ${execution.result.representative.participantId}`);
+    io.log(`- jsonl: ${execution.jsonlPath}`);
+    io.log(`- result: ${execution.resultPath}`);
+    io.log(`- summary: ${execution.summaryPath}`);
+    return { ok: true, code: 0 };
+  } catch (error) {
+    io.error(String(error));
+    return { ok: false, code: 1 };
+  }
 }
 
 function enterDefaultMode(io: Pick<typeof console, "log" | "error">, runtime: CliRuntime): CliResult {
@@ -217,6 +235,14 @@ function parseRunOptions(args: string[]):
       const value = args[i + 1];
       if (!value) return { ok: false, error: "--result requires a path" };
       out.resultPath = value;
+      i += 1;
+      continue;
+    }
+
+    if (arg === "--summary") {
+      const value = args[i + 1];
+      if (!value) return { ok: false, error: "--summary requires a path" };
+      out.summaryPath = value;
       i += 1;
       continue;
     }
@@ -358,7 +384,7 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("  --agents a,b,c                  override selected agents");
   io.log("  --topic <text> --objective <text>");
   io.log("  --request-id <id>");
-  io.log("  --jsonl <path> --result <path>");
+  io.log("  --jsonl <path> --result <path> --summary <path>");
   io.log("  --min-rounds <n> --max-rounds <n> --threshold <0..1>");
   io.log("  --composer builtin|representative --representative-id <id>");
   io.log("  --trace --trace-level compact|full");

@@ -3,38 +3,73 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
 
-const ProviderModelSchema = z.object({
+export const ProviderModelSchema = z.object({
   providerModel: z.string().min(1).optional(),
   contextWindow: z.number().int().positive().optional(),
   maxOutputTokens: z.number().int().positive().optional(),
   temperature: z.number().min(0).max(2).optional()
 }).strict();
 
-const ApiProviderSchema = z.object({
+const ProviderModelsSchema = z.record(ProviderModelSchema).refine((models) => Object.keys(models).length > 0, {
+  message: "provider.models must contain at least one model"
+});
+
+export const ApiProviderSchema = z.object({
   type: z.literal("api"),
   protocol: z.enum(["openai-compatible", "anthropic-compatible"]),
   baseUrl: z.string().url().optional(),
   apiKeyEnv: z.string().min(1).optional(),
   headers: z.record(z.string()).optional(),
-  models: z.record(ProviderModelSchema).refine((models) => Object.keys(models).length > 0, {
-    message: "provider.models must contain at least one model"
-  })
+  models: ProviderModelsSchema
 }).strict();
 
-const CliProviderSchema = z.object({
+export const CliProviderSchema = z.object({
   type: z.literal("cli"),
   cliType: z.enum(["codex", "claude", "generic"]),
   command: z.string().min(1),
   args: z.array(z.string()).default([]),
   env: z.record(z.string()).optional(),
-  models: z.record(ProviderModelSchema).refine((models) => Object.keys(models).length > 0, {
-    message: "provider.models must contain at least one model"
-  })
+  models: ProviderModelsSchema
 }).strict();
 
-const ProviderSchema = z.discriminatedUnion("type", [ApiProviderSchema, CliProviderSchema]);
+export const SdkProviderSchema = z.object({
+  type: z.literal("sdk"),
+  adapter: z.string().min(1),
+  exportName: z.string().min(1).optional(),
+  env: z.record(z.string()).optional(),
+  options: z.record(z.unknown()).optional(),
+  models: ProviderModelsSchema
+}).strict();
 
-const AgentSchema = z.object({
+export const MockProviderActionSchema = z.object({
+  behavior: z.enum(["deterministic", "timeout", "error", "malformed"]).default("deterministic"),
+  delayMs: z.number().int().nonnegative().optional(),
+  error: z.string().min(1).optional()
+}).strict();
+
+export const MockParticipantScenarioSchema = z.object({
+  initial: MockProviderActionSchema.optional(),
+  debate: MockProviderActionSchema.optional(),
+  final_vote: MockProviderActionSchema.optional(),
+  report: MockProviderActionSchema.optional()
+}).strict();
+
+export const MockProviderSchema = z.object({
+  type: z.literal("mock"),
+  seed: z.string().min(1).optional(),
+  defaultBehavior: MockProviderActionSchema.optional(),
+  participants: z.record(MockParticipantScenarioSchema).optional(),
+  models: ProviderModelsSchema
+}).strict();
+
+export const ProviderSchema = z.discriminatedUnion("type", [
+  ApiProviderSchema,
+  CliProviderSchema,
+  SdkProviderSchema,
+  MockProviderSchema
+]);
+
+export const AgentSchema = z.object({
   id: z.string().min(1),
   provider: z.string().min(1),
   model: z.string().min(1),
@@ -44,7 +79,7 @@ const AgentSchema = z.object({
   temperature: z.number().min(0).max(2).optional()
 }).strict();
 
-const DefaultsSchema = z.object({
+export const DefaultsSchema = z.object({
   defaultAgents: z.array(z.string().min(1)).min(2).optional(),
   language: z.string().min(1).optional(),
   tokenBudgetHint: z.number().int().positive().optional(),
@@ -60,9 +95,10 @@ const DefaultsSchema = z.object({
   traceLevel: z.enum(["compact", "full"]).optional()
 }).strict();
 
-const OutputSchema = z.object({
+export const OutputSchema = z.object({
   jsonlPath: z.string().min(1).optional(),
-  resultPath: z.string().min(1).optional()
+  resultPath: z.string().min(1).optional(),
+  summaryPath: z.string().min(1).optional()
 }).strict();
 
 const CliConfigSchemaBase = z.object({
@@ -129,6 +165,13 @@ export const CliConfigSchema = CliConfigSchemaBase.superRefine((config, ctx) => 
 });
 
 export type CliConfig = z.infer<typeof CliConfigSchema>;
+export type ProviderModelConfig = z.infer<typeof ProviderModelSchema>;
+export type ApiProviderConfig = z.infer<typeof ApiProviderSchema>;
+export type CliProviderConfig = z.infer<typeof CliProviderSchema>;
+export type SdkProviderConfig = z.infer<typeof SdkProviderSchema>;
+export type MockProviderConfig = z.infer<typeof MockProviderSchema>;
+export type ProviderConfig = z.infer<typeof ProviderSchema>;
+export type CliAgentConfig = z.infer<typeof AgentSchema>;
 
 export type LoadedCliConfig = {
   configPath: string;
