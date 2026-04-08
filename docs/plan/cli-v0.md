@@ -7,6 +7,12 @@
 - 库：`packages/argue`
 - CLI：`packages/argue-cli`
 
+## 1.1 决策记录（2026-04-08）
+
+- 使用 **AI SDK** 作为 `type="api"` provider 的默认实现路径，以降低 API provider 接入成本。
+- 为后续 agent-native 集成预留 `sdk` provider 类型（例如 Claude/Codex agent SDK），但不阻塞当前 CLI 路线。
+- provider 与 model 继续使用“逻辑 ID（config）→ providerModel（底层）”映射，保持配置稳定性。
+
 ## 2. 模式与入口（固定）
 
 ### 2.1 交互模式（TUI）
@@ -34,7 +40,7 @@
 
 配置内容：
 
-- `providers`：provider 定义（api/cli）
+- `providers`：provider 定义（api/cli，预留 sdk）
 - `agents`：agent catalog
 - `defaults`：默认运行参数与默认参与者
 - `output`：默认输出路径模板（支持 `{requestId}`）
@@ -87,9 +93,10 @@
 
 ### CLI-M2（进行中）
 
-- runtime adapters（claude/codex/mock）
+- runtime adapters（api via AI SDK + claude/codex/mock）
 - 将 run plan 映射到 `AgentTaskDelegate`
 - 接入 `ArgueEngine.start()`
+- 补 `sdk` provider 类型与 adapter 接口（先定义，后接实现）
 
 ### CLI-M3（收敛）
 

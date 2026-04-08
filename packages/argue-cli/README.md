@@ -20,6 +20,12 @@ Current behavior:
 - resolves final run plan using precedence rules
 - prints resolved plan summary (runtime adapter wiring still TODO)
 
+## Runtime decisions
+
+- `type="api"` provider will use **AI SDK** as default implementation path.
+- `type="sdk"` provider is reserved for agent-native SDK integrations (for example Claude/Codex) in later phase.
+- provider/model mapping remains `logical model id -> providerModel` to keep config stable.
+
 ## Precedence
 
 `CLI flags > input JSON (--input) > config defaults`
@@ -35,7 +41,7 @@ When `--config` is omitted, lookup order is:
 
 Top-level fields:
 
-- `providers: Record<string, Provider>`
+- `providers: Record<string, Provider>` (`api/cli` available, `sdk` reserved)
 - `agents: Agent[]` (at least 2)
 - optional `defaults`, `output`
 
