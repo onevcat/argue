@@ -34,10 +34,22 @@ export type CliResult = {
   code: number;
 };
 
-export async function runCli(argv: string[], io: Pick<typeof console, "log" | "error"> = console): Promise<CliResult> {
+export type CliRuntime = {
+  isTTY: boolean;
+};
+
+export async function runCli(
+  argv: string[],
+  io: Pick<typeof console, "log" | "error"> = console,
+  runtime: CliRuntime = { isTTY: Boolean(process.stdout.isTTY) }
+): Promise<CliResult> {
   const [command, ...rest] = argv;
 
-  if (!command || command === "help" || command === "--help" || command === "-h") {
+  if (!command) {
+    return enterDefaultMode(io, runtime);
+  }
+
+  if (command === "help" || command === "--help" || command === "-h") {
     printHelp(io);
     return { ok: true, code: 0 };
   }
@@ -47,61 +59,94 @@ export async function runCli(argv: string[], io: Pick<typeof console, "log" | "e
     return { ok: true, code: 0 };
   }
 
-  if (command === "run") {
-    const options = parseRunOptions(rest);
-    if (!options.ok) {
-      io.error(options.error);
-      return { ok: false, code: 1 };
-    }
+  if (command === "tui") {
+    return enterTuiMode(io, runtime);
+  }
 
-    let loadedConfig;
-    try {
-      loadedConfig = await loadCliConfig({ explicitPath: options.value.configPath } satisfies ResolveConfigPathOptions);
-    } catch (error) {
-      io.error(String(error));
-      return { ok: false, code: 1 };
-    }
-
-    let runInput;
-    try {
-      runInput = await loadRunInput(options.value.inputPath, loadedConfig);
-    } catch (error) {
-      io.error(String(error));
-      return { ok: false, code: 1 };
-    }
-
-    let plan;
-    try {
-      plan = resolveRunPlan({
-        loadedConfig,
-        runInput,
-        overrides: options.value
-      });
-    } catch (error) {
-      io.error(String(error));
-      return { ok: false, code: 1 };
-    }
-
-    io.log("[argue-cli] run plan resolved");
-    io.log(`- config: ${loadedConfig.configPath}`);
-    io.log(`- input: ${options.value.inputPath ?? "(none)"}`);
-    io.log(`- requestId: ${plan.requestId}`);
-    io.log(`- topic: ${plan.topic}`);
-    io.log(`- objective: ${plan.objective}`);
-    io.log(`- agents: ${plan.participantIds.join(", ")}`);
-    io.log(`- rounds: ${plan.startInput.roundPolicy.minRounds}..${plan.startInput.roundPolicy.maxRounds}`);
-    io.log(`- composer: ${plan.startInput.reportPolicy.composer}`);
-    io.log(`- jsonl: ${plan.jsonlPath}`);
-    io.log(`- result: ${plan.resultPath}`);
-    io.log("- runtime adapters: TODO (claude/codex/mock)");
-    io.log("- execution: TODO (map selected agents -> delegate -> ArgueEngine.start)");
-
-    return { ok: true, code: 0 };
+  if (command === "run" || command === "exec") {
+    return runHeadless(rest, io);
   }
 
   io.error(`Unknown command: ${command}`);
   printHelp(io);
   return { ok: false, code: 1 };
+}
+
+async function runHeadless(args: string[], io: Pick<typeof console, "log" | "error">): Promise<CliResult> {
+  const options = parseRunOptions(args);
+  if (!options.ok) {
+    io.error(options.error);
+    return { ok: false, code: 1 };
+  }
+
+  let loadedConfig;
+  try {
+    loadedConfig = await loadCliConfig({ explicitPath: options.value.configPath } satisfies ResolveConfigPathOptions);
+  } catch (error) {
+    io.error(String(error));
+    return { ok: false, code: 1 };
+  }
+
+  let runInput;
+  try {
+    runInput = await loadRunInput(options.value.inputPath, loadedConfig);
+  } catch (error) {
+    io.error(String(error));
+    return { ok: false, code: 1 };
+  }
+
+  let plan;
+  try {
+    plan = resolveRunPlan({
+      loadedConfig,
+      runInput,
+      overrides: options.value
+    });
+  } catch (error) {
+    io.error(String(error));
+    return { ok: false, code: 1 };
+  }
+
+  io.log("[argue-cli] run plan resolved");
+  io.log(`- config: ${loadedConfig.configPath}`);
+  io.log(`- input: ${options.value.inputPath ?? "(none)"}`);
+  io.log(`- requestId: ${plan.requestId}`);
+  io.log(`- topic: ${plan.topic}`);
+  io.log(`- objective: ${plan.objective}`);
+  io.log(`- agents: ${plan.participantIds.join(", ")}`);
+  io.log(`- rounds: ${plan.startInput.roundPolicy.minRounds}..${plan.startInput.roundPolicy.maxRounds}`);
+  io.log(`- composer: ${plan.startInput.reportPolicy.composer}`);
+  io.log(`- jsonl: ${plan.jsonlPath}`);
+  io.log(`- result: ${plan.resultPath}`);
+  io.log("- runtime adapters: TODO (claude/codex/mock)");
+  io.log("- execution: TODO (map selected agents -> delegate -> ArgueEngine.start)");
+
+  return { ok: true, code: 0 };
+}
+
+function enterDefaultMode(io: Pick<typeof console, "log" | "error">, runtime: CliRuntime): CliResult {
+  if (!runtime.isTTY) {
+    io.error("No TTY detected. Use 'argue run ...' or 'argue exec ...' for headless mode.");
+    return { ok: false, code: 1 };
+  }
+
+  io.log("[argue-cli] entering TUI mode (skeleton)");
+  io.log("- interactive agent selection: TODO");
+  io.log("- interactive topic/objective input: TODO");
+  io.log("- switch to headless anytime with: argue run/exec");
+  return { ok: true, code: 0 };
+}
+
+function enterTuiMode(io: Pick<typeof console, "log" | "error">, runtime: CliRuntime): CliResult {
+  if (!runtime.isTTY) {
+    io.error("Command 'argue tui' requires a TTY. Use 'argue run ...' or 'argue exec ...' in non-interactive environments.");
+    return { ok: false, code: 1 };
+  }
+
+  io.log("[argue-cli] entering TUI mode (skeleton)");
+  io.log("- interactive agent selection: TODO");
+  io.log("- interactive topic/objective input: TODO");
+  return { ok: true, code: 0 };
 }
 
 function parseRunOptions(args: string[]):
@@ -301,13 +346,23 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("argue-cli");
   io.log("");
   io.log("Usage:");
-  io.log("  argue run [--config <path>] [--input <path>] [--agents a,b,c] [--topic <text>] [--objective <text>]");
-  io.log("            [--request-id <id>] [--jsonl <path>] [--result <path>]");
-  io.log("            [--min-rounds <n>] [--max-rounds <n>] [--threshold <0..1>]");
-  io.log("            [--composer builtin|representative] [--representative-id <id>]");
-  io.log("            [--trace] [--trace-level compact|full] [--language <lang>] [--token-budget <n>]");
+  io.log("  argue                           # TUI mode (when TTY is available)");
+  io.log("  argue tui                       # force TUI mode");
+  io.log("  argue run|exec [options]        # headless mode");
   io.log("  argue help");
   io.log("  argue version");
+  io.log("");
+  io.log("Headless options:");
+  io.log("  --config <path>                 config JSON path");
+  io.log("  --input <path>                  run input JSON path (topic/objective/agents etc.)");
+  io.log("  --agents a,b,c                  override selected agents");
+  io.log("  --topic <text> --objective <text>");
+  io.log("  --request-id <id>");
+  io.log("  --jsonl <path> --result <path>");
+  io.log("  --min-rounds <n> --max-rounds <n> --threshold <0..1>");
+  io.log("  --composer builtin|representative --representative-id <id>");
+  io.log("  --trace --trace-level compact|full");
+  io.log("  --language <lang> --token-budget <n>");
   io.log("");
   io.log("Config lookup order (when --config is omitted):");
   io.log("  1) ./argue.config.json");

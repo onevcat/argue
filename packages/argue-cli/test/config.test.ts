@@ -117,6 +117,58 @@ describe("cli config loader", () => {
     expect(logs.some((x) => x.includes("composer: builtin"))).toBe(true);
   });
 
+  it("supports exec as alias of run", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-exec-"));
+    const configPath = join(root, "argue.config.json");
+    await writeJson(configPath, VALID_CONFIG);
+
+    const logs: string[] = [];
+    const errors: string[] = [];
+
+    const result = await runCli(
+      ["exec", "--config", configPath, "--topic", "Alias topic", "--objective", "Alias objective"],
+      {
+        log: (msg: string) => logs.push(msg),
+        error: (msg: string) => errors.push(msg)
+      }
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.code).toBe(0);
+    expect(errors).toHaveLength(0);
+    expect(logs.some((x) => x.includes("run plan resolved"))).toBe(true);
+  });
+
+  it("defaults to TUI on bare command when TTY is available", async () => {
+    const logs: string[] = [];
+    const errors: string[] = [];
+
+    const result = await runCli([], {
+      log: (msg: string) => logs.push(msg),
+      error: (msg: string) => errors.push(msg)
+    }, { isTTY: true });
+
+    expect(result.ok).toBe(true);
+    expect(result.code).toBe(0);
+    expect(errors).toHaveLength(0);
+    expect(logs.some((x) => x.includes("entering TUI mode"))).toBe(true);
+  });
+
+  it("bare command fails without TTY and suggests headless mode", async () => {
+    const logs: string[] = [];
+    const errors: string[] = [];
+
+    const result = await runCli([], {
+      log: (msg: string) => logs.push(msg),
+      error: (msg: string) => errors.push(msg)
+    }, { isTTY: false });
+
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe(1);
+    expect(logs).toHaveLength(0);
+    expect(errors.some((x) => x.includes("No TTY detected"))).toBe(true);
+  });
+
   it("run command fails when topic/objective are not provided by any source", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-run-fail-"));
     const configPath = join(root, "argue.config.json");
