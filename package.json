@@ -7,8 +7,8 @@
   "scripts": {
     "build": "npm run -ws --if-present build",
     "check": "npm run -ws --if-present check",
-    "test": "npm run -w argue test",
-    "test:watch": "npm run -w argue test:watch",
+    "test": "npm run -ws --if-present test",
+    "test:watch": "npm run -ws --if-present test:watch",
     "ci": "npm run check && npm run test && npm run build"
   },
   "devDependencies": {

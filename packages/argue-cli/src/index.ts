@@ -1,5 +1,10 @@
-import { access } from "node:fs/promises";
 import { resolve } from "node:path";
+import {
+  createExampleConfigPath,
+  loadCliConfig,
+  resolveOutputPath,
+  type ResolveConfigPathOptions
+} from "./config.js";
 
 export type CliRunOptions = {
   configPath?: string;
@@ -31,32 +36,28 @@ export async function runCli(argv: string[], io: Pick<typeof console, "log" | "e
       return { ok: false, code: 1 };
     }
 
-    const configPath = options.value.configPath
-      ? resolve(options.value.configPath)
-      : undefined;
-
-    if (!configPath) {
-      io.error("Missing --config <path>. Example: argue run --config ./argue.config.json");
-      return { ok: false, code: 1 };
-    }
-
+    let loaded;
     try {
-      await access(configPath);
-    } catch {
-      io.error(`Config file not found: ${configPath}`);
+      loaded = await loadCliConfig({ explicitPath: options.value.configPath } satisfies ResolveConfigPathOptions);
+    } catch (error) {
+      io.error(String(error));
       return { ok: false, code: 1 };
     }
 
-    const jsonlPath = options.value.jsonlPath
-      ? resolve(options.value.jsonlPath)
-      : resolve(process.cwd(), "out", "argue.events.jsonl");
+    const jsonlRaw = options.value.jsonlPath ?? loaded.config.output?.jsonlPath ?? "./out/argue.events.jsonl";
+    const resultRaw = loaded.config.output?.resultPath ?? "./out/argue.result.json";
 
-    io.log(`[argue-cli] skeleton ready`);
-    io.log(`- command: run`);
-    io.log(`- config: ${configPath}`);
+    const jsonlPath = resolveOutputPath(jsonlRaw, loaded.configDir);
+    const resultPath = resolveOutputPath(resultRaw, loaded.configDir);
+
+    io.log("[argue-cli] configuration loaded");
+    io.log(`- config: ${loaded.configPath}`);
+    io.log(`- providers: ${Object.keys(loaded.config.providers).length}`);
+    io.log(`- agents: ${loaded.config.agents.length}`);
     io.log(`- jsonl: ${jsonlPath}`);
+    io.log(`- result: ${resultPath}`);
     io.log("- runtime adapters: TODO (claude/codex/mock)");
-    io.log("- host orchestration: TODO (wire AgentTaskDelegate + JsonlObserver + ArgueEngine.start)");
+    io.log("- host orchestration: TODO (map config agents -> delegate -> ArgueEngine.start)");
 
     return { ok: true, code: 0 };
   }
@@ -101,10 +102,14 @@ function parseRunOptions(args: string[]):
 }
 
 function printHelp(io: Pick<typeof console, "log">): void {
-  io.log("argue-cli (skeleton)");
+  io.log("argue-cli");
   io.log("");
   io.log("Usage:");
-  io.log("  argue run --config <path> [--jsonl <path>]");
+  io.log("  argue run [--config <path>] [--jsonl <path>]");
   io.log("  argue help");
   io.log("  argue version");
+  io.log("");
+  io.log("Config lookup order (when --config is omitted):");
+  io.log("  1) ./argue.config.json");
+  io.log(`  2) ${createExampleConfigPath()}`);
 }

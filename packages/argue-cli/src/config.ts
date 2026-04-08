@@ -1,0 +1,199 @@
+import { access, readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, resolve } from "node:path";
+import { z } from "zod";
+
+const ProviderModelSchema = z.object({
+  providerModel: z.string().min(1).optional(),
+  contextWindow: z.number().int().positive().optional(),
+  maxOutputTokens: z.number().int().positive().optional(),
+  temperature: z.number().min(0).max(2).optional()
+}).strict();
+
+const ApiProviderSchema = z.object({
+  type: z.literal("api"),
+  protocol: z.enum(["openai-compatible", "anthropic-compatible"]),
+  baseUrl: z.string().url().optional(),
+  apiKeyEnv: z.string().min(1).optional(),
+  headers: z.record(z.string()).optional(),
+  models: z.record(ProviderModelSchema).refine((models) => Object.keys(models).length > 0, {
+    message: "provider.models must contain at least one model"
+  })
+}).strict();
+
+const CliProviderSchema = z.object({
+  type: z.literal("cli"),
+  cliType: z.enum(["codex", "claude", "generic"]),
+  command: z.string().min(1),
+  args: z.array(z.string()).default([]),
+  env: z.record(z.string()).optional(),
+  models: z.record(ProviderModelSchema).refine((models) => Object.keys(models).length > 0, {
+    message: "provider.models must contain at least one model"
+  })
+}).strict();
+
+const ProviderSchema = z.discriminatedUnion("type", [ApiProviderSchema, CliProviderSchema]);
+
+const AgentSchema = z.object({
+  id: z.string().min(1),
+  provider: z.string().min(1),
+  model: z.string().min(1),
+  role: z.string().min(1).optional(),
+  systemPrompt: z.string().min(1).optional(),
+  timeoutMs: z.number().int().positive().optional(),
+  temperature: z.number().min(0).max(2).optional()
+}).strict();
+
+const CliConfigSchemaBase = z.object({
+  schemaVersion: z.literal(1),
+  output: z.object({
+    jsonlPath: z.string().min(1).optional(),
+    resultPath: z.string().min(1).optional()
+  }).strict().optional(),
+  defaults: z.object({
+    language: z.string().min(1).optional(),
+    minRounds: z.number().int().min(0).optional(),
+    maxRounds: z.number().int().min(1).optional(),
+    perTaskTimeoutMs: z.number().int().positive().optional(),
+    perRoundTimeoutMs: z.number().int().positive().optional(),
+    globalDeadlineMs: z.number().int().positive().optional()
+  }).strict().optional(),
+  providers: z.record(ProviderSchema).refine((providers) => Object.keys(providers).length > 0, {
+    message: "config.providers must contain at least one provider"
+  }),
+  agents: z.array(AgentSchema).min(2)
+}).strict();
+
+export const CliConfigSchema = CliConfigSchemaBase.superRefine((config, ctx) => {
+  const seen = new Set<string>();
+
+  for (const [index, agent] of config.agents.entries()) {
+    if (seen.has(agent.id)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["agents", index, "id"],
+        message: `duplicate agent id: ${agent.id}`
+      });
+    }
+    seen.add(agent.id);
+
+    const provider = config.providers[agent.provider];
+    if (!provider) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["agents", index, "provider"],
+        message: `unknown provider: ${agent.provider}`
+      });
+      continue;
+    }
+
+    if (!provider.models[agent.model]) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["agents", index, "model"],
+        message: `unknown model '${agent.model}' for provider '${agent.provider}'`
+      });
+    }
+  }
+
+  const minRounds = config.defaults?.minRounds;
+  const maxRounds = config.defaults?.maxRounds;
+  if (typeof minRounds === "number" && typeof maxRounds === "number" && maxRounds < minRounds) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["defaults", "maxRounds"],
+      message: "defaults.maxRounds must be >= defaults.minRounds"
+    });
+  }
+});
+
+export type CliConfig = z.infer<typeof CliConfigSchema>;
+
+export type LoadedCliConfig = {
+  configPath: string;
+  configDir: string;
+  config: CliConfig;
+};
+
+export type ResolveConfigPathOptions = {
+  explicitPath?: string;
+  cwd?: string;
+  homeDir?: string;
+};
+
+export async function resolveConfigPath(options: ResolveConfigPathOptions = {}): Promise<string> {
+  const cwd = options.cwd ?? process.cwd();
+  const homeDir = options.homeDir ?? homedir();
+
+  if (options.explicitPath) {
+    const explicit = toAbsolute(options.explicitPath, cwd);
+    await ensureFileExists(explicit, `Config file not found: ${explicit}`);
+    return explicit;
+  }
+
+  const projectPath = resolve(cwd, "argue.config.json");
+  if (await fileExists(projectPath)) {
+    return projectPath;
+  }
+
+  const globalPath = resolve(homeDir, ".config", "argue", "config.json");
+  if (await fileExists(globalPath)) {
+    return globalPath;
+  }
+
+  throw new Error(
+    [
+      "Cannot find config file.",
+      "Tried:",
+      `- ${projectPath}`,
+      `- ${globalPath}`,
+      "Use --config <path> to specify a file."
+    ].join("\n")
+  );
+}
+
+export async function loadCliConfig(options: ResolveConfigPathOptions = {}): Promise<LoadedCliConfig> {
+  const configPath = await resolveConfigPath(options);
+  const raw = await readFile(configPath, "utf8");
+
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`Invalid JSON in config: ${configPath} (${String(error)})`);
+  }
+
+  const parsed = CliConfigSchema.parse(json);
+  return {
+    configPath,
+    configDir: dirname(configPath),
+    config: parsed
+  };
+}
+
+export function resolveOutputPath(rawPath: string, baseDir: string): string {
+  if (isAbsolute(rawPath)) return rawPath;
+  return resolve(baseDir, rawPath);
+}
+
+function toAbsolute(path: string, cwd: string): string {
+  return isAbsolute(path) ? path : resolve(cwd, path);
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureFileExists(path: string, message: string): Promise<void> {
+  if (await fileExists(path)) return;
+  throw new Error(message);
+}
+
+export function createExampleConfigPath(homeDir: string = homedir()): string {
+  return join(homeDir, ".config", "argue", "config.json");
+}

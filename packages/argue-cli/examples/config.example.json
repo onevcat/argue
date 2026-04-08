@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "output": {
+    "jsonlPath": "./out/{requestId}.events.jsonl",
+    "resultPath": "./out/{requestId}.result.json"
+  },
+  "defaults": {
+    "language": "en",
+    "minRounds": 2,
+    "maxRounds": 3,
+    "perTaskTimeoutMs": 600000,
+    "perRoundTimeoutMs": 1200000
+  },
+  "providers": {
+    "openai_local": {
+      "type": "api",
+      "protocol": "openai-compatible",
+      "baseUrl": "http://127.0.0.1:11434/v1",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "models": {
+        "gpt-4.1": {
+          "providerModel": "gpt-4.1"
+        }
+      }
+    },
+    "claude_cli": {
+      "type": "cli",
+      "cliType": "claude",
+      "command": "claude",
+      "args": ["--print", "--permission-mode", "bypassPermissions"],
+      "models": {
+        "claude-sonnet-4-5": {
+          "providerModel": "claude-sonnet-4-5"
+        }
+      }
+    }
+  },
+  "agents": [
+    {
+      "id": "architect",
+      "provider": "claude_cli",
+      "model": "claude-sonnet-4-5",
+      "role": "architecture-reviewer"
+    },
+    {
+      "id": "bughunter",
+      "provider": "openai_local",
+      "model": "gpt-4.1",
+      "role": "correctness-reviewer"
+    }
+  ]
+}
