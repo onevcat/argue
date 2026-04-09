@@ -152,6 +152,26 @@ Current known gap:
 
 - TUI entry exists, but still remains a skeleton for the next phase.
 
+## Development
+
+```bash
+npm install
+npm run build            # full one-shot build
+npm run dev              # watch mode — auto-recompiles on save
+```
+
+In watch mode, open another terminal and test with:
+
+```bash
+npx argue <command>      # uses the latest compiled output
+```
+
+Before committing:
+
+```bash
+npm run ci               # check + test + build
+```
+
 ## License
 
 MIT

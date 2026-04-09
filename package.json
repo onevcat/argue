@@ -5,6 +5,7 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "npx concurrently -n argue,cli -c blue,green \"npm run -w packages/argue dev\" \"npm run -w packages/argue-cli dev\"",
     "build": "npm run -ws --if-present build",
     "check": "npm run -ws --if-present check",
     "test": "npm run -ws --if-present test",
@@ -14,6 +15,7 @@
   "devDependencies": {
     "@types/node": "^22.13.10",
     "@vitest/coverage-v8": "^3.2.4",
+    "concurrently": "^9.2.1",
     "typescript": "^5.8.2",
     "vitest": "^3.0.9"
   }
