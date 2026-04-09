@@ -228,6 +228,38 @@ export async function loadCliConfig(options: ResolveConfigPathOptions = {}): Pro
   };
 }
 
+export type RawCliConfig = {
+  schemaVersion: number;
+  output?: unknown;
+  defaults?: unknown;
+  providers: Record<string, unknown>;
+  agents: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+};
+
+export type LoadedRawCliConfig = {
+  configPath: string;
+  configDir: string;
+  config: RawCliConfig;
+};
+
+const RawCliConfigSchema = z.object({
+  schemaVersion: z.literal(1),
+  providers: z.record(z.unknown()).default({}),
+  agents: z.array(z.record(z.unknown())).default([])
+}).passthrough();
+
+export async function loadRawCliConfig(configPath: string): Promise<LoadedRawCliConfig> {
+  const json = await readJsonFile(configPath);
+  const parsed = RawCliConfigSchema.parse(json);
+
+  return {
+    configPath,
+    configDir: dirname(configPath),
+    config: parsed as RawCliConfig
+  };
+}
+
 export async function readJsonFile(path: string): Promise<unknown> {
   const raw = await readFile(path, "utf8");
 
