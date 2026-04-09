@@ -1,3 +1,4 @@
+import type { ArgueEvent } from "argue";
 import {
   createExampleConfigPath,
   loadCliConfig,
@@ -123,10 +124,13 @@ async function runHeadless(args: string[], io: Pick<typeof console, "log" | "err
   io.log(`- result: ${plan.resultPath}`);
   io.log(`- summary: ${plan.summaryPath}`);
 
+  const onProgressEvent = createHeadlessProgressRenderer(io);
+
   try {
     const execution = await executeHeadlessRun({
       loadedConfig,
-      plan
+      plan,
+      onEvent: onProgressEvent
     });
 
     io.log("[argue-cli] run completed");
@@ -372,6 +376,99 @@ function parseFloatArg(flag: string, raw: string | undefined): number | string {
   const n = Number(raw);
   if (!Number.isFinite(n)) return `${flag} must be a number`;
   return n;
+}
+
+function createHeadlessProgressRenderer(io: Pick<typeof console, "log">): (event: ArgueEvent) => void {
+  return (event) => {
+    const payload = event.payload ?? {};
+    const phase = readString(payload.phase);
+    const round = readNumber(payload.round);
+    const roundTag = formatRoundTag(phase, round);
+
+    if (event.type === "RoundDispatched") {
+      const participants = readStringArray(payload.participants);
+      io.log(`[argue-cli] round ${roundTag} dispatched -> ${participants.join(", ")}`);
+      return;
+    }
+
+    if (event.type === "ParticipantResponded") {
+      const participantId = readString(payload.participantId) ?? "unknown";
+      const extractedClaims = readNumber(payload.extractedClaims) ?? 0;
+      const judgements = readNumber(payload.judgements) ?? 0;
+      const claimVotes = readNumber(payload.claimVotes) ?? 0;
+      io.log(
+        `[argue-cli] ${roundTag} ${participantId} responded (claims+${extractedClaims}, judgements=${judgements}, votes=${claimVotes})`
+      );
+
+      const summary = readString(payload.summary);
+      if (summary) {
+        io.log(`  summary: ${singleLine(summary, 120)}`);
+      }
+      return;
+    }
+
+    if (event.type === "ParticipantEliminated") {
+      const participantId = readString(payload.participantId) ?? "unknown";
+      const reason = readString(payload.reason) ?? "unknown";
+      io.log(`[argue-cli] ${roundTag} ${participantId} eliminated (${reason})`);
+      return;
+    }
+
+    if (event.type === "ClaimsMerged") {
+      const source = readString(payload.sourceClaimId) ?? "?";
+      const mergedInto = readString(payload.mergedInto) ?? "?";
+      io.log(`[argue-cli] ${roundTag} claim merged ${source} -> ${mergedInto}`);
+      return;
+    }
+
+    if (event.type === "RoundCompleted") {
+      const completed = readNumber(payload.completed) ?? 0;
+      const timedOut = readNumber(payload.timedOut) ?? 0;
+      const failed = readNumber(payload.failed) ?? 0;
+      const claimCatalogSize = readNumber(payload.claimCatalogSize) ?? 0;
+      const newClaims = readNumber(payload.newClaims) ?? 0;
+      const mergeCount = readNumber(payload.mergeCount) ?? 0;
+      io.log(
+        `[argue-cli] round ${roundTag} completed: done=${completed} timeout=${timedOut} failed=${failed} claims=${claimCatalogSize} (+${newClaims}, ~${mergeCount})`
+      );
+      return;
+    }
+
+    if (event.type === "GlobalDeadlineHit") {
+      io.log("[argue-cli] global deadline hit");
+      return;
+    }
+
+    if (event.type === "EarlyStopTriggered") {
+      io.log(`[argue-cli] early stop triggered at ${roundTag}`);
+    }
+  };
+}
+
+function formatRoundTag(phase: string | undefined, round: number | undefined): string {
+  if (phase !== undefined && round !== undefined) return `${phase}#${round}`;
+  if (phase !== undefined) return phase;
+  if (round !== undefined) return `#${round}`;
+  return "n/a";
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function readStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function singleLine(value: string, maxLen: number): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLen) return normalized;
+  return `${normalized.slice(0, maxLen - 1)}…`;
 }
 
 function printHelp(io: Pick<typeof console, "log">): void {

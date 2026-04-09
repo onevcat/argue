@@ -853,7 +853,18 @@ describe("ArgueEngine M2", () => {
 
     expect(initialDispatch).toBeDefined();
     expect(initialResponses.map((event) => event.payload?.participantId)).toEqual(["onevclaw", "onevpaw"]);
+    expect(initialResponses[0]?.payload).toEqual(expect.objectContaining({
+      summary: expect.any(String),
+      extractedClaims: expect.any(Number),
+      judgements: expect.any(Number),
+      claimVotes: 0
+    }));
     expect(initialRoundCompleted).toBeDefined();
+    expect(initialRoundCompleted?.payload).toEqual(expect.objectContaining({
+      claimCatalogSize: expect.any(Number),
+      newClaims: expect.any(Number),
+      mergeCount: expect.any(Number)
+    }));
 
     if (initialDispatch && initialRoundCompleted) {
       const dispatchAt = Date.parse(initialDispatch.at);
