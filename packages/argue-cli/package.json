@@ -1,7 +1,7 @@
 {
   "name": "argue-cli",
   "version": "0.1.0",
-  "description": "CLI host skeleton for argue multi-agent orchestration.",
+  "description": "CLI host for argue multi-agent orchestration.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -21,6 +21,9 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.68",
+    "@ai-sdk/openai-compatible": "^2.0.41",
+    "ai": "^6.0.153",
     "argue": "file:../argue",
     "zod": "^3.24.2"
   }

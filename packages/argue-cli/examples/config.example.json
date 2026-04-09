@@ -2,7 +2,8 @@
   "schemaVersion": 1,
   "output": {
     "jsonlPath": "./out/{requestId}.events.jsonl",
-    "resultPath": "./out/{requestId}.result.json"
+    "resultPath": "./out/{requestId}.result.json",
+    "summaryPath": "./out/{requestId}.summary.md"
   },
   "defaults": {
     "defaultAgents": ["architect", "bughunter"],

@@ -93,6 +93,11 @@ export class DefaultWaitCoordinator implements WaitCoordinator {
         continue;
       }
 
+      if (!state.ok && state.error === "__timeout__") {
+        timedOutTaskIds.push(taskId);
+        continue;
+      }
+
       if (state.ok && state.output) {
         completed.push(state.output);
       } else {

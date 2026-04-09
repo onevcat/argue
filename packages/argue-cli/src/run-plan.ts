@@ -9,6 +9,7 @@ export type RunOverrides = {
   agents?: string[];
   jsonlPath?: string;
   resultPath?: string;
+  summaryPath?: string;
   minRounds?: number;
   maxRounds?: number;
   perTaskTimeoutMs?: number;
@@ -30,6 +31,7 @@ export type ResolvedRunPlan = {
   participantIds: string[];
   jsonlPath: string;
   resultPath: string;
+  summaryPath: string;
   startInput: {
     requestId: string;
     topic: string;
@@ -122,6 +124,7 @@ export function resolveRunPlan(args: {
 
   const jsonlRaw = overrides.jsonlPath ?? loadedConfig.config.output?.jsonlPath ?? "./out/{requestId}.events.jsonl";
   const resultRaw = overrides.resultPath ?? loadedConfig.config.output?.resultPath ?? "./out/{requestId}.result.json";
+  const summaryRaw = overrides.summaryPath ?? loadedConfig.config.output?.summaryPath ?? "./out/{requestId}.summary.md";
 
   return {
     requestId,
@@ -130,6 +133,7 @@ export function resolveRunPlan(args: {
     participantIds,
     jsonlPath: resolveOutputPath(jsonlRaw, loadedConfig.configDir, requestId),
     resultPath: resolveOutputPath(resultRaw, loadedConfig.configDir, requestId),
+    summaryPath: resolveOutputPath(summaryRaw, loadedConfig.configDir, requestId),
     startInput: {
       requestId,
       topic,

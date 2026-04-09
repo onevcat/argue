@@ -42,6 +42,35 @@ const VALID_CONFIG = {
   ]
 };
 
+const RUNNABLE_CONFIG = {
+  schemaVersion: 1,
+  output: {
+    jsonlPath: "./out/{requestId}.events.jsonl",
+    resultPath: "./out/{requestId}.result.json",
+    summaryPath: "./out/{requestId}.summary.md"
+  },
+  defaults: {
+    defaultAgents: ["a1", "a2"],
+    minRounds: 1,
+    maxRounds: 1,
+    consensusThreshold: 1,
+    composer: "builtin"
+  },
+  providers: {
+    mock: {
+      type: "mock",
+      models: {
+        fake: {}
+      }
+    }
+  },
+  agents: [
+    { id: "a1", provider: "mock", model: "fake", role: "r1" },
+    { id: "a2", provider: "mock", model: "fake", role: "r2" },
+    { id: "a3", provider: "mock", model: "fake", role: "r3" }
+  ]
+};
+
 describe("cli config loader", () => {
   it("prefers project config over global config", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-config-"));
@@ -81,7 +110,7 @@ describe("cli config loader", () => {
     const configPath = join(root, "argue.config.json");
     const inputPath = join(root, "topic.json");
 
-    await writeJson(configPath, VALID_CONFIG);
+    await writeJson(configPath, RUNNABLE_CONFIG);
     await writeJson(inputPath, {
       requestId: "from-input",
       topic: "Input topic",
@@ -120,7 +149,7 @@ describe("cli config loader", () => {
   it("supports exec as alias of run", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-exec-"));
     const configPath = join(root, "argue.config.json");
-    await writeJson(configPath, VALID_CONFIG);
+    await writeJson(configPath, RUNNABLE_CONFIG);
 
     const logs: string[] = [];
     const errors: string[] = [];
@@ -167,6 +196,48 @@ describe("cli config loader", () => {
     expect(result.code).toBe(1);
     expect(logs).toHaveLength(0);
     expect(errors.some((x) => x.includes("No TTY detected"))).toBe(true);
+  });
+
+  it("rejects loosely-typed integer arguments", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-int-parse-"));
+    const configPath = join(root, "argue.config.json");
+    await writeJson(configPath, VALID_CONFIG);
+
+    const logs: string[] = [];
+    const errors: string[] = [];
+
+    const result = await runCli(
+      ["run", "--config", configPath, "--topic", "t", "--objective", "o", "--max-rounds", "10abc"],
+      {
+        log: (msg: string) => logs.push(msg),
+        error: (msg: string) => errors.push(msg)
+      }
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe(1);
+    expect(errors.some((x) => x.includes("--max-rounds must be an integer"))).toBe(true);
+  });
+
+  it("rejects loosely-typed float arguments", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-float-parse-"));
+    const configPath = join(root, "argue.config.json");
+    await writeJson(configPath, VALID_CONFIG);
+
+    const logs: string[] = [];
+    const errors: string[] = [];
+
+    const result = await runCli(
+      ["run", "--config", configPath, "--topic", "t", "--objective", "o", "--threshold", "0.8foo"],
+      {
+        log: (msg: string) => logs.push(msg),
+        error: (msg: string) => errors.push(msg)
+      }
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe(1);
+    expect(errors.some((x) => x.includes("--threshold must be a number"))).toBe(true);
   });
 
   it("run command fails when topic/objective are not provided by any source", async () => {
