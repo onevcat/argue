@@ -120,7 +120,9 @@ process.stdout.write(JSON.stringify({
     const argv: string[] = JSON.parse(output.output.fullResponse);
 
     expect(argv).toContain("--session-id");
-    expect(argv).toContain("argue:sess-1:a1");
+    const sessionIdx = argv.indexOf("--session-id");
+    const sessionId = argv[sessionIdx + 1]!;
+    expect(sessionId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     expect(argv).not.toContain("--no-session-persistence");
   });
 
