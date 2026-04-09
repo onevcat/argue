@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -103,6 +103,118 @@ describe("cli config loader", () => {
     });
 
     await expect(loadCliConfig({ explicitPath: configPath })).rejects.toThrow(/unknown model/);
+  });
+
+  it("adds provider via config command", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-add-provider-"));
+    const configPath = join(root, "argue.config.json");
+    await writeJson(configPath, VALID_CONFIG);
+
+    const logs: string[] = [];
+    const errors: string[] = [];
+
+    const result = await runCli([
+      "config",
+      "add-provider",
+      "--config", configPath,
+      "--id", "p3",
+      "--type", "api",
+      "--protocol", "openai-compatible",
+      "--model-id", "m3",
+      "--provider-model", "gpt-5-mini"
+    ], {
+      log: (msg: string) => logs.push(msg),
+      error: (msg: string) => errors.push(msg)
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.code).toBe(0);
+    expect(errors).toHaveLength(0);
+    expect(logs.some((x) => x.includes("provider added: p3"))).toBe(true);
+
+    const loaded = await loadCliConfig({ explicitPath: configPath });
+    expect(loaded.config.providers.p3).toBeDefined();
+    expect(loaded.config.providers.p3?.type).toBe("api");
+    expect(loaded.config.providers.p3?.models.m3?.providerModel).toBe("gpt-5-mini");
+  });
+
+  it("adds agent via config command", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-add-agent-"));
+    const configPath = join(root, "argue.config.json");
+    await writeJson(configPath, VALID_CONFIG);
+
+    const logs: string[] = [];
+    const errors: string[] = [];
+
+    const result = await runCli([
+      "config",
+      "add-agent",
+      "--config", configPath,
+      "--id", "a4",
+      "--provider", "p1",
+      "--model", "m1",
+      "--role", "new-role",
+      "--timeout-ms", "30000"
+    ], {
+      log: (msg: string) => logs.push(msg),
+      error: (msg: string) => errors.push(msg)
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.code).toBe(0);
+    expect(errors).toHaveLength(0);
+    expect(logs.some((x) => x.includes("agent added: a4"))).toBe(true);
+
+    const loaded = await loadCliConfig({ explicitPath: configPath });
+    const a4 = loaded.config.agents.find((agent) => agent.id === "a4");
+    expect(a4).toBeDefined();
+    expect(a4?.provider).toBe("p1");
+    expect(a4?.model).toBe("m1");
+    expect(a4?.role).toBe("new-role");
+    expect(a4?.timeoutMs).toBe(30000);
+  });
+
+  it("fails config command on duplicate/unknown references", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-config-mutation-fail-"));
+    const configPath = join(root, "argue.config.json");
+    await writeJson(configPath, VALID_CONFIG);
+
+    const duplicateErrors: string[] = [];
+    const duplicateResult = await runCli([
+      "config",
+      "add-provider",
+      "--config", configPath,
+      "--id", "p1",
+      "--type", "mock",
+      "--model-id", "m"
+    ], {
+      log: () => {},
+      error: (msg: string) => duplicateErrors.push(msg)
+    });
+
+    expect(duplicateResult.ok).toBe(false);
+    expect(duplicateErrors.some((x) => x.includes("Provider id already exists: p1"))).toBe(true);
+
+    const unknownErrors: string[] = [];
+    const unknownResult = await runCli([
+      "config",
+      "add-agent",
+      "--config", configPath,
+      "--id", "a4",
+      "--provider", "missing",
+      "--model", "m1"
+    ], {
+      log: () => {},
+      error: (msg: string) => unknownErrors.push(msg)
+    });
+
+    expect(unknownResult.ok).toBe(false);
+    expect(unknownErrors.some((x) => x.includes("Unknown provider: missing"))).toBe(true);
+
+    const raw = await readFile(configPath, "utf8");
+    const json = JSON.parse(raw) as { providers: Record<string, unknown>; agents: Array<{ id: string }> };
+    expect(Object.keys(json.providers)).toHaveLength(2);
+    expect(json.agents.some((agent) => agent.id === "a4")).toBe(false);
   });
 
   it("run command resolves plan with precedence: flags > input > defaults", async () => {
