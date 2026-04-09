@@ -1,4 +1,4 @@
-import { ArgueEngine, JsonlObserver, MemorySessionStore } from "argue";
+import { ArgueEngine, JsonlObserver, MemorySessionStore, type ArgueEvent, type ArgueObserver } from "argue";
 import type { LoadedCliConfig } from "./config.js";
 import type { ResolvedRunPlan } from "./run-plan.js";
 import { writeRunArtifacts } from "./artifacts.js";
@@ -7,13 +7,25 @@ import { createTaskDelegate } from "./runtime/delegate.js";
 export async function executeHeadlessRun(args: {
   loadedConfig: LoadedCliConfig;
   plan: ResolvedRunPlan;
+  onEvent?: (event: ArgueEvent) => void | Promise<void>;
 }): Promise<{
   result: Awaited<ReturnType<ArgueEngine["start"]>>;
   jsonlPath: string;
   resultPath: string;
   summaryPath: string;
 }> {
-  const observer = new JsonlObserver({ path: args.plan.jsonlPath, append: false });
+  const jsonlObserver = new JsonlObserver({ path: args.plan.jsonlPath, append: false });
+  const observer: ArgueObserver = {
+    onEvent: async (event) => {
+      await jsonlObserver.onEvent(event);
+      if (!args.onEvent) return;
+      try {
+        await args.onEvent(event);
+      } catch {
+        // ignore progress rendering failures
+      }
+    }
+  };
   const taskDelegate = await createTaskDelegate(args);
   const engine = new ArgueEngine({
     taskDelegate,
@@ -25,7 +37,7 @@ export async function executeHeadlessRun(args: {
   try {
     result = await engine.start(args.plan.startInput);
   } finally {
-    await observer.flush();
+    await jsonlObserver.flush();
   }
 
   await writeRunArtifacts({

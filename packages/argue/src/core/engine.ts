@@ -418,7 +418,11 @@ export class ArgueEngine {
           await this.emit(args.normalized, args.sessionId, "ParticipantResponded", {
             phase: args.phase,
             round: args.round,
-            participantId
+            participantId,
+            summary: event.output?.summary,
+            extractedClaims: event.output?.extractedClaims?.length ?? 0,
+            judgements: event.output?.judgements.length ?? 0,
+            claimVotes: event.output?.phase === "final_vote" ? event.output.claimVotes.length : 0
           }, event.at);
           return;
         }
@@ -443,7 +447,8 @@ export class ArgueEngine {
           phase: args.phase,
           round: args.round,
           participantId,
-          reason
+          reason,
+          error: event.error
         }, event.at);
       }
     });
@@ -471,7 +476,10 @@ export class ArgueEngine {
       completed: outputs.length,
       timedOut: waited.timedOutTaskIds.length,
       failed: waited.failedTaskIds.length,
-      activeParticipants: [...args.activeParticipants]
+      activeParticipants: [...args.activeParticipants],
+      claimCatalogSize: claims.length,
+      newClaims: newClaimCount,
+      mergeCount: mergeEvents.length
     });
 
     await this.store.update(args.sessionId, {

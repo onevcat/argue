@@ -187,4 +187,51 @@ describe("runCli command branches", () => {
     expect(resultJson.report.traceIncluded).toBe(true);
     expect(resultJson.report.traceLevel).toBe("full");
   });
+
+  it("prints live headless progress with round and claim signals", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-run-progress-"));
+    const configPath = join(root, "argue.config.json");
+
+    await writeFile(configPath, JSON.stringify({
+      schemaVersion: 1,
+      output: {
+        resultPath: "./out/{requestId}.result.json",
+        jsonlPath: "./out/{requestId}.events.jsonl",
+        summaryPath: "./out/{requestId}.summary.md"
+      },
+      defaults: {
+        defaultAgents: ["a1", "a2"],
+        minRounds: 1,
+        maxRounds: 1,
+        composer: "builtin"
+      },
+      providers: {
+        mock: {
+          type: "mock",
+          models: {
+            fake: {}
+          }
+        }
+      },
+      agents: [
+        { id: "a1", provider: "mock", model: "fake" },
+        { id: "a2", provider: "mock", model: "fake" }
+      ]
+    }), "utf8");
+
+    const io = createIO();
+    const result = await runCli([
+      "run",
+      "--config", configPath,
+      "--request-id", "progress-run",
+      "--topic", "t",
+      "--objective", "o"
+    ], io);
+
+    expect(result).toEqual({ ok: true, code: 0 });
+    expect(io.logs.some((x) => x.includes("round initial#0 dispatched"))).toBe(true);
+    expect(io.logs.some((x) => x.includes("initial#0") && x.includes("responded") && x.includes("claims+"))).toBe(true);
+    expect(io.logs.some((x) => x.includes("summary:"))).toBe(true);
+    expect(io.logs.some((x) => x.includes("round initial#0 completed") && x.includes("claims="))).toBe(true);
+  });
 });
