@@ -52,7 +52,7 @@ export async function createTaskDelegate(args: {
 
       const taskId = `cli-task-${seq++}`;
       const controller = new AbortController();
-      const runner = await getRunner(agent.providerName);
+      const runner = await getRunner(agent);
       const promise = runner
         .runTask({ task, agent, abortSignal: controller.signal })
         .then((result) => normalizeTaskOutput(task, result));
@@ -99,17 +99,17 @@ export async function createTaskDelegate(args: {
     }
   };
 
-  function getRunner(providerName: string): Promise<ProviderTaskRunner> {
-    const cached = runners.get(providerName);
+  function getRunner(agent: ResolvedAgentRuntime): Promise<ProviderTaskRunner> {
+    const cached = runners.get(agent.id);
     if (cached) return cached;
 
-    const provider = args.loadedConfig.config.providers[providerName];
+    const provider = args.loadedConfig.config.providers[agent.providerName];
     if (!provider) {
-      throw new Error(`Unknown provider: ${providerName}`);
+      throw new Error(`Unknown provider: ${agent.providerName}`);
     }
 
-    const created = createRunner(providerName, provider, args.loadedConfig.configDir);
-    runners.set(providerName, created);
+    const created = createRunner(agent.providerName, provider, args.loadedConfig.configDir);
+    runners.set(agent.id, created);
     return created;
   }
 }

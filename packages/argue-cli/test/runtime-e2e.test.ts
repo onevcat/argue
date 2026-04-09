@@ -331,6 +331,70 @@ describe("argue-cli runtime e2e", () => {
       await server.close();
     }
   });
+
+  it("accumulates messages across rounds for api session continuity", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-session-"));
+    const configPath = join(root, "argue.config.json");
+    process.env.ARGUE_TEST_OPENAI_KEY = "openai-test-key";
+
+    const messageCounts: number[] = [];
+
+    const server = await startJsonServer((req, res, body) => {
+      const parsed = JSON.parse(body);
+      if (Array.isArray(parsed.messages)) {
+        messageCounts.push(parsed.messages.length);
+      }
+      replyJson(res, openAIChatResponse(phaseFromBody(body)));
+    });
+
+    try {
+      await writeJson(configPath, {
+        schemaVersion: 1,
+        defaults: {
+          defaultAgents: ["a1", "a2"],
+          minRounds: 1,
+          maxRounds: 1
+        },
+        providers: {
+          api: {
+            type: "api",
+            protocol: "openai-compatible",
+            baseUrl: `${server.baseUrl}/v1`,
+            apiKeyEnv: "ARGUE_TEST_OPENAI_KEY",
+            models: { fake: {} }
+          }
+        },
+        agents: [
+          { id: "a1", provider: "api", model: "fake" },
+          { id: "a2", provider: "api", model: "fake" }
+        ]
+      });
+
+      const result = await runCli([
+        "run",
+        "--config", configPath,
+        "--request-id", "session-test",
+        "--task", "Session topic"
+      ]);
+
+      expect(result.ok).toBe(true);
+
+      // 2 agents × 3 phases (initial, debate, final_vote) = 6 requests
+      // Per agent: round 0 = 1 msg, round 1 = 3 msgs, round 2 = 5 msgs
+      // (each round adds user + assistant, so +2 per round)
+      const a1Counts = messageCounts.filter((_, i) => i % 2 === 0);
+      const a2Counts = messageCounts.filter((_, i) => i % 2 === 1);
+
+      // Each agent's message count should strictly increase across rounds
+      for (const counts of [a1Counts, a2Counts]) {
+        for (let i = 1; i < counts.length; i++) {
+          expect(counts[i]).toBeGreaterThan(counts[i - 1]!);
+        }
+      }
+    } finally {
+      await server.close();
+    }
+  });
 });
 
 async function startJsonServer(

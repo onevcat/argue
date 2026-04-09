@@ -11,7 +11,8 @@ export function createCliRunner(provider: CliProviderConfig): ProviderTaskRunner
         ? JSON.stringify(buildGenericEnvelope(task, agent), null, 2)
         : buildTaskPrompt({ task, agent, includeJsonSchema: true });
 
-      const baseArgs = buildBaseArgs(provider.cliType, agent.providerModel);
+      const sessionKey = task.metadata?.participantSessionKey as string | undefined;
+      const baseArgs = buildBaseArgs(provider.cliType, agent.providerModel, sessionKey);
       const extraArgs = provider.args.map((arg) => renderTemplate(arg, task, agent));
 
       const result = await runCommand({
@@ -49,12 +50,22 @@ export function createCliRunner(provider: CliProviderConfig): ProviderTaskRunner
   };
 }
 
-function buildBaseArgs(cliType: CliProviderConfig["cliType"], providerModel: string): string[] {
+function buildBaseArgs(
+  cliType: CliProviderConfig["cliType"],
+  providerModel: string,
+  sessionKey?: string
+): string[] {
   switch (cliType) {
     case "claude":
-      return ["--print", "--model", providerModel, "--no-session-persistence"];
+      return [
+        "--print", "--model", providerModel,
+        ...(sessionKey ? ["--session-id", sessionKey] : ["--no-session-persistence"])
+      ];
     case "codex":
-      return ["exec", "-m", providerModel, "-a", "never", "--color", "never"];
+      return [
+        "exec", "-m", providerModel, "-a", "never", "--color", "never",
+        ...(sessionKey ? ["--session", sessionKey] : [])
+      ];
     default:
       return [];
   }
