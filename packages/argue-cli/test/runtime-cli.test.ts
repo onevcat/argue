@@ -89,7 +89,7 @@ process.stdout.write(JSON.stringify(output));
     const root = await mkdtemp(join(tmpdir(), "argue-cli-runner-codex-"));
     const script = join(root, "runner.mjs");
 
-    await writeFile(script, `
+    await writeFile(script, `#!/usr/bin/env node
 const fence = String.fromCharCode(96).repeat(3);
 process.stdout.write(fence + 'json\\n' + JSON.stringify({
   fullResponse: "fenced",
@@ -97,13 +97,13 @@ process.stdout.write(fence + 'json\\n' + JSON.stringify({
   extractedClaims: [],
   judgements: []
 }) + '\\n' + fence + '\\n');
-`, "utf8");
+`, { mode: 0o755 });
 
     const runner = createCliRunner({
       type: "cli",
       cliType: "codex",
-      command: process.execPath,
-      args: [script],
+      command: script,
+      args: [],
       models: {
         fake: {}
       }

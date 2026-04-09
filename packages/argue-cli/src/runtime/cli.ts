@@ -11,9 +11,12 @@ export function createCliRunner(provider: CliProviderConfig): ProviderTaskRunner
         ? JSON.stringify(buildGenericEnvelope(task, agent), null, 2)
         : buildTaskPrompt({ task, agent, includeJsonSchema: true });
 
+      const baseArgs = buildBaseArgs(provider.cliType, agent.providerModel);
+      const extraArgs = provider.args.map((arg) => renderTemplate(arg, task, agent));
+
       const result = await runCommand({
         command: provider.command,
-        args: provider.args.map((arg) => renderTemplate(arg, task, agent)),
+        args: [...baseArgs, ...extraArgs],
         env: {
           ...process.env,
           ...renderEnv(provider.env, task, agent),
@@ -44,6 +47,17 @@ export function createCliRunner(provider: CliProviderConfig): ProviderTaskRunner
       return normalizeTaskOutputFromText(task, result.stdout);
     }
   };
+}
+
+function buildBaseArgs(cliType: CliProviderConfig["cliType"], providerModel: string): string[] {
+  switch (cliType) {
+    case "claude":
+      return ["--print", "--model", providerModel, "--no-session-persistence"];
+    case "codex":
+      return ["exec", "-m", providerModel, "-a", "never", "--color", "never"];
+    default:
+      return [];
+  }
 }
 
 function buildGenericEnvelope(task: Parameters<typeof buildTaskPrompt>[0]["task"], agent: Parameters<typeof buildTaskPrompt>[0]["agent"]): Record<string, unknown> {

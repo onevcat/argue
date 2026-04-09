@@ -11,6 +11,7 @@ import {
 import { executeHeadlessRun } from "./headless-run.js";
 import { loadRunInput } from "./run-input.js";
 import { resolveRunPlan } from "./run-plan.js";
+import { VENDOR_PRESETS, getVendorNames } from "./vendors.js";
 export type { CliSdkProviderAdapter, CreateCliSdkProviderAdapter, ProviderTaskRunnerArgs } from "./runtime/types.js";
 
 export type CliRunOptions = {
@@ -42,6 +43,7 @@ type ConfigAddProviderOptions = {
   type: "api" | "cli" | "sdk" | "mock";
   modelId: string;
   providerModel?: string;
+  vendor?: string;
   protocol?: "openai-compatible" | "anthropic-compatible";
   baseUrl?: string;
   apiKeyEnv?: string;
@@ -547,6 +549,17 @@ function parseConfigAddProviderOptions(args: string[]):
       continue;
     }
 
+    if (arg === "--vendor") {
+      const value = args[i + 1];
+      const names = getVendorNames();
+      if (!value || !names.includes(value)) {
+        return { ok: false, error: `--vendor must be one of: ${names.join(", ")}` };
+      }
+      out.vendor = value;
+      i += 1;
+      continue;
+    }
+
     if (arg === "--cli-type") {
       const value = args[i + 1];
       if (!value || (value !== "codex" && value !== "claude" && value !== "generic")) {
@@ -596,8 +609,20 @@ function parseConfigAddProviderOptions(args: string[]):
   if (!out.type) return { ok: false, error: "Missing provider type. Use --type <api|cli|sdk|mock>." };
   if (!out.modelId) return { ok: false, error: "Missing model id. Use --model-id <model-id>." };
 
-  if (out.type === "api" && !out.protocol) {
-    return { ok: false, error: "API provider requires --protocol <openai-compatible|anthropic-compatible>." };
+  if (out.vendor && out.type !== "api") {
+    return { ok: false, error: "--vendor is only valid for --type api." };
+  }
+
+  if (out.type === "api") {
+    if (out.vendor) {
+      const preset = VENDOR_PRESETS[out.vendor]!;
+      if (!out.protocol) out.protocol = preset.protocol;
+      if (!out.baseUrl && preset.baseUrl) out.baseUrl = preset.baseUrl;
+      if (!out.apiKeyEnv && preset.apiKeyEnv) out.apiKeyEnv = preset.apiKeyEnv;
+    }
+    if (!out.protocol) {
+      return { ok: false, error: "API provider requires --protocol or --vendor." };
+    }
   }
 
   if (out.type === "cli") {
@@ -890,8 +915,8 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("");
   io.log("Config mutation commands:");
   io.log("  argue config add-provider --id <provider-id> --type <api|cli|sdk|mock> --model-id <model-id> [type options]");
-  io.log("    api options: --protocol <openai-compatible|anthropic-compatible> [--base-url <url>] [--api-key-env <ENV_VAR>]");
-  io.log("    cli options: --cli-type <codex|claude|generic> --command <binary> [--args a,b,c]");
+  io.log(`    api options: --vendor <${getVendorNames().join("|")}> | --protocol <openai-compatible|anthropic-compatible> [--base-url <url>] [--api-key-env <ENV_VAR>]`);
+  io.log("    cli options: --cli-type <codex|claude|generic> --command <binary> [--args a,b,c (extra)]");
   io.log("    sdk options: --adapter <module> [--export-name <name>]");
   io.log("  argue config add-agent --id <agent-id> --provider <provider-id> --model <model-id> [--role <text>] [--system-prompt <text>]");
   io.log("                         [--timeout-ms <n>] [--temperature <0..2>]");

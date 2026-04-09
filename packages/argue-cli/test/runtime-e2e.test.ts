@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -152,7 +152,7 @@ describe("argue-cli runtime e2e", () => {
     const configPath = join(root, "argue.config.json");
     const scriptPath = join(root, "cli-runner.mjs");
 
-    await writeFile(scriptPath, CLI_RUNNER_SCRIPT, "utf8");
+    await writeFile(scriptPath, `#!/usr/bin/env node\n${CLI_RUNNER_SCRIPT}`, { mode: 0o755 });
     await writeJson(configPath, {
       schemaVersion: 1,
       defaults: {
@@ -164,8 +164,7 @@ describe("argue-cli runtime e2e", () => {
         codex: {
           type: "cli",
           cliType: "codex",
-          command: process.execPath,
-          args: [scriptPath],
+          command: scriptPath,
           models: {
             fake: {}
           }
