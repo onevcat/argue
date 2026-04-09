@@ -108,13 +108,12 @@ describe("cli config loader", () => {
   it("run command resolves plan with precedence: flags > input > defaults", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-run-"));
     const configPath = join(root, "argue.config.json");
-    const inputPath = join(root, "topic.json");
+    const inputPath = join(root, "task.json");
 
     await writeJson(configPath, RUNNABLE_CONFIG);
     await writeJson(inputPath, {
       requestId: "from-input",
-      topic: "Input topic",
-      objective: "Input objective",
+      task: "Input topic",
       agents: ["a1", "a2"],
       composer: "representative"
     });
@@ -127,7 +126,7 @@ describe("cli config loader", () => {
         "run",
         "--config", configPath,
         "--input", inputPath,
-        "--topic", "Flag topic",
+        "--task", "Flag topic",
         "--agents", "a2,a3",
         "--composer", "builtin"
       ],
@@ -141,7 +140,7 @@ describe("cli config loader", () => {
     expect(result.code).toBe(0);
     expect(errors).toHaveLength(0);
 
-    expect(logs.some((x) => x.includes("topic: Flag topic"))).toBe(true);
+    expect(logs.some((x) => x.includes("task: Flag topic"))).toBe(true);
     expect(logs.some((x) => x.includes("agents: a2, a3"))).toBe(true);
     expect(logs.some((x) => x.includes("composer: builtin"))).toBe(true);
   });
@@ -155,7 +154,7 @@ describe("cli config loader", () => {
     const errors: string[] = [];
 
     const result = await runCli(
-      ["exec", "--config", configPath, "--topic", "Alias topic", "--objective", "Alias objective"],
+      ["exec", "--config", configPath, "--task", "Alias topic"],
       {
         log: (msg: string) => logs.push(msg),
         error: (msg: string) => errors.push(msg)
@@ -207,7 +206,7 @@ describe("cli config loader", () => {
     const errors: string[] = [];
 
     const result = await runCli(
-      ["run", "--config", configPath, "--topic", "t", "--objective", "o", "--max-rounds", "10abc"],
+      ["run", "--config", configPath, "--task", "t", "--max-rounds", "10abc"],
       {
         log: (msg: string) => logs.push(msg),
         error: (msg: string) => errors.push(msg)
@@ -228,7 +227,7 @@ describe("cli config loader", () => {
     const errors: string[] = [];
 
     const result = await runCli(
-      ["run", "--config", configPath, "--topic", "t", "--objective", "o", "--threshold", "0.8foo"],
+      ["run", "--config", configPath, "--task", "t", "--threshold", "0.8foo"],
       {
         log: (msg: string) => logs.push(msg),
         error: (msg: string) => errors.push(msg)
@@ -240,7 +239,7 @@ describe("cli config loader", () => {
     expect(errors.some((x) => x.includes("--threshold must be a number"))).toBe(true);
   });
 
-  it("run command fails when topic/objective are not provided by any source", async () => {
+  it("run command fails when task is not provided by any source", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-run-fail-"));
     const configPath = join(root, "argue.config.json");
     await writeJson(configPath, VALID_CONFIG);
@@ -255,7 +254,7 @@ describe("cli config loader", () => {
 
     expect(result.ok).toBe(false);
     expect(result.code).toBe(1);
-    expect(errors.some((x) => x.includes("Missing topic"))).toBe(true);
+    expect(errors.some((x) => x.includes("Missing task"))).toBe(true);
   });
 });
 

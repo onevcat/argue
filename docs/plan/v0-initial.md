@@ -73,8 +73,7 @@
 ```ts
 export type ArgueStartInput = {
   requestId: string;
-  topic: string;
-  objective: string;
+  task: string;
 
   participants: Array<{
     id: string;               // e.g. onevclaw

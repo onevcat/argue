@@ -27,8 +27,7 @@ describe("loadRunInput", () => {
     const file = join(root, "run.json");
 
     await writeFile(file, JSON.stringify({
-      topic: "T",
-      objective: "O",
+      task: "T",
       agents: ["a1", "a2"],
       minRounds: 1,
       maxRounds: 2,
@@ -36,8 +35,7 @@ describe("loadRunInput", () => {
     }), "utf8");
 
     const input = await loadRunInput(file, loadedConfig);
-    expect(input.topic).toBe("T");
-    expect(input.objective).toBe("O");
+    expect(input.task).toBe("T");
     expect(input.context).toEqual({ mode: "test" });
   });
 
@@ -45,7 +43,7 @@ describe("loadRunInput", () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-run-input-invalid-"));
     const file = join(root, "run.json");
 
-    await writeFile(file, JSON.stringify({ topic: "T", objective: "O", extra: true }), "utf8");
+    await writeFile(file, JSON.stringify({ task: "T", extra: true }), "utf8");
 
     await expect(loadRunInput(file, loadedConfig)).rejects.toThrow();
   });

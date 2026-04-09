@@ -141,8 +141,7 @@ describe("JsonlObserver", () => {
 
     await engine.start({
       requestId: "req-jsonl",
-      topic: "jsonl",
-      objective: "capture lifecycle",
+      task: "jsonl",
       participants: [{ id: "a" }, { id: "b" }],
       roundPolicy: { minRounds: 1, maxRounds: 1 }
     });

@@ -11,8 +11,7 @@ describe("createTaskDelegate task lifecycle", () => {
       runInput: {},
       overrides: {
         requestId: "req-cleanup",
-        topic: "topic",
-        objective: "objective"
+        task: "topic",
       }
     });
 
@@ -39,8 +38,7 @@ describe("createTaskDelegate task lifecycle", () => {
       runInput: {},
       overrides: {
         requestId: "req-cancel",
-        topic: "topic",
-        objective: "objective"
+        task: "topic",
       }
     });
 
@@ -66,8 +64,7 @@ describe("createTaskDelegate task lifecycle", () => {
       runInput: {},
       overrides: {
         requestId: "req-unknown-agent",
-        topic: "topic",
-        objective: "objective"
+        task: "topic",
       }
     });
 
@@ -113,7 +110,7 @@ describe("createTaskDelegate task lifecycle", () => {
         }
       },
       runInput: {},
-      overrides: { requestId: "r", topic: "t", objective: "o" }
+      overrides: { requestId: "r", task: "t" }
     });
 
     await expect(createTaskDelegate({ loadedConfig, plan })).rejects.toThrow(/Unknown model/);

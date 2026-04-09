@@ -51,24 +51,21 @@ describe("resolveRunPlan", () => {
       loadedConfig,
       runInput: {
         requestId: "from-input",
-        topic: "Input topic",
-        objective: "Input objective",
+        task: "Input topic",
         agents: ["a1", "a2"],
         composer: "representative",
         language: "en"
       },
       overrides: {
         requestId: "from-flag",
-        topic: "Flag topic",
-        objective: "Flag objective",
+        task: "Flag topic",
         agents: ["a2", "a3", "a2"],
         composer: "builtin"
       }
     });
 
     expect(plan.requestId).toBe("from-flag");
-    expect(plan.topic).toBe("Flag topic");
-    expect(plan.objective).toBe("Flag objective");
+    expect(plan.task).toBe("Flag topic");
     expect(plan.participantIds).toEqual(["a2", "a3"]);
     expect(plan.startInput.reportPolicy.composer).toBe("builtin");
     expect(plan.startInput.constraints?.language).toBe("en");
@@ -79,7 +76,7 @@ describe("resolveRunPlan", () => {
 
     const plan = resolveRunPlan({
       loadedConfig,
-      runInput: { topic: "t", objective: "o" },
+      runInput: { task: "t" },
       overrides: { requestId: "abc" }
     });
 
@@ -88,12 +85,24 @@ describe("resolveRunPlan", () => {
     expect(plan.summaryPath).toBe("/tmp/project/out/abc.summary.md");
   });
 
+  it("keeps task as the only required input field", () => {
+    const loadedConfig = makeLoadedConfig();
+
+    const plan = resolveRunPlan({
+      loadedConfig,
+      runInput: { task: "t" },
+      overrides: {}
+    });
+
+    expect(plan.task).toBe("t");
+  });
+
   it("throws when rounds are invalid", () => {
     const loadedConfig = makeLoadedConfig();
 
     expect(() => resolveRunPlan({
       loadedConfig,
-      runInput: { topic: "t", objective: "o" },
+      runInput: { task: "t" },
       overrides: { minRounds: 3, maxRounds: 1 }
     })).toThrow(/maxRounds must be >= minRounds/);
   });
@@ -103,7 +112,7 @@ describe("resolveRunPlan", () => {
 
     expect(() => resolveRunPlan({
       loadedConfig,
-      runInput: { topic: "t", objective: "o" },
+      runInput: { task: "t" },
       overrides: { agents: ["a1", "ghost"] }
     })).toThrow(/Unknown agent id in selection/);
   });

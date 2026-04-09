@@ -71,8 +71,7 @@ describe("argue-cli runtime e2e", () => {
         "run",
         "--config", configPath,
         "--request-id", "mock-e2e",
-        "--topic", "Mock topic",
-        "--objective", "Mock objective"
+        "--task", "Mock topic"
       ],
       {
         log: (msg: string) => logs.push(msg),
@@ -132,8 +131,7 @@ describe("argue-cli runtime e2e", () => {
         "run",
         "--config", configPath,
         "--request-id", "mock-timeout",
-        "--topic", "Timeout topic",
-        "--objective", "Timeout objective",
+        "--task", "Timeout topic",
         "--per-task-timeout-ms", "1000",
         "--per-round-timeout-ms", "1000"
       ]
@@ -183,8 +181,7 @@ describe("argue-cli runtime e2e", () => {
       "run",
       "--config", configPath,
       "--request-id", "cli-codex",
-      "--topic", "CLI topic",
-      "--objective", "CLI objective"
+      "--task", "CLI topic"
     ]);
 
     expect(result.ok).toBe(true);
@@ -227,8 +224,7 @@ describe("argue-cli runtime e2e", () => {
       "run",
       "--config", configPath,
       "--request-id", "sdk-e2e",
-      "--topic", "SDK topic",
-      "--objective", "SDK objective"
+      "--task", "SDK topic"
     ]);
 
     expect(result.ok).toBe(true);
@@ -276,8 +272,7 @@ describe("argue-cli runtime e2e", () => {
         "run",
         "--config", configPath,
         "--request-id", "api-openai",
-        "--topic", "OpenAI topic",
-        "--objective", "OpenAI objective"
+        "--task", "OpenAI topic"
       ]);
 
       expect(result.ok).toBe(true);
@@ -327,8 +322,7 @@ describe("argue-cli runtime e2e", () => {
         "run",
         "--config", configPath,
         "--request-id", "api-anthropic",
-        "--topic", "Anthropic topic",
-        "--objective", "Anthropic objective"
+        "--task", "Anthropic topic"
       ]);
 
       expect(result.ok).toBe(true);

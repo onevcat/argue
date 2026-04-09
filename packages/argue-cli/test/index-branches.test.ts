@@ -57,8 +57,7 @@ describe("runCli command branches", () => {
       { args: ["run", "--input"], message: "--input requires a path" },
       { args: ["run", "--agents"], message: "--agents requires comma-separated ids" },
       { args: ["run", "--request-id"], message: "--request-id requires a value" },
-      { args: ["run", "--topic"], message: "--topic requires a value" },
-      { args: ["run", "--objective"], message: "--objective requires a value" },
+      { args: ["run", "--task"], message: "--task requires a value" },
       { args: ["run", "--jsonl"], message: "--jsonl requires a path" },
       { args: ["run", "--result"], message: "--result requires a path" },
       { args: ["run", "--summary"], message: "--summary requires a path" },
@@ -128,8 +127,7 @@ describe("runCli command branches", () => {
     const result = await runCli([
       "run",
       "--config", configPath,
-      "--topic", "t",
-      "--objective", "o",
+      "--task", "t",
       "--request-id", "fail-run"
     ], io);
 
@@ -173,9 +171,8 @@ describe("runCli command branches", () => {
       "run",
       "--config", configPath,
       "--request-id", "trace-run",
-      "--topic", "t",
-      "--objective", "o",
-      "--agents", "a1,,a2",
+      "--task", "t",
+      "--agents", "a1,a2",
       "--trace",
       "--trace-level", "full"
     ], io);
@@ -224,8 +221,7 @@ describe("runCli command branches", () => {
       "run",
       "--config", configPath,
       "--request-id", "progress-run",
-      "--topic", "t",
-      "--objective", "o"
+      "--task", "t"
     ], io);
 
     expect(result).toEqual({ ok: true, code: 0 });
