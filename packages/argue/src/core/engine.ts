@@ -408,59 +408,49 @@ export class ArgueEngine {
     const waited = await this.waitCoordinator.waitRound({
       round: args.round,
       taskIds,
-      policy: this.resolveRoundWaitingPolicy(args.normalized, args.startAt)
+      policy: this.resolveRoundWaitingPolicy(args.normalized, args.startAt),
+      onTaskSettled: async (event) => {
+        const participantId = taskParticipantMap.get(event.taskId);
+        if (!participantId) return;
+
+        if (event.status === "completed") {
+          args.metrics.totalTurns += 1;
+          await this.emit(args.normalized, args.sessionId, "ParticipantResponded", {
+            phase: args.phase,
+            round: args.round,
+            participantId
+          }, event.at);
+          return;
+        }
+
+        const reason = event.status === "timeout" ? "timeout" : "error";
+        if (reason === "timeout") {
+          args.metrics.waitTimeouts += 1;
+        }
+
+        const wasActive = args.activeParticipants.has(participantId);
+        this.eliminateParticipant({
+          participantId,
+          round: args.round,
+          reason,
+          activeParticipants: args.activeParticipants,
+          eliminations: args.eliminations
+        });
+
+        if (!wasActive) return;
+
+        await this.emit(args.normalized, args.sessionId, "ParticipantEliminated", {
+          phase: args.phase,
+          round: args.round,
+          participantId,
+          reason
+        }, event.at);
+      }
     });
-
-    args.metrics.waitTimeouts += waited.timedOutTaskIds.length;
-
-    for (const taskId of waited.timedOutTaskIds) {
-      const participantId = taskParticipantMap.get(taskId);
-      if (!participantId) continue;
-      this.eliminateParticipant({
-        participantId,
-        round: args.round,
-        reason: "timeout",
-        activeParticipants: args.activeParticipants,
-        eliminations: args.eliminations
-      });
-      await this.emit(args.normalized, args.sessionId, "ParticipantEliminated", {
-        phase: args.phase,
-        round: args.round,
-        participantId,
-        reason: "timeout"
-      });
-    }
-
-    for (const taskId of waited.failedTaskIds) {
-      const participantId = taskParticipantMap.get(taskId);
-      if (!participantId) continue;
-      this.eliminateParticipant({
-        participantId,
-        round: args.round,
-        reason: "error",
-        activeParticipants: args.activeParticipants,
-        eliminations: args.eliminations
-      });
-      await this.emit(args.normalized, args.sessionId, "ParticipantEliminated", {
-        phase: args.phase,
-        round: args.round,
-        participantId,
-        reason: "error"
-      });
-    }
 
     const outputs = waited.completed
       .filter((output) => output.phase === args.phase && output.round === args.round)
       .filter((output) => args.activeParticipants.has(output.participantId));
-
-    for (const output of outputs) {
-      args.metrics.totalTurns += 1;
-      await this.emit(args.normalized, args.sessionId, "ParticipantResponded", {
-        phase: args.phase,
-        round: args.round,
-        participantId: output.participantId
-      });
-    }
 
     const { claims, newClaimCount, mergeEvents } = args.phase === "final_vote"
       ? { claims: [...args.claimCatalog], newClaimCount: 0, mergeEvents: [] }
@@ -802,7 +792,8 @@ export class ArgueEngine {
       | "ConsensusDrafted"
       | "Finalized"
       | "Failed",
-    payload?: Record<string, unknown>
+    payload?: Record<string, unknown>,
+    at?: string
   ): Promise<void> {
     if (!this.deps.observer) return;
 
@@ -810,7 +801,7 @@ export class ArgueEngine {
       sessionId,
       requestId: normalized.requestId,
       type,
-      at: new Date(this.now()).toISOString(),
+      at: at ?? new Date(this.now()).toISOString(),
       payload
     });
   }

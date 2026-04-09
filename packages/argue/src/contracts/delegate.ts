@@ -34,6 +34,13 @@ export interface WaitCoordinator {
     round: number;
     taskIds: string[];
     policy: NonNullable<ArgueStartInput["waitingPolicy"]>;
+    onTaskSettled?: (event: {
+      taskId: string;
+      status: "completed" | "failed" | "timeout";
+      at: string;
+      output?: ParticipantRoundOutput;
+      error?: string;
+    }) => Promise<void> | void;
   }): Promise<{
     completed: ParticipantRoundOutput[];
     timedOutTaskIds: string[];

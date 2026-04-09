@@ -116,4 +116,85 @@ describe("DefaultWaitCoordinator", () => {
     expect(result.failedTaskIds).toEqual(["throw"]);
     expect(result.timedOutTaskIds).toEqual([]);
   });
+
+  it("emits onTaskSettled in completion order with settled timestamps", async () => {
+    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+    const events: Array<{ taskId: string; status: string; at: string }> = [];
+
+    const delegate: AgentTaskDelegate = {
+      async dispatch() {
+        throw new Error("not used");
+      },
+      async awaitResult(taskId) {
+        if (taskId === "fast") {
+          await sleep(5);
+          return {
+            ok: true,
+            output: {
+              kind: "round",
+              output: {
+                participantId: "a-fast",
+                phase: "debate",
+                round: 1,
+                fullResponse: "fast",
+                summary: "fast",
+                judgements: []
+              }
+            }
+          };
+        }
+
+        if (taskId === "timeout") {
+          await sleep(10);
+          return {
+            ok: false,
+            error: "__timeout__"
+          };
+        }
+
+        await sleep(20);
+        return {
+          ok: true,
+          output: {
+            kind: "round",
+            output: {
+              participantId: "a-slow",
+              phase: "debate",
+              round: 1,
+              fullResponse: "slow",
+              summary: "slow",
+              judgements: []
+            }
+          }
+        };
+      }
+    };
+
+    const coordinator = new DefaultWaitCoordinator(delegate);
+    const result = await coordinator.waitRound({
+      round: 1,
+      taskIds: ["slow", "fast", "timeout"],
+      policy: {
+        perTaskTimeoutMs: 100,
+        perRoundTimeoutMs: 100
+      },
+      onTaskSettled(event) {
+        events.push({ taskId: event.taskId, status: event.status, at: event.at });
+      }
+    });
+
+    expect(result.completed.map((x) => x.participantId).sort()).toEqual(["a-fast", "a-slow"]);
+    expect(result.failedTaskIds).toEqual([]);
+    expect(result.timedOutTaskIds).toEqual(["timeout"]);
+
+    expect(events.map((x) => `${x.taskId}:${x.status}`)).toEqual([
+      "fast:completed",
+      "timeout:timeout",
+      "slow:completed"
+    ]);
+
+    for (const event of events) {
+      expect(Number.isNaN(Date.parse(event.at))).toBe(false);
+    }
+  });
 });

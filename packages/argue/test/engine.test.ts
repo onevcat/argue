@@ -783,6 +783,90 @@ describe("ArgueEngine M2", () => {
     expect(c3?.mergedInto).toBe("c1");
   });
 
+  it("emits round participant events in real completion timeline", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult; delayMs?: number }> = {
+      "round:initial:0:onevclaw": {
+        type: "success",
+        delayMs: 5,
+        output: roundResult(mkRoundOutput({ participantId: "onevclaw", phase: "initial", round: 0 }))
+      },
+      "round:initial:0:onevpaw": {
+        type: "success",
+        delayMs: 40,
+        output: roundResult(mkRoundOutput({ participantId: "onevpaw", phase: "initial", round: 0 }))
+      },
+      "round:debate:1:onevclaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: "onevclaw", phase: "debate", round: 1 }))
+      },
+      "round:debate:1:onevpaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: "onevpaw", phase: "debate", round: 1 }))
+      },
+      "round:final_vote:2:onevclaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: "onevclaw", phase: "final_vote", round: 2 }))
+      },
+      "round:final_vote:2:onevpaw": {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: "onevpaw", phase: "final_vote", round: 2 }))
+      }
+    };
+
+    const timeline: Array<{
+      type: string;
+      at: string;
+      payload?: Record<string, unknown>;
+    }> = [];
+
+    const engine = new ArgueEngine({
+      taskDelegate: new StubAgentTaskDelegate(scenarios),
+      observer: {
+        onEvent(event) {
+          if (event.type !== "RoundDispatched" && event.type !== "ParticipantResponded" && event.type !== "RoundCompleted") {
+            return;
+          }
+          timeline.push({
+            type: event.type,
+            at: event.at,
+            payload: event.payload
+          });
+        }
+      }
+    });
+
+    await engine.start({
+      requestId: "req-realtime-timeline",
+      topic: "timeline",
+      objective: "emit participant events in completion order",
+      participants: [{ id: "onevclaw" }, { id: "onevpaw" }],
+      roundPolicy: { minRounds: 1, maxRounds: 1 },
+      waitingPolicy: {
+        perTaskTimeoutMs: 1000,
+        perRoundTimeoutMs: 1000
+      }
+    });
+
+    const initialDispatch = timeline.find((event) => event.type === "RoundDispatched" && event.payload?.phase === "initial" && event.payload?.round === 0);
+    const initialResponses = timeline.filter((event) => event.type === "ParticipantResponded" && event.payload?.phase === "initial" && event.payload?.round === 0);
+    const initialRoundCompleted = timeline.find((event) => event.type === "RoundCompleted" && event.payload?.phase === "initial" && event.payload?.round === 0);
+
+    expect(initialDispatch).toBeDefined();
+    expect(initialResponses.map((event) => event.payload?.participantId)).toEqual(["onevclaw", "onevpaw"]);
+    expect(initialRoundCompleted).toBeDefined();
+
+    if (initialDispatch && initialRoundCompleted) {
+      const dispatchAt = Date.parse(initialDispatch.at);
+      const firstAt = Date.parse(initialResponses[0]!.at);
+      const secondAt = Date.parse(initialResponses[1]!.at);
+      const roundCompletedAt = Date.parse(initialRoundCompleted.at);
+
+      expect(firstAt).toBeGreaterThanOrEqual(dispatchAt);
+      expect(secondAt).toBeGreaterThanOrEqual(firstAt);
+      expect(roundCompletedAt).toBeGreaterThanOrEqual(secondAt);
+    }
+  });
+
   it("rejects removed waiting/report policy fields", async () => {
     const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate({}) });
 
