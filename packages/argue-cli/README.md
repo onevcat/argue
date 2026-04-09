@@ -14,6 +14,30 @@ argue run [--config <path>] [--input <path>] [--agents a,b,c]
           [--language <lang>] [--token-budget <n>]
 ```
 
+## Config mutation commands
+
+```bash
+# add a provider
+argue config add-provider --config ./argue.config.json \
+  --id openai --type api --protocol openai-compatible --model-id gpt5
+
+# add an agent
+argue config add-agent --config ./argue.config.json \
+  --id reviewer --provider openai --model gpt5 --role "Code reviewer"
+```
+
+Supported provider options:
+
+- `add-provider`
+  - required: `--id`, `--type`, `--model-id`
+  - `type=api`: requires `--protocol`, optional `--base-url`, `--api-key-env`
+  - `type=cli`: requires `--cli-type`, `--command`, optional `--args a,b,c`
+  - `type=sdk`: requires `--adapter`, optional `--export-name`
+  - `type=mock`: no type-specific required options
+- `add-agent`
+  - required: `--id`, `--provider`, `--model`
+  - optional: `--role`, `--system-prompt`, `--timeout-ms`, `--temperature`
+
 Current behavior:
 
 - loads and validates config + optional input JSON

@@ -93,6 +93,21 @@ describe("runCli command branches", () => {
     }
   });
 
+  it("returns parser errors for config mutation commands", async () => {
+    for (const [args, message] of [
+      [["config"], "Unknown config subcommand"],
+      [["config", "add-provider", "--type", "mock", "--model-id", "m1"], "Missing provider id"],
+      [["config", "add-provider", "--id", "p3", "--type", "api", "--model-id", "m1"], "API provider requires --protocol"],
+      [["config", "add-agent", "--id", "a4", "--provider", "p1"], "Missing model id"],
+      [["config", "add-agent", "--id", "a4", "--provider", "p1", "--model", "m1", "--unknown"], "Unknown option for config add-agent: --unknown"]
+    ] as const) {
+      const io = createIO();
+      const result = await runCli(args as string[], io);
+      expect(result).toEqual({ ok: false, code: 1 });
+      expect(io.errors.some((x) => x.includes(message))).toBe(true);
+    }
+  });
+
   it("propagates execute failure in run path", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-run-fail-exec-"));
     const configPath = join(root, "argue.config.json");
