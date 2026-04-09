@@ -14,8 +14,7 @@ export type CliRunOptions = {
   inputPath?: string;
   agents?: string[];
   requestId?: string;
-  topic?: string;
-  objective?: string;
+  task?: string;
   jsonlPath?: string;
   resultPath?: string;
   summaryPath?: string;
@@ -115,8 +114,7 @@ async function runHeadless(args: string[], io: Pick<typeof console, "log" | "err
   io.log(`- config: ${loadedConfig.configPath}`);
   io.log(`- input: ${options.value.inputPath ?? "(none)"}`);
   io.log(`- requestId: ${plan.requestId}`);
-  io.log(`- topic: ${plan.topic}`);
-  io.log(`- objective: ${plan.objective}`);
+  io.log(`- task: ${plan.task}`);
   io.log(`- agents: ${plan.participantIds.join(", ")}`);
   io.log(`- rounds: ${plan.startInput.roundPolicy.minRounds}..${plan.startInput.roundPolicy.maxRounds}`);
   io.log(`- composer: ${plan.startInput.reportPolicy.composer}`);
@@ -154,7 +152,7 @@ function enterDefaultMode(io: Pick<typeof console, "log" | "error">, runtime: Cl
 
   io.log("[argue-cli] entering TUI mode (skeleton)");
   io.log("- interactive agent selection: TODO");
-  io.log("- interactive topic/objective input: TODO");
+  io.log("- interactive task input: TODO");
   io.log("- switch to headless anytime with: argue run/exec");
   return { ok: true, code: 0 };
 }
@@ -167,7 +165,7 @@ function enterTuiMode(io: Pick<typeof console, "log" | "error">, runtime: CliRun
 
   io.log("[argue-cli] entering TUI mode (skeleton)");
   io.log("- interactive agent selection: TODO");
-  io.log("- interactive topic/objective input: TODO");
+  io.log("- interactive task input: TODO");
   return { ok: true, code: 0 };
 }
 
@@ -211,18 +209,10 @@ function parseRunOptions(args: string[]):
       continue;
     }
 
-    if (arg === "--topic") {
+    if (arg === "--task") {
       const value = args[i + 1];
-      if (!value) return { ok: false, error: "--topic requires a value" };
-      out.topic = value;
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--objective") {
-      const value = args[i + 1];
-      if (!value) return { ok: false, error: "--objective requires a value" };
-      out.objective = value;
+      if (!value) return { ok: false, error: "--task requires a value" };
+      out.task = value;
       i += 1;
       continue;
     }
@@ -483,9 +473,9 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("");
   io.log("Headless options:");
   io.log("  --config <path>                 config JSON path");
-  io.log("  --input <path>                  run input JSON path (topic/objective/agents etc.)");
+  io.log("  --input <path>                  run input JSON path (task/agents etc.)");
   io.log("  --agents a,b,c                  override selected agents");
-  io.log("  --topic <text> --objective <text>");
+  io.log("  --task <text>");
   io.log("  --request-id <id>");
   io.log("  --jsonl <path> --result <path> --summary <path>");
   io.log("  --min-rounds <n> --max-rounds <n> --threshold <0..1>");

@@ -4,8 +4,7 @@ import type { RunInput } from "./run-input.js";
 
 export type RunOverrides = {
   requestId?: string;
-  topic?: string;
-  objective?: string;
+  task?: string;
   agents?: string[];
   jsonlPath?: string;
   resultPath?: string;
@@ -26,16 +25,14 @@ export type RunOverrides = {
 
 export type ResolvedRunPlan = {
   requestId: string;
-  topic: string;
-  objective: string;
+  task: string;
   participantIds: string[];
   jsonlPath: string;
   resultPath: string;
   summaryPath: string;
   startInput: {
     requestId: string;
-    topic: string;
-    objective: string;
+    task: string;
     participants: Array<{ id: string; role?: string }>;
     roundPolicy: { minRounds: number; maxRounds: number };
     waitingPolicy: {
@@ -67,14 +64,10 @@ export function resolveRunPlan(args: {
   const config = loadedConfig.config;
 
   const requestId = overrides.requestId ?? runInput.requestId ?? `argue_${Date.now()}`;
-  const topic = (overrides.topic ?? runInput.topic ?? "").trim();
-  const objective = (overrides.objective ?? runInput.objective ?? "").trim();
+  const task = (overrides.task ?? runInput.task ?? "").trim();
 
-  if (!topic) {
-    throw new Error("Missing topic. Provide --topic or set topic in run input JSON.");
-  }
-  if (!objective) {
-    throw new Error("Missing objective. Provide --objective or set objective in run input JSON.");
+  if (!task) {
+    throw new Error("Missing task. Provide --task or set task in run input JSON.");
   }
 
   const participantIds = resolveParticipants(config, runInput, overrides);
@@ -128,16 +121,14 @@ export function resolveRunPlan(args: {
 
   return {
     requestId,
-    topic,
-    objective,
+    task,
     participantIds,
     jsonlPath: resolveOutputPath(jsonlRaw, loadedConfig.configDir, requestId),
     resultPath: resolveOutputPath(resultRaw, loadedConfig.configDir, requestId),
     summaryPath: resolveOutputPath(summaryRaw, loadedConfig.configDir, requestId),
     startInput: {
       requestId,
-      topic,
-      objective,
+      task,
       participants,
       roundPolicy: { minRounds, maxRounds },
       waitingPolicy: {

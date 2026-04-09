@@ -7,8 +7,7 @@ export const ParticipantInputSchema = z.object({
 
 export const ArgueStartInputSchema = z.object({
   requestId: z.string().min(1),
-  topic: z.string().min(1),
-  objective: z.string().min(1),
+  task: z.string().min(1),
   participants: z.array(ParticipantInputSchema).min(2),
 
   participantsPolicy: z.object({

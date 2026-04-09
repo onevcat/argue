@@ -49,8 +49,7 @@ describe("executeHeadlessRun", () => {
       runInput: {},
       overrides: {
         requestId: "headless",
-        topic: "Headless topic",
-        objective: "Headless objective"
+        task: "Headless topic",
       }
     });
 

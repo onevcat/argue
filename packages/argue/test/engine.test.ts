@@ -133,8 +133,7 @@ describe("ArgueEngine M2", () => {
 
     const result = await engine.start({
       requestId: "req-effective-voters",
-      topic: "Consensus denominator",
-      objective: "Validate effective-voters denominator",
+      task: "Consensus denominator",
       participants: PARTICIPANTS.map((id) => ({ id })),
       participantsPolicy: { minParticipants: 2 },
       roundPolicy: { minRounds: 2, maxRounds: 3 },
@@ -183,8 +182,7 @@ describe("ArgueEngine M2", () => {
 
     const result = await engine.start({
       requestId: "req-report-fallback",
-      topic: "Report fallback",
-      objective: "fallback to builtin when representative report fails",
+      task: "Report fallback",
       participants: PARTICIPANTS.map((id) => ({ id })),
       roundPolicy: { minRounds: 1, maxRounds: 1 },
       reportPolicy: {
@@ -231,8 +229,7 @@ describe("ArgueEngine M2", () => {
 
     const result = await new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) }).start({
       requestId: "req-report-throw-fallback",
-      topic: "Report fallback",
-      objective: "fallback to builtin when representative await throws",
+      task: "Report fallback",
       participants: PARTICIPANTS.map((id) => ({ id })),
       roundPolicy: { minRounds: 1, maxRounds: 1 },
       reportPolicy: {
@@ -277,8 +274,7 @@ describe("ArgueEngine M2", () => {
 
     const result = await new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) }).start({
       requestId: "req-report-malformed-fallback",
-      topic: "Report fallback",
-      objective: "fallback to builtin when representative payload is malformed",
+      task: "Report fallback",
       participants: PARTICIPANTS.map((id) => ({ id })),
       roundPolicy: { minRounds: 1, maxRounds: 1 },
       reportPolicy: {
@@ -319,8 +315,7 @@ describe("ArgueEngine M2", () => {
 
     const result = await engine.start({
       requestId: "req-deadline-before-final-vote",
-      topic: "deadline",
-      objective: "should skip final vote when deadline is hit",
+      task: "deadline",
       participants: PARTICIPANTS.map((id) => ({ id })),
       roundPolicy: { minRounds: 1, maxRounds: 1 },
       waitingPolicy: {
@@ -430,8 +425,7 @@ describe("ArgueEngine M2", () => {
 
     const result = await new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) }).start({
       requestId: "req-freeze-final-vote-claims",
-      topic: "freeze",
-      objective: "final vote should not mutate claim catalog",
+      task: "freeze",
       participants: PARTICIPANTS.map((id) => ({ id })),
       roundPolicy: { minRounds: 1, maxRounds: 1 }
     });
@@ -466,8 +460,7 @@ describe("ArgueEngine M2", () => {
 
     const result = await engine.start({
       requestId: "req-designated",
-      topic: "Designated representative",
-      objective: "choose host-designated active representative",
+      task: "Designated representative",
       participants: PARTICIPANTS.map((id) => ({ id })),
       roundPolicy: { minRounds: 1, maxRounds: 1 },
       reportPolicy: {
@@ -629,8 +622,7 @@ describe("ArgueEngine M2", () => {
 
     const result = await engine.start({
       requestId: "req-full-di",
-      topic: "full DI edge cases",
-      objective: "run edge cases through full orchestration",
+      task: "full DI edge cases",
       participants: PARTICIPANTS.map((id) => ({ id })),
       participantsPolicy: { minParticipants: 2 },
       roundPolicy: { minRounds: 1, maxRounds: 3 },
@@ -766,8 +758,7 @@ describe("ArgueEngine M2", () => {
     const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) });
     const result = await engine.start({
       requestId: "req-chain-merge",
-      topic: "chain merge",
-      objective: "merge c3 -> c2 -> c1",
+      task: "chain merge",
       participants: PARTICIPANTS.map((id) => ({ id })),
       roundPolicy: { minRounds: 1, maxRounds: 1 }
     });
@@ -837,8 +828,7 @@ describe("ArgueEngine M2", () => {
 
     await engine.start({
       requestId: "req-realtime-timeline",
-      topic: "timeline",
-      objective: "emit participant events in completion order",
+      task: "timeline",
       participants: [{ id: "onevclaw" }, { id: "onevpaw" }],
       roundPolicy: { minRounds: 1, maxRounds: 1 },
       waitingPolicy: {
@@ -883,8 +873,7 @@ describe("ArgueEngine M2", () => {
 
     await expect(engine.start({
       requestId: "req-invalid-fields",
-      topic: "invalid",
-      objective: "invalid",
+      task: "invalid",
       participants: [{ id: "a" }, { id: "b" }],
       waitingPolicy: {
         perTaskTimeoutMs: 1000,
@@ -898,8 +887,7 @@ describe("ArgueEngine M2", () => {
 
     await expect(engine.start({
       requestId: "req-invalid-report-fields",
-      topic: "invalid",
-      objective: "invalid",
+      task: "invalid",
       participants: [{ id: "a" }, { id: "b" }],
       reportPolicy: {
         composer: "builtin",

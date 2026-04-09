@@ -6,7 +6,7 @@ Official CLI host for the `argue` engine.
 
 ```bash
 argue run [--config <path>] [--input <path>] [--agents a,b,c]
-          [--topic <text>] [--objective <text>] [--request-id <id>]
+          [--task <text>] [--request-id <id>]
           [--jsonl <path>] [--result <path>] [--summary <path>]
           [--min-rounds <n>] [--max-rounds <n>] [--threshold <0..1>]
           [--composer builtin|representative] [--representative-id <id>]
@@ -97,7 +97,7 @@ Output fields (optional):
 
 Run-specific fields:
 
-- `requestId`, `topic`, `objective`
+- `requestId`, `task`
 - `agents`
 - round / timeout / consensus / report policy overrides
 - `language`, `tokenBudgetHint`, `context`
@@ -125,4 +125,4 @@ This file is for one run, while config holds the reusable provider/agent catalog
 ## Examples
 
 - config: `packages/argue-cli/examples/config.example.json`
-- run input: `packages/argue-cli/examples/topic.example.json`
+- run input: `packages/argue-cli/examples/task.example.json`

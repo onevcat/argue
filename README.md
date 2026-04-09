@@ -15,7 +15,7 @@ CLI config lookup order:
 2. `./argue.config.json`
 3. `~/.config/argue/config.json`
 
-Run input (`--input <path>`, e.g. `topic.json`) is optional and overrides config defaults for the current run. CLI flags override both.
+Run input (`--input <path>`, e.g. `task.json`) is optional and overrides config defaults for the current run. CLI flags override both.
 
 Quick workspace commands:
 
@@ -107,8 +107,7 @@ const engine = new ArgueEngine({
 
 const result = await engine.start({
   requestId: "review-42",
-  topic: "Review PR #42",
-  objective: "Find bugs, security issues, and design problems",
+  task: "Review PR #42",
   participants: [
     { id: "agent-a", role: "security-reviewer" },
     { id: "agent-b", role: "architecture-reviewer" },

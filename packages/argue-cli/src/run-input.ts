@@ -3,8 +3,7 @@ import { readJsonFile, resolvePath, type LoadedCliConfig } from "./config.js";
 
 export const RunInputSchema = z.object({
   requestId: z.string().min(1).optional(),
-  topic: z.string().min(1).optional(),
-  objective: z.string().min(1).optional(),
+  task: z.string().min(1).optional(),
   agents: z.array(z.string().min(1)).min(2).optional(),
   minRounds: z.number().int().min(0).optional(),
   maxRounds: z.number().int().min(1).optional(),

@@ -71,6 +71,96 @@ describe("phase schemas", () => {
 });
 
 describe("built-in prompt templates", () => {
+  it("includes task line in prompt", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {
+      "round:initial:0:a": {
+        type: "success",
+        output: mkRoundResult({
+          participantId: "a",
+          phase: "initial",
+          round: 0,
+          fullResponse: "init a",
+          summary: "init a",
+          extractedClaims: [{ claimId: "c1", title: "c1", statement: "s1" }],
+          judgements: []
+        })
+      },
+      "round:initial:0:b": {
+        type: "success",
+        output: mkRoundResult({
+          participantId: "b",
+          phase: "initial",
+          round: 0,
+          fullResponse: "init b",
+          summary: "init b",
+          extractedClaims: [{ claimId: "c2", title: "c2", statement: "s2" }],
+          judgements: []
+        })
+      },
+      "round:debate:1:a": {
+        type: "success",
+        output: mkRoundResult({
+          participantId: "a",
+          phase: "debate",
+          round: 1,
+          fullResponse: "debate a",
+          summary: "debate a",
+          judgements: [{ claimId: "c2", stance: "agree", confidence: 0.8, rationale: "ok" }]
+        })
+      },
+      "round:debate:1:b": {
+        type: "success",
+        output: mkRoundResult({
+          participantId: "b",
+          phase: "debate",
+          round: 1,
+          fullResponse: "debate b",
+          summary: "debate b",
+          judgements: [{ claimId: "c1", stance: "agree", confidence: 0.8, rationale: "ok" }]
+        })
+      },
+      "round:final_vote:2:a": {
+        type: "success",
+        output: mkRoundResult({
+          participantId: "a",
+          phase: "final_vote",
+          round: 2,
+          fullResponse: "vote a",
+          summary: "vote a",
+          judgements: [{ claimId: "c1", stance: "agree", confidence: 0.8, rationale: "ok" }],
+          claimVotes: [{ claimId: "c1", vote: "accept" }]
+        })
+      },
+      "round:final_vote:2:b": {
+        type: "success",
+        output: mkRoundResult({
+          participantId: "b",
+          phase: "final_vote",
+          round: 2,
+          fullResponse: "vote b",
+          summary: "vote b",
+          judgements: [{ claimId: "c1", stance: "agree", confidence: 0.8, rationale: "ok" }],
+          claimVotes: [{ claimId: "c1", vote: "accept" }]
+        })
+      }
+    };
+
+    const delegate = new StubAgentTaskDelegate(scenarios);
+    const engine = new ArgueEngine({ taskDelegate: delegate });
+
+    await engine.start({
+      requestId: "req-prompt-task",
+      task: "Prompt quality",
+      participants: [{ id: "a" }, { id: "b" }],
+      roundPolicy: { minRounds: 1, maxRounds: 1 }
+    });
+
+    const initialDispatch = delegate.dispatchCalls.find((x) => x.kind === "round" && x.phase === "initial");
+    const prompt = initialDispatch?.prompt ?? "";
+
+    expect(prompt).toContain("task=Prompt quality");
+  });
+
   it("uses phase-specific prompt guidance and report schema guidance", async () => {
     const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {
       "round:initial:0:a": {
@@ -183,8 +273,7 @@ describe("built-in prompt templates", () => {
 
     await engine.start({
       requestId: "req-prompt",
-      topic: "Prompt quality",
-      objective: "Ensure phase prompts are explicit",
+      task: "Prompt quality",
       participants: [{ id: "a" }, { id: "b" }],
       roundPolicy: { minRounds: 1, maxRounds: 1 },
       reportPolicy: {

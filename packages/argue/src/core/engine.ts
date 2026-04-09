@@ -659,8 +659,7 @@ export class ArgueEngine {
       "Return ONE valid JSON object only. Do not wrap with markdown/code fences.",
       `phase=${phase}`,
       `round=${round}`,
-      `topic=${input.topic}`,
-      `objective=${input.objective}`
+      `task=${input.task}`
     ];
 
     if (input.constraints?.language) {

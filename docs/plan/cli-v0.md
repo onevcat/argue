@@ -48,8 +48,8 @@
 
 ### 3.2 单次输入（run input）
 
-- `--input <path>`（例如 `topic.json`）
-- 用于本次 run 的 topic/objective/agents 与策略覆盖
+- `--input <path>`（例如 `task.json`）
+- 用于本次 run 的 task/agents 与策略覆盖
 
 ### 3.3 覆盖优先级
 
@@ -61,8 +61,7 @@
   - `--config`
   - `--input`
   - `--agents a,b,c`
-  - `--topic`
-  - `--objective`
+  - `--task`
   - `--request-id`
 - 输出
   - `--jsonl`
@@ -103,6 +102,6 @@
 
 ### CLI-M3（收敛）
 
-- TUI 真正可用（选 agent、填 topic/objective）
+- TUI 真正可用（选 agent、填 task）
 - 配置初始化命令（如 `argue config init`）
 - `argue agents list` 等可观测命令
