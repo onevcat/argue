@@ -1,4 +1,4 @@
-import { generateText, type LanguageModel } from "ai";
+import { generateText, type ModelMessage, type LanguageModel } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { ApiProviderConfig } from "../config.js";
@@ -8,17 +8,23 @@ import type { ProviderTaskRunner } from "./types.js";
 
 export function createApiRunner(provider: ApiProviderConfig): ProviderTaskRunner {
   const modelFactory = createModelFactory(provider);
+  const messages: ModelMessage[] = [];
 
   return {
     async runTask({ task, agent, abortSignal }) {
+      const userContent = buildTaskPrompt({ task, agent, includeJsonSchema: true });
+      messages.push({ role: "user", content: userContent });
+
       const result = await generateText({
         model: modelFactory(agent.providerModel),
-        prompt: buildTaskPrompt({ task, agent, includeJsonSchema: true }),
         system: agent.systemPrompt,
+        messages,
         temperature: agent.temperature ?? agent.modelConfig.temperature,
         maxOutputTokens: agent.modelConfig.maxOutputTokens,
         abortSignal
       });
+
+      messages.push({ role: "assistant", content: result.text });
 
       return normalizeTaskOutputFromText(task, result.text);
     }

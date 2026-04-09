@@ -85,6 +85,45 @@ process.stdout.write(JSON.stringify(output));
     });
   });
 
+  it("passes --session-id for claude cliType when metadata has participantSessionKey", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-runner-session-"));
+    const script = join(root, "runner.mjs");
+
+    // Script echoes argv so we can inspect the flags it received
+    await writeFile(script, `#!/usr/bin/env node
+import process from "node:process";
+let stdin = "";
+for await (const chunk of process.stdin) stdin += chunk;
+process.stdout.write(JSON.stringify({
+  fullResponse: JSON.stringify(process.argv),
+  summary: "ok",
+  extractedClaims: [],
+  judgements: []
+}));
+`, { mode: 0o755 });
+
+    const runner = createCliRunner({
+      type: "cli",
+      cliType: "claude",
+      command: script,
+      args: [],
+      models: { fake: {} }
+    });
+
+    const task = {
+      ...makeRoundTask(),
+      metadata: { participantSessionKey: "argue:sess-1:a1" }
+    };
+
+    const result = await runner.runTask({ task, agent });
+    const output = result as { kind: string; output: { fullResponse: string } };
+    const argv: string[] = JSON.parse(output.output.fullResponse);
+
+    expect(argv).toContain("--session-id");
+    expect(argv).toContain("argue:sess-1:a1");
+    expect(argv).not.toContain("--no-session-persistence");
+  });
+
   it("parses fenced json output in codex mode", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-runner-codex-"));
     const script = join(root, "runner.mjs");
