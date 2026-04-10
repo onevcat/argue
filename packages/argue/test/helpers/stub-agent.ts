@@ -11,6 +11,9 @@ function keyOf(task: AgentTaskInput): string {
   if (task.kind === "round") {
     return `round:${task.phase}:${task.round}:${task.participantId}`;
   }
+  if (task.kind === "action") {
+    return `action:${task.participantId}`;
+  }
   return `report:${task.participantId}`;
 }
 

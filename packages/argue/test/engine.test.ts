@@ -877,6 +877,168 @@ describe("ArgueEngine M2", () => {
     }
   });
 
+  it("dispatches action when actionPolicy is set", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {};
+
+    for (const participant of PARTICIPANTS) {
+      scenarios[`round:initial:0:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
+      };
+      scenarios[`round:debate:1:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 1 }))
+      };
+      scenarios[`round:final_vote:2:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "final_vote", round: 2 }))
+      };
+    }
+
+    // The representative will be chosen by scoring; add action scenario for all participants
+    for (const participant of PARTICIPANTS) {
+      scenarios[`action:${participant}`] = {
+        type: "success",
+        output: {
+          kind: "action",
+          output: { fullResponse: "action executed", summary: "action summary" }
+        }
+      };
+    }
+
+    const events: string[] = [];
+    const delegate = new StubAgentTaskDelegate(scenarios);
+    const engine = new ArgueEngine({
+      taskDelegate: delegate,
+      observer: {
+        onEvent(event) {
+          events.push(event.type);
+        }
+      }
+    });
+
+    const result = await engine.start({
+      requestId: "req-action-dispatched",
+      task: "Action dispatch test",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      roundPolicy: { minRounds: 1, maxRounds: 1 },
+      actionPolicy: {
+        prompt: "Take action based on the debate result"
+      }
+    });
+
+    expect(events).toContain("ActionDispatched");
+    expect(events).toContain("ActionCompleted");
+    expect(result.action).toBeDefined();
+    expect(result.action?.status).toBe("completed");
+    expect(result.action?.fullResponse).toBe("action executed");
+    expect(result.action?.summary).toBe("action summary");
+
+    const actionDispatch = delegate.dispatchCalls.find((x) => x.kind === "action");
+    expect(actionDispatch).toBeDefined();
+    if (actionDispatch?.kind === "action") {
+      expect(actionDispatch.sessionId).toContain(":action:");
+      expect(actionDispatch.prompt).toBe("Take action based on the debate result");
+    }
+  });
+
+  it("skips action when actionPolicy is not set", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {};
+
+    for (const participant of PARTICIPANTS) {
+      scenarios[`round:initial:0:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
+      };
+      scenarios[`round:debate:1:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 1 }))
+      };
+      scenarios[`round:final_vote:2:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "final_vote", round: 2 }))
+      };
+    }
+
+    const events: string[] = [];
+    const engine = new ArgueEngine({
+      taskDelegate: new StubAgentTaskDelegate(scenarios),
+      observer: {
+        onEvent(event) {
+          events.push(event.type);
+        }
+      }
+    });
+
+    const result = await engine.start({
+      requestId: "req-no-action",
+      task: "No action test",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      roundPolicy: { minRounds: 1, maxRounds: 1 }
+    });
+
+    expect(events).not.toContain("ActionDispatched");
+    expect(events).not.toContain("ActionCompleted");
+    expect(events).not.toContain("ActionFailed");
+    expect(result.action).toBeUndefined();
+  });
+
+  it("returns failed action without invalidating debate result", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult } | { type: "fail"; error: string }> = {};
+
+    for (const participant of PARTICIPANTS) {
+      scenarios[`round:initial:0:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
+      };
+      scenarios[`round:debate:1:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 1 }))
+      };
+      scenarios[`round:final_vote:2:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "final_vote", round: 2 }))
+      };
+    }
+
+    // Make action dispatch throw for all possible representatives
+    for (const participant of PARTICIPANTS) {
+      scenarios[`action:${participant}`] = {
+        type: "fail",
+        error: "action service unavailable"
+      };
+    }
+
+    const events: string[] = [];
+    const engine = new ArgueEngine({
+      taskDelegate: new StubAgentTaskDelegate(scenarios),
+      observer: {
+        onEvent(event) {
+          events.push(event.type);
+        }
+      }
+    });
+
+    const result = await engine.start({
+      requestId: "req-action-failure",
+      task: "Action failure test",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      roundPolicy: { minRounds: 1, maxRounds: 1 },
+      actionPolicy: {
+        prompt: "Take action"
+      }
+    });
+
+    expect(events).toContain("ActionDispatched");
+    expect(events).toContain("ActionFailed");
+    expect(events).not.toContain("ActionCompleted");
+
+    // Debate result is still valid
+    expect(["consensus", "partial_consensus", "unresolved"]).toContain(result.status);
+    expect(result.action).toBeDefined();
+    expect(result.action?.status).toBe("failed");
+  });
+
   it("rejects removed waiting/report policy fields", async () => {
     const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate({}) });
 

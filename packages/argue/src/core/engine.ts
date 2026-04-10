@@ -12,6 +12,7 @@ import {
 } from "../contracts/request.js";
 import {
   ArgueResultSchema,
+  type ActionOutput,
   type ArgueResult,
   type Claim,
   type ClaimResolution,
@@ -28,12 +29,14 @@ import { ArgueStateMachine } from "./state-machine.js";
 import { DefaultWaitCoordinator } from "./wait-coordinator.js";
 import { MemorySessionStore } from "../store/memory-store.js";
 import {
+  ActionTaskResultSchema,
   ReportTaskResultSchema,
   REPORT_OUTPUT_CONTENT_SCHEMA_REF,
   ReportOutputContentJsonSchema,
   RoundTaskInputSchema,
   getRoundOutputContentJsonSchema,
   getRoundOutputContentSchemaRef,
+  type ActionTaskInput,
   type AgentTaskInput,
   type ReportTaskInput
 } from "../contracts/task.js";
@@ -292,6 +295,13 @@ export class ArgueEngine {
           globalDeadlineHit: metrics.globalDeadlineHit
         }
       });
+
+      const actionOutput = await this.executeAction({
+        normalized, requestId: normalized.requestId, sessionId, result, activeParticipants
+      });
+      if (actionOutput) {
+        result.action = actionOutput;
+      }
 
       state.transition("finished");
       await this.store.update(sessionId, {
@@ -611,6 +621,104 @@ export class ArgueEngine {
     };
   }
 
+  private async executeAction(args: {
+    normalized: NormalizedArgueStartInput;
+    requestId: string;
+    sessionId: string;
+    result: ArgueResult;
+    activeParticipants: Set<string>;
+  }): Promise<ActionOutput | undefined> {
+    const actionPolicy = args.normalized.actionPolicy;
+    if (!actionPolicy?.prompt) {
+      return undefined;
+    }
+
+    const actorId = actionPolicy.actorId ?? args.result.representative.participantId;
+    if (!args.activeParticipants.has(actorId)) {
+      return {
+        actorId,
+        status: "failed",
+        error: `Actor ${actorId} is not an active participant`
+      };
+    }
+
+    const prefix = args.normalized.sessionPolicy.sessionKeyPrefix ?? "argue";
+    const actionSessionId = `${prefix}:${args.sessionId}:action:${actorId}`;
+
+    const task: ActionTaskInput = {
+      kind: "action",
+      sessionId: actionSessionId,
+      requestId: args.requestId,
+      participantId: actorId,
+      prompt: actionPolicy.prompt,
+      argueResult: {
+        status: args.result.status,
+        finalSummary: args.result.report.finalSummary,
+        representativeSpeech: args.result.report.representativeSpeech,
+        claims: args.result.finalClaims,
+        claimResolutions: args.result.claimResolutions,
+        scoreboard: args.result.scoreboard,
+        disagreements: args.result.disagreements
+      },
+      fullResult: actionPolicy.includeFullResult ? JSON.parse(JSON.stringify(args.result)) : undefined
+    };
+
+    await this.emit(args.normalized, args.sessionId, "ActionDispatched", {
+      actorId,
+      prompt: actionPolicy.prompt
+    });
+
+    let dispatched: Awaited<ReturnType<AgentTaskDelegate["dispatch"]>>;
+    try {
+      dispatched = await this.deps.taskDelegate.dispatch(task as AgentTaskInput);
+    } catch (caught) {
+      await this.emit(args.normalized, args.sessionId, "ActionFailed", {
+        actorId, reason: "dispatch_failed"
+      });
+      return { actorId, status: "failed", error: caught instanceof Error ? caught.message : String(caught) };
+    }
+
+    let awaited: Awaited<ReturnType<AgentTaskDelegate["awaitResult"]>>;
+    try {
+      awaited = await this.deps.taskDelegate.awaitResult(
+        dispatched.taskId,
+        args.normalized.waitingPolicy.perTaskTimeoutMs
+      );
+    } catch (caught) {
+      await this.emit(args.normalized, args.sessionId, "ActionFailed", {
+        actorId, reason: "await_failed"
+      });
+      return { actorId, status: "failed", error: caught instanceof Error ? caught.message : String(caught) };
+    }
+
+    if (!awaited.ok || !awaited.output) {
+      await this.emit(args.normalized, args.sessionId, "ActionFailed", {
+        actorId, reason: "task_failed"
+      });
+      return { actorId, status: "failed", error: awaited.error ?? "Action task failed" };
+    }
+
+    const parsed = ActionTaskResultSchema.safeParse(awaited.output);
+    if (!parsed.success) {
+      await this.emit(args.normalized, args.sessionId, "ActionFailed", {
+        actorId, reason: "parse_failed"
+      });
+      return { actorId, status: "failed", error: "Action result parse failed" };
+    }
+
+    await this.emit(args.normalized, args.sessionId, "ActionCompleted", {
+      actorId,
+      summary: parsed.data.output.summary
+    });
+
+    return {
+      actorId,
+      status: "completed",
+      fullResponse: parsed.data.output.fullResponse,
+      summary: parsed.data.output.summary
+    };
+  }
+
   private resolveRoundWaitingPolicy(
     normalized: NormalizedArgueStartInput,
     startAt: number
@@ -829,6 +937,9 @@ export class ArgueEngine {
       | "ConsensusDrafted"
       | "ReportDispatched"
       | "ReportCompleted"
+      | "ActionDispatched"
+      | "ActionCompleted"
+      | "ActionFailed"
       | "Finalized"
       | "Failed",
     payload?: Record<string, unknown>,
