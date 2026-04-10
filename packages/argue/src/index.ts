@@ -22,6 +22,8 @@ export type { ArgueStartInput, NormalizedArgueStartInput } from "./contracts/req
 export { ArgueStartInputSchema, normalizeStartInput } from "./contracts/request.js";
 
 export type {
+  ActionTaskInput,
+  ActionTaskResult,
   AgentTaskInput,
   AgentTaskResult,
   ReportTaskInput,
@@ -32,6 +34,8 @@ export type {
 } from "./contracts/task.js";
 
 export {
+  ActionTaskInputSchema,
+  ActionTaskResultSchema,
   AgentTaskInputSchema,
   AgentTaskResultSchema,
   DebateRoundOutputContentJsonSchema,
@@ -51,6 +55,9 @@ export {
   getRoundOutputContentJsonSchema,
   getRoundOutputContentSchemaRef
 } from "./contracts/task.js";
+
+export type { ActionOutput } from "./contracts/result.js";
+export { ActionOutputSchema } from "./contracts/result.js";
 
 export type {
   ArgueResult,

@@ -236,9 +236,43 @@ export const ReportTaskInputSchema = z.object({
 
 export type ReportTaskInput = z.infer<typeof ReportTaskInputSchema>;
 
+export const ActionTaskInputSchema = z.object({
+  kind: z.literal("action"),
+  sessionId: z.string().min(1),
+  requestId: z.string().min(1),
+  participantId: z.string().min(1),
+  prompt: z.string().min(1),
+  argueResult: z.object({
+    status: z.enum(["consensus", "partial_consensus", "unresolved", "failed"]),
+    finalSummary: z.string().min(1),
+    representativeSpeech: z.string().min(1),
+    claims: z.array(ClaimSchema),
+    claimResolutions: z.array(ClaimResolutionSchema),
+    scoreboard: z.array(ParticipantScoreSchema),
+    disagreements: z.array(z.object({
+      claimId: z.string().min(1),
+      participantId: z.string().min(1),
+      reason: z.string().min(1)
+    })).optional()
+  }),
+  fullResult: z.record(z.unknown()).optional(),
+  metadata: z.record(z.unknown()).optional()
+});
+export type ActionTaskInput = z.infer<typeof ActionTaskInputSchema>;
+
+export const ActionTaskResultSchema = z.object({
+  kind: z.literal("action"),
+  output: z.object({
+    fullResponse: z.string().min(1),
+    summary: z.string().min(1)
+  })
+});
+export type ActionTaskResult = z.infer<typeof ActionTaskResultSchema>;
+
 export const AgentTaskInputSchema = z.discriminatedUnion("kind", [
   RoundTaskInputSchema,
-  ReportTaskInputSchema
+  ReportTaskInputSchema,
+  ActionTaskInputSchema
 ]);
 
 export type AgentTaskInput = z.infer<typeof AgentTaskInputSchema>;
@@ -259,7 +293,8 @@ export type ReportTaskResult = z.infer<typeof ReportTaskResultSchema>;
 
 export const AgentTaskResultSchema = z.discriminatedUnion("kind", [
   RoundTaskResultSchema,
-  ReportTaskResultSchema
+  ReportTaskResultSchema,
+  ActionTaskResultSchema
 ]);
 
 export type AgentTaskResult = z.infer<typeof AgentTaskResultSchema>;

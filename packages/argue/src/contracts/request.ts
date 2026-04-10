@@ -77,6 +77,12 @@ export const ArgueStartInputSchema = z.object({
     composer: "builtin"
   }),
 
+  actionPolicy: z.object({
+    prompt: z.string().min(1),
+    actorId: z.string().min(1).optional(),
+    includeFullResult: z.boolean().default(true)
+  }).strict().optional(),
+
   promptPolicy: z.object({
     debateTemplate: z.string().min(1).optional(),
     reportTemplate: z.string().min(1).optional()

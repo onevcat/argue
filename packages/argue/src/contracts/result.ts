@@ -146,6 +146,15 @@ export const EliminationRecordSchema = z.object({
 
 export type EliminationRecord = z.infer<typeof EliminationRecordSchema>;
 
+export const ActionOutputSchema = z.object({
+  actorId: z.string().min(1),
+  status: z.enum(["completed", "failed"]),
+  fullResponse: z.string().min(1).optional(),
+  summary: z.string().min(1).optional(),
+  error: z.string().min(1).optional()
+});
+export type ActionOutput = z.infer<typeof ActionOutputSchema>;
+
 export const ArgueResultSchema = z.object({
   requestId: z.string().min(1),
   sessionId: z.string().min(1),
@@ -179,6 +188,7 @@ export const ArgueResultSchema = z.object({
     earlyStopTriggered: z.boolean(),
     globalDeadlineHit: z.boolean()
   }),
+  action: ActionOutputSchema.optional(),
   error: z.object({
     code: z.string().min(1),
     message: z.string().min(1)
