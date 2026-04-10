@@ -170,6 +170,13 @@ async function runHeadless(args: string[], io: Pick<typeof console, "log" | "err
       onEvent: onProgressEvent
     });
 
+    if (!execution.ok) {
+      io.error(String(execution.error));
+      io.log(`- jsonl: ${execution.jsonlPath}`);
+      io.log(`- error: ${execution.errorPath}`);
+      return { ok: false, code: 1 };
+    }
+
     io.log("[argue-cli] run completed");
     io.log(`- status: ${execution.result.status}`);
     io.log(`- representative: ${execution.result.representative.participantId}`);

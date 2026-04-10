@@ -1,7 +1,7 @@
 import { ArgueEngine, JsonlObserver, MemorySessionStore, type ArgueEvent, type ArgueObserver } from "argue";
 import type { LoadedCliConfig } from "./config.js";
 import type { ResolvedRunPlan } from "./run-plan.js";
-import { writeRunArtifacts } from "./artifacts.js";
+import { writeRunArtifacts, writeErrorArtifact } from "./artifacts.js";
 import { createTaskDelegate } from "./runtime/delegate.js";
 
 export async function executeHeadlessRun(args: {
@@ -9,10 +9,16 @@ export async function executeHeadlessRun(args: {
   plan: ResolvedRunPlan;
   onEvent?: (event: ArgueEvent) => void | Promise<void>;
 }): Promise<{
+  ok: true;
   result: Awaited<ReturnType<ArgueEngine["start"]>>;
   jsonlPath: string;
   resultPath: string;
   summaryPath: string;
+} | {
+  ok: false;
+  error: unknown;
+  jsonlPath: string;
+  errorPath: string;
 }> {
   const jsonlObserver = new JsonlObserver({ path: args.plan.jsonlPath, append: false });
   const observer: ArgueObserver = {
@@ -36,9 +42,22 @@ export async function executeHeadlessRun(args: {
   let result: Awaited<ReturnType<ArgueEngine["start"]>>;
   try {
     result = await engine.start(args.plan.startInput);
-  } finally {
+  } catch (error) {
     await jsonlObserver.flush();
+    await writeErrorArtifact({
+      errorPath: args.plan.errorPath,
+      requestId: args.plan.requestId,
+      error
+    });
+    return {
+      ok: false,
+      error,
+      jsonlPath: args.plan.jsonlPath,
+      errorPath: args.plan.errorPath
+    };
   }
+
+  await jsonlObserver.flush();
 
   await writeRunArtifacts({
     result,
@@ -47,6 +66,7 @@ export async function executeHeadlessRun(args: {
   });
 
   return {
+    ok: true,
     result,
     jsonlPath: args.plan.jsonlPath,
     resultPath: args.plan.resultPath,

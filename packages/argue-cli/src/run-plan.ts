@@ -30,6 +30,7 @@ export type ResolvedRunPlan = {
   jsonlPath: string;
   resultPath: string;
   summaryPath: string;
+  errorPath: string;
   startInput: {
     requestId: string;
     task: string;
@@ -118,6 +119,7 @@ export function resolveRunPlan(args: {
   const jsonlRaw = overrides.jsonlPath ?? loadedConfig.config.output?.jsonlPath ?? "./out/{requestId}.events.jsonl";
   const resultRaw = overrides.resultPath ?? loadedConfig.config.output?.resultPath ?? "./out/{requestId}.result.json";
   const summaryRaw = overrides.summaryPath ?? loadedConfig.config.output?.summaryPath ?? "./out/{requestId}.summary.md";
+  const errorRaw = "./out/{requestId}.error.json";
 
   return {
     requestId,
@@ -126,6 +128,7 @@ export function resolveRunPlan(args: {
     jsonlPath: resolveOutputPath(jsonlRaw, loadedConfig.configDir, requestId),
     resultPath: resolveOutputPath(resultRaw, loadedConfig.configDir, requestId),
     summaryPath: resolveOutputPath(summaryRaw, loadedConfig.configDir, requestId),
+    errorPath: resolveOutputPath(errorRaw, loadedConfig.configDir, requestId),
     startInput: {
       requestId,
       task,
