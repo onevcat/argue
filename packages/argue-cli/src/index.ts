@@ -1,11 +1,18 @@
 import { access, mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import {
+  ActionTaskResultSchema,
+  ArgueResultSchema,
+  type ActionTaskInput,
+  type AgentTaskInput
+} from "argue";
+import {
   AgentSchema,
   CliConfigSchema,
   createExampleConfigPath,
   loadCliConfig,
   loadRawCliConfig,
+  readJsonFile,
   ProviderSchema,
   resolveConfigPath,
   type ResolveConfigPathOptions
@@ -14,6 +21,7 @@ import { executeHeadlessRun } from "./headless-run.js";
 import { createOutputFormatter } from "./output.js";
 import { loadRunInput } from "./run-input.js";
 import { resolveRunPlan } from "./run-plan.js";
+import { createTaskDelegate } from "./runtime/delegate.js";
 import { VENDOR_PRESETS, getVendorNames } from "./vendors.js";
 export type { CliSdkProviderAdapter, CreateCliSdkProviderAdapter, ProviderTaskRunnerArgs } from "./runtime/types.js";
 
@@ -104,6 +112,10 @@ export async function runCli(
 
   if (command === "config") {
     return runConfigCommand(rest, io);
+  }
+
+  if (command === "act") {
+    return runAction(rest, io);
   }
 
   io.error(`Unknown command: ${command}`);
@@ -318,6 +330,160 @@ async function runConfigCommand(args: string[], io: Pick<typeof console, "log" |
 
   io.error("Unknown config subcommand. Use 'argue config init', 'argue config add-provider ...', or 'argue config add-agent ...'.");
   return { ok: false, code: 1 };
+}
+
+async function runAction(args: string[], io: Pick<typeof console, "log" | "error">): Promise<CliResult> {
+  const options = parseActOptions(args);
+  if (!options.ok) {
+    io.error(options.error);
+    return { ok: false, code: 1 };
+  }
+
+  let resultJson: unknown;
+  try {
+    resultJson = await readJsonFile(resolve(options.value.resultPath));
+  } catch (error) {
+    io.error(`Failed to read result file: ${String(error)}`);
+    return { ok: false, code: 1 };
+  }
+
+  const parsed = ArgueResultSchema.safeParse(resultJson);
+  if (!parsed.success) {
+    io.error("Invalid result file: failed to parse as ArgueResult");
+    return { ok: false, code: 1 };
+  }
+  const argueResult = parsed.data;
+
+  const actorId = options.value.agent ?? argueResult.representative.participantId;
+
+  let loadedConfig;
+  try {
+    loadedConfig = await loadCliConfig({ explicitPath: options.value.configPath } satisfies ResolveConfigPathOptions);
+  } catch (error) {
+    io.error(String(error));
+    return { ok: false, code: 1 };
+  }
+
+  const minimalPlan = {
+    requestId: argueResult.requestId,
+    task: "",
+    participantIds: [] as string[],
+    jsonlPath: "",
+    resultPath: "",
+    summaryPath: "",
+    errorPath: "",
+    startInput: {
+      requestId: argueResult.requestId,
+      task: "",
+      participants: [],
+      roundPolicy: { minRounds: 1, maxRounds: 1 },
+      waitingPolicy: { perTaskTimeoutMs: 600_000, perRoundTimeoutMs: 600_000 },
+      consensusPolicy: { threshold: 1 },
+      reportPolicy: {
+        composer: "builtin" as const,
+        includeDeliberationTrace: false,
+        traceLevel: "compact" as const
+      }
+    }
+  };
+
+  let taskDelegate;
+  try {
+    taskDelegate = await createTaskDelegate({ loadedConfig, plan: minimalPlan });
+  } catch (error) {
+    io.error(`Failed to create task delegate: ${String(error)}`);
+    return { ok: false, code: 1 };
+  }
+
+  const actionSessionId = `argue:${argueResult.sessionId}:action:${actorId}`;
+  const actionTask: ActionTaskInput = {
+    kind: "action",
+    sessionId: actionSessionId,
+    requestId: argueResult.requestId,
+    participantId: actorId,
+    prompt: options.value.task,
+    argueResult: {
+      status: argueResult.status,
+      finalSummary: argueResult.report.finalSummary,
+      representativeSpeech: argueResult.report.representativeSpeech,
+      claims: argueResult.finalClaims,
+      claimResolutions: argueResult.claimResolutions,
+      scoreboard: argueResult.scoreboard,
+      disagreements: argueResult.disagreements
+    },
+    fullResult: JSON.parse(JSON.stringify(argueResult))
+  };
+
+  try {
+    const dispatched = await taskDelegate.dispatch(actionTask as AgentTaskInput);
+    const awaited = await taskDelegate.awaitResult(dispatched.taskId, 600_000);
+
+    if (!awaited.ok || !awaited.output) {
+      io.error(`Action failed: ${awaited.error ?? "unknown error"}`);
+      return { ok: false, code: 1 };
+    }
+
+    const actionResult = ActionTaskResultSchema.safeParse(awaited.output);
+    if (!actionResult.success) {
+      io.error("Action result parse failed");
+      return { ok: false, code: 1 };
+    }
+
+    io.log(actionResult.data.output.fullResponse);
+    return { ok: true, code: 0 };
+  } catch (error) {
+    io.error(`Action execution failed: ${String(error)}`);
+    return { ok: false, code: 1 };
+  }
+}
+
+function parseActOptions(args: string[]):
+  | { ok: true; value: { resultPath: string; task: string; agent?: string; configPath?: string } }
+  | { ok: false; error: string } {
+  const out: { resultPath?: string; task?: string; agent?: string; configPath?: string } = {};
+
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+
+    if (arg === "--result") {
+      const value = args[i + 1];
+      if (!value) return { ok: false, error: "--result requires a path" };
+      out.resultPath = value;
+      i += 1;
+      continue;
+    }
+
+    if (arg === "--task") {
+      const value = args[i + 1];
+      if (!value) return { ok: false, error: "--task requires a value" };
+      out.task = value;
+      i += 1;
+      continue;
+    }
+
+    if (arg === "--agent") {
+      const value = args[i + 1];
+      if (!value) return { ok: false, error: "--agent requires a value" };
+      out.agent = value;
+      i += 1;
+      continue;
+    }
+
+    if (arg === "--config" || arg === "-c") {
+      const value = args[i + 1];
+      if (!value) return { ok: false, error: "--config requires a path" };
+      out.configPath = value;
+      i += 1;
+      continue;
+    }
+
+    return { ok: false, error: `Unknown option for act: ${arg}` };
+  }
+
+  if (!out.resultPath) return { ok: false, error: "Missing --result. Usage: argue act --result <path> --task <prompt>" };
+  if (!out.task) return { ok: false, error: "Missing --task. Usage: argue act --result <path> --task <prompt>" };
+
+  return { ok: true, value: { resultPath: out.resultPath, task: out.task, agent: out.agent, configPath: out.configPath } };
 }
 
 function parseConfigInitPath(args: string[]): { ok: true; value: string } | { ok: false; error: string } {
@@ -909,6 +1075,7 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("");
   io.log("Usage:");
   io.log("  argue run|exec [options]        # run a debate session");
+  io.log("  argue act --result <path> --task <prompt> [--agent <id>] [--config <path>]");
   io.log("  argue config init                # create empty config file");
   io.log("  argue config add-provider ...    # append provider to config");
   io.log("  argue config add-agent ...       # append agent to config");

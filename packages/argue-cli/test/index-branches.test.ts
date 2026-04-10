@@ -195,6 +195,18 @@ describe("runCli command branches", () => {
     expect(resultJson.report.traceLevel).toBe("full");
   });
 
+  it("returns error for missing act options", async () => {
+    const io = createIO();
+    const noResult = await runCli(["act", "--task", "do stuff"], io);
+    expect(noResult).toEqual({ ok: false, code: 1 });
+    expect(io.errors.some((x) => x.includes("--result"))).toBe(true);
+
+    const io2 = createIO();
+    const noTask = await runCli(["act", "--result", "r.json"], io2);
+    expect(noTask).toEqual({ ok: false, code: 1 });
+    expect(io2.errors.some((x) => x.includes("--task"))).toBe(true);
+  });
+
   it("prints live headless progress with round and claim signals", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-run-progress-"));
     const configPath = join(root, "argue.config.json");
