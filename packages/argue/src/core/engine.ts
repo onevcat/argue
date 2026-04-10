@@ -425,7 +425,11 @@ export class ArgueEngine {
             stanceAgree: event.output?.judgements.filter(j => j.stance === "agree").length ?? 0,
             stanceDisagree: event.output?.judgements.filter(j => j.stance === "disagree").length ?? 0,
             stanceRevise: event.output?.judgements.filter(j => j.stance === "revise").length ?? 0,
-            claimVotes: event.output?.phase === "final_vote" ? event.output.claimVotes.length : 0
+            claimVotes: event.output?.phase === "final_vote" ? event.output.claimVotes.length : 0,
+            fullResponse: event.output?.fullResponse,
+            extractedClaimsDetail: event.output?.extractedClaims,
+            judgementsDetail: event.output?.judgements,
+            claimVotesDetail: event.output?.phase === "final_vote" ? event.output.claimVotes : undefined
           }, event.at);
           return;
         }
