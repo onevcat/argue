@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import type { CliProviderConfig } from "../config.js";
 import { buildTaskPrompt } from "./prompt.js";
@@ -5,14 +6,19 @@ import { normalizeTaskOutput, normalizeTaskOutputFromText } from "./task-output.
 import type { ProviderTaskRunner } from "./types.js";
 
 export function createCliRunner(provider: CliProviderConfig): ProviderTaskRunner {
+  const sessionUUID = randomUUID();
+  let callCount = 0;
+
   return {
     async runTask({ task, agent, abortSignal }) {
       const stdin = provider.cliType === "generic"
         ? JSON.stringify(buildGenericEnvelope(task, agent), null, 2)
         : buildTaskPrompt({ task, agent, includeJsonSchema: true });
 
-      const sessionKey = task.metadata?.participantSessionKey as string | undefined;
-      const baseArgs = buildBaseArgs(provider.cliType, agent.providerModel, sessionKey);
+      const hasSession = !!task.metadata?.participantSessionKey;
+      const isResume = hasSession && callCount > 0;
+      callCount++;
+      const baseArgs = buildBaseArgs(provider.cliType, agent.providerModel, hasSession ? sessionUUID : undefined, isResume);
       const extraArgs = provider.args.map((arg) => renderTemplate(arg, task, agent));
 
       const result = await runCommand({
@@ -53,18 +59,21 @@ export function createCliRunner(provider: CliProviderConfig): ProviderTaskRunner
 function buildBaseArgs(
   cliType: CliProviderConfig["cliType"],
   providerModel: string,
-  sessionKey?: string
+  sessionUUID?: string,
+  isResume?: boolean
 ): string[] {
   switch (cliType) {
     case "claude":
+      if (sessionUUID && isResume) {
+        return ["--print", "--model", providerModel, "--resume", sessionUUID];
+      }
       return [
         "--print", "--model", providerModel,
-        ...(sessionKey ? ["--session-id", sessionKey] : ["--no-session-persistence"])
+        ...(sessionUUID ? ["--session-id", sessionUUID] : ["--no-session-persistence"])
       ];
     case "codex":
       return [
-        "exec", "-m", providerModel, "-a", "never", "--color", "never",
-        ...(sessionKey ? ["--session", sessionKey] : [])
+        "exec", "-m", providerModel, "--full-auto", "--color", "never"
       ];
     default:
       return [];

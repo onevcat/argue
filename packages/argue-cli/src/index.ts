@@ -1,11 +1,14 @@
-import { writeFile } from "node:fs/promises";
+import { access, mkdir, writeFile } from "node:fs/promises";
 import type { ArgueEvent } from "argue";
+import { dirname, resolve } from "node:path";
 import {
   AgentSchema,
   CliConfigSchema,
   createExampleConfigPath,
   loadCliConfig,
+  loadRawCliConfig,
   ProviderSchema,
+  resolveConfigPath,
   type ResolveConfigPathOptions
 } from "./config.js";
 import { executeHeadlessRun } from "./headless-run.js";
@@ -168,6 +171,13 @@ async function runHeadless(args: string[], io: Pick<typeof console, "log" | "err
       onEvent: onProgressEvent
     });
 
+    if (!execution.ok) {
+      io.error(String(execution.error));
+      io.log(`- jsonl: ${execution.jsonlPath}`);
+      io.log(`- error: ${execution.errorPath}`);
+      return { ok: false, code: 1 };
+    }
+
     io.log("[argue-cli] run completed");
     io.log(`- status: ${execution.result.status}`);
     io.log(`- representative: ${execution.result.representative.participantId}`);
@@ -184,6 +194,55 @@ async function runHeadless(args: string[], io: Pick<typeof console, "log" | "err
 async function runConfigCommand(args: string[], io: Pick<typeof console, "log" | "error">): Promise<CliResult> {
   const [subcommand, ...rest] = args;
 
+  if (subcommand === "init") {
+    const configPath = parseConfigInitPath(rest);
+    if (!configPath.ok) {
+      io.error(configPath.error);
+      return { ok: false, code: 1 };
+    }
+
+    try {
+      const target = configPath.value;
+
+      if (await fileExists(target)) {
+        try {
+          const loaded = await loadRawCliConfig(target);
+          const strict = CliConfigSchema.safeParse(loaded.config);
+
+          if (strict.success) {
+            io.log(`[argue-cli] config already initialized: ${target}`);
+            return { ok: true, code: 0 };
+          }
+
+          io.error(`[argue-cli] existing config is invalid and was not overwritten: ${target}`);
+          for (const issue of strict.error.issues.slice(0, 5)) {
+            const path = issue.path.length > 0 ? issue.path.join(".") : "(root)";
+            io.error(`- ${path}: ${issue.message}`);
+          }
+          io.error("Fix the config or move/delete it, then run 'argue config init' again.");
+          return { ok: false, code: 1 };
+        } catch (error) {
+          io.error(`[argue-cli] existing config is invalid and was not overwritten: ${target}`);
+          io.error(`- ${String(error)}`);
+          io.error("Fix the config or move/delete it, then run 'argue config init' again.");
+          return { ok: false, code: 1 };
+        }
+      }
+
+      await writeConfigFile(target, {
+        schemaVersion: 1,
+        providers: {},
+        agents: []
+      });
+
+      io.log(`[argue-cli] config initialized: ${target}`);
+      return { ok: true, code: 0 };
+    } catch (error) {
+      io.error(String(error));
+      return { ok: false, code: 1 };
+    }
+  }
+
   if (subcommand === "add-provider") {
     const options = parseConfigAddProviderOptions(rest);
     if (!options.ok) {
@@ -192,25 +251,20 @@ async function runConfigCommand(args: string[], io: Pick<typeof console, "log" |
     }
 
     try {
-      const loadedConfig = await loadCliConfig({ explicitPath: options.value.configPath } satisfies ResolveConfigPathOptions);
+      const configPath = await resolveConfigPath({ explicitPath: options.value.configPath });
+      const loaded = await loadRawCliConfig(configPath);
 
-      if (loadedConfig.config.providers[options.value.id]) {
+      if (loaded.config.providers[options.value.id]) {
         throw new Error(`Provider id already exists: ${options.value.id}`);
       }
 
       const provider = buildProviderFromOptions(options.value);
-      const nextConfig = CliConfigSchema.parse({
-        ...loadedConfig.config,
-        providers: {
-          ...loadedConfig.config.providers,
-          [options.value.id]: provider
-        }
-      });
+      loaded.config.providers[options.value.id] = provider;
 
-      await writeConfigFile(loadedConfig.configPath, nextConfig);
+      await writeConfigFile(configPath, loaded.config);
 
       io.log(`[argue-cli] provider added: ${options.value.id}`);
-      io.log(`- config: ${loadedConfig.configPath}`);
+      io.log(`- config: ${configPath}`);
       io.log(`- type: ${options.value.type}`);
       io.log(`- model: ${options.value.modelId}`);
       return { ok: true, code: 0 };
@@ -228,16 +282,18 @@ async function runConfigCommand(args: string[], io: Pick<typeof console, "log" |
     }
 
     try {
-      const loadedConfig = await loadCliConfig({ explicitPath: options.value.configPath } satisfies ResolveConfigPathOptions);
+      const configPath = await resolveConfigPath({ explicitPath: options.value.configPath });
+      const loaded = await loadRawCliConfig(configPath);
 
-      if (loadedConfig.config.agents.some((agent) => agent.id === options.value.id)) {
+      if (loaded.config.agents.some((agent) => agent.id === options.value.id)) {
         throw new Error(`Agent id already exists: ${options.value.id}`);
       }
 
-      const provider = loadedConfig.config.providers[options.value.provider];
-      if (!provider) {
+      const providerRaw = loaded.config.providers[options.value.provider];
+      if (!providerRaw) {
         throw new Error(`Unknown provider: ${options.value.provider}`);
       }
+      const provider = ProviderSchema.parse(providerRaw);
       if (!provider.models[options.value.model]) {
         throw new Error(`Unknown model '${options.value.model}' for provider '${options.value.provider}'`);
       }
@@ -252,15 +308,12 @@ async function runConfigCommand(args: string[], io: Pick<typeof console, "log" |
         ...(typeof options.value.temperature === "number" ? { temperature: options.value.temperature } : {})
       });
 
-      const nextConfig = CliConfigSchema.parse({
-        ...loadedConfig.config,
-        agents: [...loadedConfig.config.agents, agent]
-      });
+      loaded.config.agents.push(agent);
 
-      await writeConfigFile(loadedConfig.configPath, nextConfig);
+      await writeConfigFile(configPath, loaded.config);
 
       io.log(`[argue-cli] agent added: ${options.value.id}`);
-      io.log(`- config: ${loadedConfig.configPath}`);
+      io.log(`- config: ${configPath}`);
       io.log(`- provider/model: ${options.value.provider}/${options.value.model}`);
       return { ok: true, code: 0 };
     } catch (error) {
@@ -269,8 +322,55 @@ async function runConfigCommand(args: string[], io: Pick<typeof console, "log" |
     }
   }
 
-  io.error("Unknown config subcommand. Use 'argue config add-provider ...' or 'argue config add-agent ...'.");
+  io.error("Unknown config subcommand. Use 'argue config init', 'argue config add-provider ...', or 'argue config add-agent ...'.");
   return { ok: false, code: 1 };
+}
+
+function parseConfigInitPath(args: string[]): { ok: true; value: string } | { ok: false; error: string } {
+  let explicitPath: string | undefined;
+  let useLocal = false;
+  let useGlobal = false;
+
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (arg === "--config" || arg === "-c") {
+      const value = args[i + 1];
+      if (!value) return { ok: false, error: "--config requires a path" };
+      explicitPath = value;
+      i += 1;
+      continue;
+    }
+
+    if (arg === "--local" || arg === "--project") {
+      useLocal = true;
+      continue;
+    }
+
+    if (arg === "--global") {
+      useGlobal = true;
+      continue;
+    }
+
+    return { ok: false, error: `Unknown option for config init: ${arg}` };
+  }
+
+  if (useLocal && useGlobal) {
+    return { ok: false, error: "Choose either --local/--project or --global." };
+  }
+
+  if (explicitPath && (useLocal || useGlobal)) {
+    return { ok: false, error: "--config cannot be combined with --local/--project/--global." };
+  }
+
+  if (explicitPath) {
+    return { ok: true, value: resolve(explicitPath) };
+  }
+
+  if (useLocal) {
+    return { ok: true, value: resolve("argue.config.json") };
+  }
+
+  return { ok: true, value: createExampleConfigPath() };
 }
 
 function enterDefaultMode(io: Pick<typeof console, "log" | "error">, runtime: CliRuntime): CliResult {
@@ -764,7 +864,18 @@ function buildProviderFromOptions(options: ConfigAddProviderOptions): unknown {
   });
 }
 
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function writeConfigFile(path: string, nextConfig: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(nextConfig, null, 2)}\n`, "utf8");
 }
 
@@ -896,6 +1007,7 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("  argue                           # TUI mode (when TTY is available)");
   io.log("  argue tui                       # force TUI mode");
   io.log("  argue run|exec [options]        # headless mode");
+  io.log("  argue config init                # create empty config file");
   io.log("  argue config add-provider ...    # append provider to config");
   io.log("  argue config add-agent ...       # append agent to config");
   io.log("  argue help");
@@ -913,13 +1025,17 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("  --trace --trace-level compact|full");
   io.log("  --language <lang> --token-budget <n>");
   io.log("");
-  io.log("Config mutation commands:");
+  io.log("Config commands:");
+  io.log("  argue config init [-c <path>] [--local|--project|--global]");
   io.log("  argue config add-provider --id <provider-id> --type <api|cli|sdk|mock> --model-id <model-id> [type options]");
   io.log(`    api options: --vendor <${getVendorNames().join("|")}> | --protocol <openai-compatible|anthropic-compatible> [--base-url <url>] [--api-key-env <ENV_VAR>]`);
   io.log("    cli options: --cli-type <codex|claude|generic> --command <binary> [--args a,b,c (extra)]");
   io.log("    sdk options: --adapter <module> [--export-name <name>]");
   io.log("  argue config add-agent --id <agent-id> --provider <provider-id> --model <model-id> [--role <text>] [--system-prompt <text>]");
   io.log("                         [--timeout-ms <n>] [--temperature <0..2>]");
+  io.log("");
+  io.log("Config init default path:");
+  io.log(`  - ${createExampleConfigPath()} (use --local/--project for ./argue.config.json)`);
   io.log("");
   io.log("Config lookup order (when --config is omitted):");
   io.log("  1) ./argue.config.json");

@@ -37,6 +37,19 @@ export function buildResultSummary(result: ArgueResult): string {
   return lines.join("\n");
 }
 
+export async function writeErrorArtifact(args: {
+  errorPath: string;
+  requestId: string;
+  error: unknown;
+}): Promise<void> {
+  await writeJsonFile(args.errorPath, {
+    requestId: args.requestId,
+    error: args.error instanceof Error ? args.error.message : String(args.error),
+    stack: args.error instanceof Error ? args.error.stack : undefined,
+    at: new Date().toISOString()
+  });
+}
+
 async function writeJsonFile(path: string, value: unknown): Promise<void> {
   await writeTextFile(path, `${JSON.stringify(value, null, 2)}\n`);
 }

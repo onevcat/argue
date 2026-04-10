@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadCliConfig, resolveConfigPath } from "../src/config.js";
+import { createExampleConfigPath, loadCliConfig, resolveConfigPath } from "../src/config.js";
 import { runCli } from "../src/index.js";
 
 const VALID_CONFIG = {
@@ -445,6 +445,132 @@ describe("cli config loader", () => {
     expect(result.ok).toBe(false);
     expect(result.code).toBe(1);
     expect(errors.some((x) => x.includes("Missing task"))).toBe(true);
+  });
+
+  it("config init defaults to global config path", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-init-global-"));
+    const home = join(root, "home");
+    await mkdir(home, { recursive: true });
+
+    const oldHome = process.env.HOME;
+    process.env.HOME = home;
+
+    try {
+      const logs: string[] = [];
+      const errors: string[] = [];
+
+      const result = await runCli(["config", "init"], {
+        log: (msg: string) => logs.push(msg),
+        error: (msg: string) => errors.push(msg)
+      });
+
+      const expectedPath = createExampleConfigPath(home);
+      expect(result).toEqual({ ok: true, code: 0 });
+      expect(errors).toHaveLength(0);
+      expect(logs.some((line) => line.includes(`config initialized: ${expectedPath}`))).toBe(true);
+
+      const raw = JSON.parse(await readFile(expectedPath, "utf8")) as {
+        schemaVersion: number;
+        providers: Record<string, unknown>;
+        agents: unknown[];
+      };
+      expect(raw.schemaVersion).toBe(1);
+      expect(raw.providers).toEqual({});
+      expect(raw.agents).toEqual([]);
+    } finally {
+      if (oldHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = oldHome;
+      }
+    }
+  });
+
+  it("config init supports --local and --project aliases", async () => {
+    for (const flag of ["--local", "--project"] as const) {
+      const root = await mkdtemp(join(tmpdir(), "argue-cli-init-local-"));
+      const oldCwd = process.cwd();
+      process.chdir(root);
+
+      try {
+        const logs: string[] = [];
+        const errors: string[] = [];
+
+        const result = await runCli(["config", "init", flag], {
+          log: (msg: string) => logs.push(msg),
+          error: (msg: string) => errors.push(msg)
+        });
+
+        const expectedPath = join(process.cwd(), "argue.config.json");
+        expect(result).toEqual({ ok: true, code: 0 });
+        expect(errors).toHaveLength(0);
+        expect(logs.some((line) => line.includes(`config initialized: ${expectedPath}`))).toBe(true);
+
+        const raw = JSON.parse(await readFile(expectedPath, "utf8")) as { schemaVersion: number };
+        expect(raw.schemaVersion).toBe(1);
+      } finally {
+        process.chdir(oldCwd);
+      }
+    }
+  });
+
+
+  it("config init is idempotent when existing config is valid", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-init-idempotent-"));
+    const configPath = join(root, "argue.config.json");
+    await writeJson(configPath, VALID_CONFIG);
+
+    const before = await readFile(configPath, "utf8");
+    const logs: string[] = [];
+    const errors: string[] = [];
+
+    const result = await runCli(["config", "init", "--config", configPath], {
+      log: (msg: string) => logs.push(msg),
+      error: (msg: string) => errors.push(msg)
+    });
+
+    const after = await readFile(configPath, "utf8");
+    expect(result).toEqual({ ok: true, code: 0 });
+    expect(errors).toHaveLength(0);
+    expect(logs.some((line) => line.includes(`config already initialized: ${configPath}`))).toBe(true);
+    expect(after).toBe(before);
+  });
+
+  it("config init warns and keeps invalid config untouched", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-init-invalid-"));
+    const configPath = join(root, "argue.config.json");
+    await writeJson(configPath, {
+      schemaVersion: 1,
+      providers: {},
+      agents: []
+    });
+
+    const before = await readFile(configPath, "utf8");
+    const logs: string[] = [];
+    const errors: string[] = [];
+
+    const result = await runCli(["config", "init", "--config", configPath], {
+      log: (msg: string) => logs.push(msg),
+      error: (msg: string) => errors.push(msg)
+    });
+
+    const after = await readFile(configPath, "utf8");
+    expect(result).toEqual({ ok: false, code: 1 });
+    expect(logs).toHaveLength(0);
+    expect(errors.some((line) => line.includes("existing config is invalid and was not overwritten"))).toBe(true);
+    expect(errors.some((line) => line.includes("config.providers must contain at least one provider"))).toBe(true);
+    expect(after).toBe(before);
+  });
+
+  it("config init rejects mixed scope flags", async () => {
+    const errors: string[] = [];
+    const result = await runCli(["config", "init", "--local", "--global"], {
+      log: () => {},
+      error: (msg: string) => errors.push(msg)
+    });
+
+    expect(result).toEqual({ ok: false, code: 1 });
+    expect(errors.some((line) => line.includes("Choose either --local/--project or --global"))).toBe(true);
   });
 });
 
