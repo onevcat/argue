@@ -147,6 +147,33 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
           return;
         }
 
+        if (event.type === "ActionDispatched") {
+          const actorId = readString(payload.actorId) ?? "unknown";
+          const prompt = readString(payload.prompt) ?? "";
+          io.log(`${tag} ${c.magenta(`action dispatched -> ${actorId}`)}`);
+          if (verbose && prompt) {
+            io.log(c.dim(`  prompt: ${singleLine(prompt)}`));
+          }
+          return;
+        }
+
+        if (event.type === "ActionCompleted") {
+          const actorId = readString(payload.actorId) ?? "unknown";
+          const summary = readString(payload.summary);
+          io.log(`${tag} ${c.green(`action completed by ${actorId}`)}`);
+          if (summary) {
+            io.log(c.dim(`  ${singleLine(summary)}`));
+          }
+          return;
+        }
+
+        if (event.type === "ActionFailed") {
+          const actorId = readString(payload.actorId) ?? "unknown";
+          const reason = readString(payload.reason) ?? "unknown";
+          io.log(`${tag} ${c.red(`action failed for ${actorId}`)} ${c.dim(`(${reason})`)}`);
+          return;
+        }
+
         if (event.type === "ReportCompleted") {
           const mode = readString(payload.mode) ?? "unknown";
           const reason = readString(payload.reason);
@@ -316,6 +343,25 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
       io.log(c.bold("  Eliminations:"));
       for (const e of result.eliminations) {
         io.log(`  ${c.red(e.participantId)} at round ${e.round} (${e.reason})`);
+      }
+    }
+
+    // Action
+    if (result.action) {
+      io.log("");
+      io.log(c.bold("  Action:"));
+      const statusColor = result.action.status === "completed" ? c.green : c.red;
+      io.log(`  ${statusColor(result.action.status)} by ${result.action.actorId}`);
+      if (result.action.summary) {
+        io.log(`  ${result.action.summary}`);
+      }
+      if (result.action.error) {
+        io.log(`  ${c.red(`error: ${result.action.error}`)}`);
+      }
+      if (result.action.fullResponse) {
+        io.log(c.dim("  ┌ full response:"));
+        io.log(indent(c.dim(result.action.fullResponse), "  │ "));
+        io.log(c.dim("  └"));
       }
     }
 

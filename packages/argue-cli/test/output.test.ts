@@ -289,6 +289,55 @@ describe("output formatter", () => {
       expect(all).toContain("c1 by agent-b: I still disagree.");
     });
 
+    it("shows action dispatched event", () => {
+      const io = createIO();
+      const fmt = createOutputFormatter(io, { verbose: true, noColor: true });
+      const handler = fmt.createEventHandler();
+      handler({
+        type: "ActionDispatched",
+        at: new Date().toISOString(),
+        requestId: "req-1",
+        sessionId: "sess-1",
+        payload: { actorId: "agent-a", prompt: "Fix the bugs." }
+      });
+      const all = io.logs.join("\n");
+      expect(all).toContain("action dispatched");
+      expect(all).toContain("agent-a");
+      expect(all).toContain("Fix the bugs.");
+    });
+
+    it("shows action completed event", () => {
+      const io = createIO();
+      const fmt = createOutputFormatter(io, { noColor: true });
+      const handler = fmt.createEventHandler();
+      handler({
+        type: "ActionCompleted",
+        at: new Date().toISOString(),
+        requestId: "req-1",
+        sessionId: "sess-1",
+        payload: { actorId: "agent-a", summary: "Fixed 3 issues." }
+      });
+      const all = io.logs.join("\n");
+      expect(all).toContain("action completed");
+      expect(all).toContain("Fixed 3 issues.");
+    });
+
+    it("shows action failed event", () => {
+      const io = createIO();
+      const fmt = createOutputFormatter(io, { noColor: true });
+      const handler = fmt.createEventHandler();
+      handler({
+        type: "ActionFailed",
+        at: new Date().toISOString(),
+        requestId: "req-1",
+        sessionId: "sess-1",
+        payload: { actorId: "agent-a", reason: "dispatch_failed" }
+      });
+      const all = io.logs.join("\n");
+      expect(all).toContain("action failed");
+      expect(all).toContain("dispatch_failed");
+    });
+
     it("shows eliminations when present", () => {
       const io = createIO();
       const fmt = createOutputFormatter(io, { verbose: true, noColor: true });

@@ -17,6 +17,10 @@ import { parseJsonObject } from "./json.js";
 type TaskContent = AgentTaskResult | z.infer<typeof InitialRoundTaskOutputContentSchema>;
 
 export function getTaskOutputJsonSchema(task: AgentTaskInput): Record<string, unknown> {
+  if (task.kind === "action") {
+    return {}; // no schema enforcement for action
+  }
+
   if (task.kind === "report") {
     return ReportOutputContentJsonSchema;
   }
@@ -25,6 +29,17 @@ export function getTaskOutputJsonSchema(task: AgentTaskInput): Record<string, un
 }
 
 export function normalizeTaskOutput(task: AgentTaskInput, candidate: unknown): AgentTaskResult {
+  if (task.kind === "action") {
+    const text = typeof candidate === "string" ? candidate : JSON.stringify(candidate);
+    return {
+      kind: "action",
+      output: {
+        fullResponse: text,
+        summary: text.length > 200 ? text.slice(0, 200) + "..." : text
+      }
+    };
+  }
+
   const wrapped = AgentTaskResultSchema.safeParse(candidate);
   if (wrapped.success) {
     assertWrappedOutputMatchesTask(task, wrapped.data);
@@ -52,6 +67,16 @@ export function normalizeTaskOutput(task: AgentTaskInput, candidate: unknown): A
 }
 
 export function normalizeTaskOutputFromText(task: AgentTaskInput, text: string): AgentTaskResult {
+  if (task.kind === "action") {
+    return {
+      kind: "action",
+      output: {
+        fullResponse: text,
+        summary: text.length > 200 ? text.slice(0, 200) + "..." : text
+      }
+    };
+  }
+
   return normalizeTaskOutput(task, parseJsonObject(text));
 }
 
