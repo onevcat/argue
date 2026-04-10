@@ -48,6 +48,7 @@ export type CliRunOptions = {
   tokenBudgetHint?: number;
   action?: string;
   actionAgent?: string;
+  noActionFullResult?: boolean;
   verbose?: boolean;
   noColor?: boolean;
 };
@@ -396,10 +397,10 @@ async function runAction(args: string[], io: Pick<typeof console, "log" | "error
   }
 
   const actionSessionId = `argue:${argueResult.sessionId}:action:${actorId}`;
-  const actionTask: ActionTaskInput = {
-    kind: "action",
-    sessionId: actionSessionId,
-    requestId: argueResult.requestId,
+    const actionTask: ActionTaskInput = {
+      kind: "action",
+      sessionId: actionSessionId,
+      requestId: argueResult.requestId,
     participantId: actorId,
     prompt: options.value.task,
     argueResult: {
@@ -411,8 +412,8 @@ async function runAction(args: string[], io: Pick<typeof console, "log" | "error
       scoreboard: argueResult.scoreboard,
       disagreements: argueResult.disagreements
     },
-    fullResult: JSON.parse(JSON.stringify(argueResult))
-  };
+      fullResult: options.value.includeFullResult ? JSON.parse(JSON.stringify(argueResult)) : undefined
+    };
 
   try {
     const dispatched = await taskDelegate.dispatch(actionTask as AgentTaskInput);
@@ -438,9 +439,11 @@ async function runAction(args: string[], io: Pick<typeof console, "log" | "error
 }
 
 function parseActOptions(args: string[]):
-  | { ok: true; value: { resultPath: string; task: string; agent?: string; configPath?: string } }
+  | { ok: true; value: { resultPath: string; task: string; agent?: string; configPath?: string; includeFullResult: boolean } }
   | { ok: false; error: string } {
-  const out: { resultPath?: string; task?: string; agent?: string; configPath?: string } = {};
+  const out: { resultPath?: string; task?: string; agent?: string; configPath?: string; includeFullResult: boolean } = {
+    includeFullResult: true
+  };
 
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
@@ -477,13 +480,27 @@ function parseActOptions(args: string[]):
       continue;
     }
 
+    if (arg === "--no-action-full-result") {
+      out.includeFullResult = false;
+      continue;
+    }
+
     return { ok: false, error: `Unknown option for act: ${arg}` };
   }
 
   if (!out.resultPath) return { ok: false, error: "Missing --result. Usage: argue act --result <path> --task <prompt>" };
   if (!out.task) return { ok: false, error: "Missing --task. Usage: argue act --result <path> --task <prompt>" };
 
-  return { ok: true, value: { resultPath: out.resultPath, task: out.task, agent: out.agent, configPath: out.configPath } };
+  return {
+    ok: true,
+    value: {
+      resultPath: out.resultPath,
+      task: out.task,
+      agent: out.agent,
+      configPath: out.configPath,
+      includeFullResult: out.includeFullResult
+    }
+  };
 }
 
 function parseConfigInitPath(args: string[]): { ok: true; value: string } | { ok: false; error: string } {
@@ -716,6 +733,11 @@ function parseRunOptions(args: string[]):
       if (!value) return { ok: false, error: "--action-agent requires an agent id" };
       out.actionAgent = value;
       i += 1;
+      continue;
+    }
+
+    if (arg === "--no-action-full-result") {
+      out.noActionFullResult = true;
       continue;
     }
 
@@ -1075,7 +1097,7 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("");
   io.log("Usage:");
   io.log("  argue run|exec [options]        # run a debate session");
-  io.log("  argue act --result <path> --task <prompt> [--agent <id>] [--config <path>]");
+  io.log("  argue act --result <path> --task <prompt> [--agent <id>] [--config <path>] [--no-action-full-result]");
   io.log("  argue config init                # create empty config file");
   io.log("  argue config add-provider ...    # append provider to config");
   io.log("  argue config add-agent ...       # append agent to config");
@@ -1095,6 +1117,7 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("  --language <lang> --token-budget <n>");
   io.log("  --action <prompt>                   # execute action after debate");
   io.log("  --action-agent <id>                 # override action actor (default: representative)");
+  io.log("  --no-action-full-result            # omit full result JSON from action context");
   io.log("  --verbose|-v                        # detailed output with agent opinions");
   io.log("  --no-color                          # disable colored output");
   io.log("");

@@ -25,6 +25,7 @@ export type RunOverrides = {
   tokenBudgetHint?: number;
   action?: string;
   actionAgent?: string;
+  noActionFullResult?: boolean;
 };
 
 export type ResolvedRunPlan = {
@@ -127,8 +128,11 @@ export function resolveRunPlan(args: {
 
   const actionPrompt = overrides.action ?? runInput.action?.prompt;
   const actionActorId = overrides.actionAgent ?? runInput.action?.actorId;
+  const includeFullResult = overrides.noActionFullResult
+    ? false
+    : runInput.action?.includeFullResult ?? true;
   const actionPolicy = actionPrompt
-    ? { prompt: actionPrompt, ...(actionActorId ? { actorId: actionActorId } : {}), includeFullResult: true }
+    ? { prompt: actionPrompt, ...(actionActorId ? { actorId: actionActorId } : {}), includeFullResult }
     : undefined;
 
   const globalConfigDir = join(homedir(), ".config", "argue");

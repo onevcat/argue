@@ -1039,6 +1039,68 @@ describe("ArgueEngine M2", () => {
     expect(result.action?.status).toBe("failed");
   });
 
+  it("emits ActionFailed when configured actor is no longer active", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult } | { type: "timeout" }> = {};
+
+    for (const participant of PARTICIPANTS) {
+      scenarios[`round:initial:0:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
+      };
+      scenarios[`round:debate:1:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 1 }))
+      };
+    }
+
+    scenarios["round:final_vote:2:onevclaw"] = { type: "timeout" };
+    scenarios["round:final_vote:2:onevpaw"] = {
+      type: "success",
+      output: roundResult(mkRoundOutput({ participantId: "onevpaw", phase: "final_vote", round: 2 }))
+    };
+    scenarios["round:final_vote:2:onevtail"] = {
+      type: "success",
+      output: roundResult(mkRoundOutput({ participantId: "onevtail", phase: "final_vote", round: 2 }))
+    };
+
+    const events: Array<{ type: string; payload?: Record<string, unknown> }> = [];
+    const result = await new ArgueEngine({
+      taskDelegate: new StubAgentTaskDelegate(scenarios),
+      observer: {
+        onEvent(event) {
+          events.push({ type: event.type, payload: event.payload as Record<string, unknown> | undefined });
+        }
+      }
+    }).start({
+      requestId: "req-action-inactive-actor",
+      task: "Inactive action actor",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      participantsPolicy: { minParticipants: 2 },
+      roundPolicy: { minRounds: 1, maxRounds: 1 },
+      waitingPolicy: {
+        perTaskTimeoutMs: 1000,
+        perRoundTimeoutMs: 1000
+      },
+      actionPolicy: {
+        prompt: "Take action",
+        actorId: "onevclaw"
+      }
+    });
+
+    expect(result.action).toEqual({
+      actorId: "onevclaw",
+      status: "failed",
+      error: "Actor onevclaw is not an active participant"
+    });
+    expect(events).toContainEqual({
+      type: "ActionFailed",
+      payload: {
+        actorId: "onevclaw",
+        reason: "inactive_actor"
+      }
+    });
+  });
+
   it("rejects removed waiting/report policy fields", async () => {
     const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate({}) });
 

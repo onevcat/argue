@@ -1,4 +1,5 @@
 import {
+  ActionTaskResultSchema,
   AgentTaskResultSchema,
   DebateRoundTaskOutputContentSchema,
   FinalVoteTaskOutputContentSchema,
@@ -29,7 +30,21 @@ export function getTaskOutputJsonSchema(task: AgentTaskInput): Record<string, un
 }
 
 export function normalizeTaskOutput(task: AgentTaskInput, candidate: unknown): AgentTaskResult {
+  const wrapped = AgentTaskResultSchema.safeParse(candidate);
+  if (wrapped.success) {
+    assertWrappedOutputMatchesTask(task, wrapped.data);
+    return wrapped.data;
+  }
+
   if (task.kind === "action") {
+    const structured = ActionTaskResultSchema.safeParse({
+      kind: "action",
+      output: candidate
+    });
+    if (structured.success) {
+      return structured.data;
+    }
+
     const text = typeof candidate === "string" ? candidate : JSON.stringify(candidate);
     return {
       kind: "action",
@@ -38,12 +53,6 @@ export function normalizeTaskOutput(task: AgentTaskInput, candidate: unknown): A
         summary: text.length > 200 ? text.slice(0, 200) + "..." : text
       }
     };
-  }
-
-  const wrapped = AgentTaskResultSchema.safeParse(candidate);
-  if (wrapped.success) {
-    assertWrappedOutputMatchesTask(task, wrapped.data);
-    return wrapped.data;
   }
 
   if (task.kind === "report") {
@@ -86,6 +95,10 @@ function assertWrappedOutputMatchesTask(task: AgentTaskInput, result: AgentTaskR
   }
 
   if (task.kind === "report") {
+    return;
+  }
+
+  if (task.kind === "action") {
     return;
   }
 

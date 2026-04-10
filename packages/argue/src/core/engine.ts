@@ -635,6 +635,10 @@ export class ArgueEngine {
 
     const actorId = actionPolicy.actorId ?? args.result.representative.participantId;
     if (!args.activeParticipants.has(actorId)) {
+      await this.emit(args.normalized, args.sessionId, "ActionFailed", {
+        actorId,
+        reason: "inactive_actor"
+      });
       return {
         actorId,
         status: "failed",

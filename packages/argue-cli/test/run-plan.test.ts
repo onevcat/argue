@@ -116,4 +116,48 @@ describe("resolveRunPlan", () => {
       overrides: { agents: ["a1", "ghost"] }
     })).toThrow(/Unknown agent id in selection/);
   });
+
+  it("respects includeFullResult from run input and CLI override", () => {
+    const loadedConfig = makeLoadedConfig();
+
+    const fromInput = resolveRunPlan({
+      loadedConfig,
+      runInput: {
+        task: "t",
+        action: {
+          prompt: "Act",
+          actorId: "a1",
+          includeFullResult: false
+        }
+      },
+      overrides: {}
+    });
+
+    expect(fromInput.startInput.actionPolicy).toEqual({
+      prompt: "Act",
+      actorId: "a1",
+      includeFullResult: false
+    });
+
+    const fromFlag = resolveRunPlan({
+      loadedConfig,
+      runInput: {
+        task: "t",
+        action: {
+          prompt: "Act",
+          actorId: "a1",
+          includeFullResult: true
+        }
+      },
+      overrides: {
+        noActionFullResult: true
+      }
+    });
+
+    expect(fromFlag.startInput.actionPolicy).toEqual({
+      prompt: "Act",
+      actorId: "a1",
+      includeFullResult: false
+    });
+  });
 });

@@ -59,6 +59,24 @@ function makeReportTask(): AgentTaskInput {
   };
 }
 
+function makeActionTask(): AgentTaskInput {
+  return {
+    kind: "action",
+    sessionId: "s-action",
+    requestId: "r-action",
+    participantId: "a1",
+    prompt: "act",
+    argueResult: {
+      status: "consensus",
+      finalSummary: "summary",
+      representativeSpeech: "speech",
+      claims: [],
+      claimResolutions: [],
+      scoreboard: []
+    }
+  };
+}
+
 describe("createMockRunner", () => {
   it("returns deterministic output by default", async () => {
     const runner = createMockRunner({
@@ -166,6 +184,25 @@ describe("createMockRunner", () => {
       traceIncluded: false,
       finalSummary: expect.stringContaining("r-report")
     }));
+  });
+
+  it("returns deterministic action output", async () => {
+    const runner = createMockRunner({
+      type: "mock",
+      models: {
+        fake: {}
+      }
+    });
+
+    const output = await runner.runTask({
+      task: makeActionTask(),
+      agent
+    });
+
+    expect(output).toEqual({
+      fullResponse: "Action completed by a1.",
+      summary: "Action completed by a1."
+    });
   });
 
   it("supports timeout behavior and rejects after abort", async () => {

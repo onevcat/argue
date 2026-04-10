@@ -39,6 +39,28 @@ describe("loadRunInput", () => {
     expect(input.context).toEqual({ mode: "test" });
   });
 
+  it("loads action.includeFullResult when provided", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-run-input-action-"));
+    const file = join(root, "run.json");
+
+    await writeFile(file, JSON.stringify({
+      task: "T",
+      agents: ["a1", "a2"],
+      action: {
+        prompt: "Do it",
+        actorId: "a1",
+        includeFullResult: false
+      }
+    }), "utf8");
+
+    const input = await loadRunInput(file, loadedConfig);
+    expect(input.action).toEqual({
+      prompt: "Do it",
+      actorId: "a1",
+      includeFullResult: false
+    });
+  });
+
   it("rejects unknown fields because schema is strict", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-run-input-invalid-"));
     const file = join(root, "run.json");

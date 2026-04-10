@@ -15,6 +15,24 @@ function makeInitialTask(): AgentTaskInput {
   };
 }
 
+function makeActionTask(): AgentTaskInput {
+  return {
+    kind: "action",
+    sessionId: "s-action",
+    requestId: "r-action",
+    participantId: "a1",
+    prompt: "do the thing",
+    argueResult: {
+      status: "consensus",
+      finalSummary: "done",
+      representativeSpeech: "ship it",
+      claims: [],
+      claimResolutions: [],
+      scoreboard: []
+    }
+  };
+}
+
 describe("runtime/task-output", () => {
   it("wraps raw round content with task metadata", () => {
     const task = makeInitialTask();
@@ -71,5 +89,21 @@ describe("runtime/task-output", () => {
     if (output.kind === "round") {
       expect(output.output.summary).toBe("sum");
     }
+  });
+
+  it("keeps action output stable when already normalized", () => {
+    const task = makeActionTask();
+
+    const once = normalizeTaskOutputFromText(task, "action complete");
+    const twice = normalizeTaskOutput(task, once);
+
+    expect(once).toEqual({
+      kind: "action",
+      output: {
+        fullResponse: "action complete",
+        summary: "action complete"
+      }
+    });
+    expect(twice).toEqual(once);
   });
 });

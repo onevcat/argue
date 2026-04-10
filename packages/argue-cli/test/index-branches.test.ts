@@ -64,7 +64,9 @@ describe("runCli command branches", () => {
       { args: ["run", "--threshold"], message: "--threshold requires a value" },
       { args: ["run", "--representative-id"], message: "--representative-id requires a value" },
       { args: ["run", "--language"], message: "--language requires a value" },
-      { args: ["run", "--token-budget"], message: "--token-budget requires a value" }
+      { args: ["run", "--token-budget"], message: "--token-budget requires a value" },
+      { args: ["run", "--action"], message: "--action requires a prompt" },
+      { args: ["run", "--action-agent"], message: "--action-agent requires an agent id" }
     ];
 
     for (const testCase of missingValueCases) {
@@ -205,6 +207,59 @@ describe("runCli command branches", () => {
     const noTask = await runCli(["act", "--result", "r.json"], io2);
     expect(noTask).toEqual({ ok: false, code: 1 });
     expect(io2.errors.some((x) => x.includes("--task"))).toBe(true);
+  });
+
+  it("accepts action flags including no-action-full-result", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-run-action-flags-"));
+    const configPath = join(root, "argue.config.json");
+
+    await writeFile(configPath, JSON.stringify({
+      schemaVersion: 1,
+      output: {
+        resultPath: "./out/{requestId}.result.json",
+        jsonlPath: "./out/{requestId}.events.jsonl",
+        summaryPath: "./out/{requestId}.summary.md"
+      },
+      defaults: {
+        defaultAgents: ["a1", "a2"],
+        minRounds: 1,
+        maxRounds: 1,
+        composer: "builtin"
+      },
+      providers: {
+        mock: {
+          type: "mock",
+          models: {
+            fake: {}
+          }
+        }
+      },
+      agents: [
+        { id: "a1", provider: "mock", model: "fake" },
+        { id: "a2", provider: "mock", model: "fake" }
+      ]
+    }), "utf8");
+
+    const io = createIO();
+    const result = await runCli([
+      "run",
+      "--config", configPath,
+      "--request-id", "action-flags",
+      "--task", "t",
+      "--action", "ship it",
+      "--action-agent", "a2",
+      "--no-action-full-result"
+    ], io);
+
+    expect(result).toEqual({ ok: true, code: 0 });
+
+    const resultJson = JSON.parse(await readFile(join(root, "out", "action-flags.result.json"), "utf8"));
+    expect(resultJson.action).toEqual({
+      actorId: "a2",
+      status: "completed",
+      fullResponse: "Action completed by a2.",
+      summary: "Action completed by a2."
+    });
   });
 
   it("prints live headless progress with round and claim signals", async () => {

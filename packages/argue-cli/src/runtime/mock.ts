@@ -30,7 +30,7 @@ export function createMockRunner(provider: MockProviderConfig): ProviderTaskRunn
 
 function resolveAction(provider: MockProviderConfig, task: AgentTaskInput, agent: ResolvedAgentRuntime): MockAction {
   const scenario = provider.participants?.[agent.id] ?? provider.participants?.[task.participantId];
-  const phase = task.kind === "report" ? "report" : task.phase;
+  const phase = task.kind === "report" ? "report" : task.kind === "action" ? "action" : task.phase;
   return scenario?.[phase] ?? provider.defaultBehavior ?? { behavior: "deterministic" };
 }
 
@@ -42,6 +42,13 @@ function buildDeterministicOutput(task: AgentTaskInput, agent: ResolvedAgentRunt
       traceLevel: "compact",
       finalSummary: `Mock summary for ${task.requestId} by ${agent.id}.`,
       representativeSpeech: `Representative speech from ${agent.id}.`
+    };
+  }
+
+  if (task.kind === "action") {
+    return {
+      fullResponse: `Action completed by ${agent.id}.`,
+      summary: `Action completed by ${agent.id}.`
     };
   }
 

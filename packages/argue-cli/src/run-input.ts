@@ -20,7 +20,8 @@ export const RunInputSchema = z.object({
   context: z.record(z.unknown()).optional(),
   action: z.object({
     prompt: z.string().min(1),
-    actorId: z.string().min(1).optional()
+    actorId: z.string().min(1).optional(),
+    includeFullResult: z.boolean().optional()
   }).strict().optional()
 }).strict();
 

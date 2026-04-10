@@ -51,7 +51,8 @@ export const MockParticipantScenarioSchema = z.object({
   initial: MockProviderActionSchema.optional(),
   debate: MockProviderActionSchema.optional(),
   final_vote: MockProviderActionSchema.optional(),
-  report: MockProviderActionSchema.optional()
+  report: MockProviderActionSchema.optional(),
+  action: MockProviderActionSchema.optional()
 }).strict();
 
 export const MockProviderSchema = z.object({
