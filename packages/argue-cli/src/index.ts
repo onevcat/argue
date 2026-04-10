@@ -1,5 +1,6 @@
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import type { ArgueEvent } from "argue";
+import { dirname, resolve } from "node:path";
 import {
   AgentSchema,
   CliConfigSchema,
@@ -301,6 +302,8 @@ async function runConfigCommand(args: string[], io: Pick<typeof console, "log" |
 
 function parseConfigInitPath(args: string[]): { ok: true; value: string } | { ok: false; error: string } {
   let explicitPath: string | undefined;
+  let useLocal = false;
+  let useGlobal = false;
 
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
@@ -311,10 +314,37 @@ function parseConfigInitPath(args: string[]): { ok: true; value: string } | { ok
       i += 1;
       continue;
     }
+
+    if (arg === "--local" || arg === "--project") {
+      useLocal = true;
+      continue;
+    }
+
+    if (arg === "--global") {
+      useGlobal = true;
+      continue;
+    }
+
     return { ok: false, error: `Unknown option for config init: ${arg}` };
   }
 
-  return { ok: true, value: explicitPath ?? "argue.config.json" };
+  if (useLocal && useGlobal) {
+    return { ok: false, error: "Choose either --local/--project or --global." };
+  }
+
+  if (explicitPath && (useLocal || useGlobal)) {
+    return { ok: false, error: "--config cannot be combined with --local/--project/--global." };
+  }
+
+  if (explicitPath) {
+    return { ok: true, value: resolve(explicitPath) };
+  }
+
+  if (useLocal) {
+    return { ok: true, value: resolve("argue.config.json") };
+  }
+
+  return { ok: true, value: createExampleConfigPath() };
 }
 
 function enterDefaultMode(io: Pick<typeof console, "log" | "error">, runtime: CliRuntime): CliResult {
@@ -809,6 +839,7 @@ function buildProviderFromOptions(options: ConfigAddProviderOptions): unknown {
 }
 
 async function writeConfigFile(path: string, nextConfig: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(nextConfig, null, 2)}\n`, "utf8");
 }
 
@@ -959,13 +990,16 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("  --language <lang> --token-budget <n>");
   io.log("");
   io.log("Config commands:");
-  io.log("  argue config init [-c <path>]");
+  io.log("  argue config init [-c <path>] [--local|--project|--global]");
   io.log("  argue config add-provider --id <provider-id> --type <api|cli|sdk|mock> --model-id <model-id> [type options]");
   io.log(`    api options: --vendor <${getVendorNames().join("|")}> | --protocol <openai-compatible|anthropic-compatible> [--base-url <url>] [--api-key-env <ENV_VAR>]`);
   io.log("    cli options: --cli-type <codex|claude|generic> --command <binary> [--args a,b,c (extra)]");
   io.log("    sdk options: --adapter <module> [--export-name <name>]");
   io.log("  argue config add-agent --id <agent-id> --provider <provider-id> --model <model-id> [--role <text>] [--system-prompt <text>]");
   io.log("                         [--timeout-ms <n>] [--temperature <0..2>]");
+  io.log("");
+  io.log("Config init default path:");
+  io.log(`  - ${createExampleConfigPath()} (use --local/--project for ./argue.config.json)`);
   io.log("");
   io.log("Config lookup order (when --config is omitted):");
   io.log("  1) ./argue.config.json");
