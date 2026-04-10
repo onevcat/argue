@@ -7,6 +7,7 @@ import type { ProviderTaskRunner } from "./types.js";
 
 export function createCliRunner(provider: CliProviderConfig): ProviderTaskRunner {
   const sessionUUID = randomUUID();
+  let callCount = 0;
 
   return {
     async runTask({ task, agent, abortSignal }) {
@@ -15,7 +16,9 @@ export function createCliRunner(provider: CliProviderConfig): ProviderTaskRunner
         : buildTaskPrompt({ task, agent, includeJsonSchema: true });
 
       const hasSession = !!task.metadata?.participantSessionKey;
-      const baseArgs = buildBaseArgs(provider.cliType, agent.providerModel, hasSession ? sessionUUID : undefined);
+      const isResume = hasSession && callCount > 0;
+      callCount++;
+      const baseArgs = buildBaseArgs(provider.cliType, agent.providerModel, hasSession ? sessionUUID : undefined, isResume);
       const extraArgs = provider.args.map((arg) => renderTemplate(arg, task, agent));
 
       const result = await runCommand({
@@ -56,10 +59,14 @@ export function createCliRunner(provider: CliProviderConfig): ProviderTaskRunner
 function buildBaseArgs(
   cliType: CliProviderConfig["cliType"],
   providerModel: string,
-  sessionUUID?: string
+  sessionUUID?: string,
+  isResume?: boolean
 ): string[] {
   switch (cliType) {
     case "claude":
+      if (sessionUUID && isResume) {
+        return ["--print", "--model", providerModel, "--resume", sessionUUID];
+      }
       return [
         "--print", "--model", providerModel,
         ...(sessionUUID ? ["--session-id", sessionUUID] : ["--no-session-persistence"])
