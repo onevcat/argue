@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { spawn } from "node:child_process";
 import type { CliProviderConfig } from "../config.js";
 import { buildTaskPrompt } from "./prompt.js";
@@ -11,14 +13,14 @@ export function createCliRunner(provider: CliProviderConfig): ProviderTaskRunner
 
   return {
     async runTask({ task, agent, abortSignal }) {
-      const stdin = provider.cliType === "generic"
+      const prompt = provider.cliType === "generic"
         ? JSON.stringify(buildGenericEnvelope(task, agent), null, 2)
         : buildTaskPrompt({ task, agent, includeJsonSchema: true });
 
       const hasSession = !!task.metadata?.participantSessionKey;
       const isResume = hasSession && callCount > 0;
       callCount++;
-      const baseArgs = buildBaseArgs(provider.cliType, agent.providerModel, hasSession ? sessionUUID : undefined, isResume);
+      const baseArgs = buildBaseArgs(provider.cliType, agent.providerModel, prompt, hasSession ? sessionUUID : undefined, isResume);
       const extraArgs = provider.args.map((arg) => renderTemplate(arg, task, agent));
 
       const result = await runCommand({
@@ -39,7 +41,7 @@ export function createCliRunner(provider: CliProviderConfig): ProviderTaskRunner
             }
             : {})
         },
-        stdin,
+        stdin: usesStdinPrompt(provider.cliType) ? prompt : "",
         abortSignal
       });
 
@@ -56,9 +58,27 @@ export function createCliRunner(provider: CliProviderConfig): ProviderTaskRunner
   };
 }
 
+/** Returns true if the CLI tool reads the prompt from stdin, false if it goes in args. */
+function usesStdinPrompt(cliType: CliProviderConfig["cliType"]): boolean {
+  switch (cliType) {
+    case "claude":
+    case "codex":
+    case "gemini":
+    case "pi":
+    case "generic":
+      return true;
+    case "copilot":
+    case "opencode":
+      return false;
+    default:
+      return true;
+  }
+}
+
 function buildBaseArgs(
   cliType: CliProviderConfig["cliType"],
   providerModel: string,
+  prompt: string,
   sessionUUID?: string,
   isResume?: boolean
 ): string[] {
@@ -74,6 +94,26 @@ function buildBaseArgs(
     case "codex":
       return [
         "exec", "-m", providerModel, "--full-auto", "--color", "never"
+      ];
+    case "copilot":
+      return [
+        "-p", prompt, "--yolo", "--model", providerModel
+      ];
+    case "gemini":
+      return [
+        "--approval-mode", "yolo", "-m", providerModel
+      ];
+    case "pi": {
+      const sessionArgs = sessionUUID
+        ? ["--session", join(tmpdir(), `argue-pi-${sessionUUID}`)]
+        : [];
+      return [
+        "--model", providerModel, ...sessionArgs
+      ];
+    }
+    case "opencode":
+      return [
+        "run", prompt, "--dangerously-skip-permissions", "-m", providerModel
       ];
     default:
       return [];

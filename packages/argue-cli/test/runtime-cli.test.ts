@@ -219,6 +219,154 @@ process.stdout.write(JSON.stringify(output));
     expect(argv[sandboxIndex + 1]).toBe("danger-full-access");
   });
 
+  it("builds copilot base args with prompt in args and --yolo", async () => {
+    const script = await createArgvAndStdinEchoScript("argue-cli-runner-copilot-");
+
+    const runner = createCliRunner({
+      type: "cli",
+      cliType: "copilot",
+      command: script,
+      args: [],
+      models: { fake: {} }
+    });
+
+    const result = await runner.runTask({ task: makeRoundTask(), agent });
+    const { argv, stdin } = getArgvAndStdin(result as { kind: string; output: { fullResponse: string } });
+
+    expect(argv).toContain("-p");
+    const pIdx = argv.indexOf("-p");
+    const promptValue = argv[pIdx + 1]!;
+    expect(promptValue).toContain("argue CLI host");
+
+    expect(argv).toContain("--yolo");
+    expect(argv).toContain("--model");
+    expect(argv[argv.indexOf("--model") + 1]).toBe("fake");
+
+    expect(stdin).toBe("");
+  });
+
+  it("builds gemini base args with stdin prompt and --approval-mode yolo", async () => {
+    const script = await createArgvAndStdinEchoScript("argue-cli-runner-gemini-");
+
+    const runner = createCliRunner({
+      type: "cli",
+      cliType: "gemini",
+      command: script,
+      args: [],
+      models: { fake: {} }
+    });
+
+    const result = await runner.runTask({ task: makeRoundTask(), agent });
+    const { argv, stdin } = getArgvAndStdin(result as { kind: string; output: { fullResponse: string } });
+
+    expect(argv).toContain("--approval-mode");
+    expect(argv[argv.indexOf("--approval-mode") + 1]).toBe("yolo");
+    expect(argv).toContain("-m");
+    expect(argv[argv.indexOf("-m") + 1]).toBe("fake");
+
+    expect(argv).not.toContain("-p");
+    expect(stdin).toContain("argue CLI host");
+  });
+
+  it("builds pi base args with stdin prompt and session file path", async () => {
+    const script = await createArgvAndStdinEchoScript("argue-cli-runner-pi-");
+
+    const runner = createCliRunner({
+      type: "cli",
+      cliType: "pi",
+      command: script,
+      args: [],
+      models: { fake: {} }
+    });
+
+    const task = {
+      ...makeRoundTask(),
+      metadata: { participantSessionKey: "argue:sess-1:a1" }
+    };
+
+    const result = await runner.runTask({ task, agent });
+    const { argv, stdin } = getArgvAndStdin(result as { kind: string; output: { fullResponse: string } });
+
+    expect(argv).toContain("--model");
+    expect(argv[argv.indexOf("--model") + 1]).toBe("fake");
+    expect(argv).toContain("--session");
+    const sessionPath = argv[argv.indexOf("--session") + 1]!;
+    expect(sessionPath).toMatch(/argue-pi-[0-9a-f-]+$/);
+
+    expect(stdin).toContain("argue CLI host");
+  });
+
+  it("pi uses same session path across calls", async () => {
+    const script = await createArgvAndStdinEchoScript("argue-cli-runner-pi-resume-");
+
+    const runner = createCliRunner({
+      type: "cli",
+      cliType: "pi",
+      command: script,
+      args: [],
+      models: { fake: {} }
+    });
+
+    const task = {
+      ...makeRoundTask(),
+      metadata: { participantSessionKey: "argue:sess-1:a1" }
+    };
+
+    const first = await runner.runTask({ task, agent });
+    const second = await runner.runTask({ task: { ...task, round: 1 }, agent });
+
+    const firstArgv = getArgvAndStdin(first as { kind: string; output: { fullResponse: string } }).argv;
+    const secondArgv = getArgvAndStdin(second as { kind: string; output: { fullResponse: string } }).argv;
+
+    const firstPath = firstArgv[firstArgv.indexOf("--session") + 1]!;
+    const secondPath = secondArgv[secondArgv.indexOf("--session") + 1]!;
+    expect(firstPath).toBe(secondPath);
+  });
+
+  it("pi omits --session when no session metadata", async () => {
+    const script = await createArgvAndStdinEchoScript("argue-cli-runner-pi-nosession-");
+
+    const runner = createCliRunner({
+      type: "cli",
+      cliType: "pi",
+      command: script,
+      args: [],
+      models: { fake: {} }
+    });
+
+    const result = await runner.runTask({ task: makeRoundTask(), agent });
+    const { argv } = getArgvAndStdin(result as { kind: string; output: { fullResponse: string } });
+
+    expect(argv).not.toContain("--session");
+    expect(argv).toContain("--model");
+  });
+
+  it("builds opencode base args with prompt as positional arg", async () => {
+    const script = await createArgvAndStdinEchoScript("argue-cli-runner-opencode-");
+
+    const runner = createCliRunner({
+      type: "cli",
+      cliType: "opencode",
+      command: script,
+      args: [],
+      models: { fake: {} }
+    });
+
+    const result = await runner.runTask({ task: makeRoundTask(), agent });
+    const { argv, stdin } = getArgvAndStdin(result as { kind: string; output: { fullResponse: string } });
+
+    expect(argv).toContain("run");
+    const runIdx = argv.indexOf("run");
+    const promptValue = argv[runIdx + 1]!;
+    expect(promptValue).toContain("argue CLI host");
+
+    expect(argv).toContain("--dangerously-skip-permissions");
+    expect(argv).toContain("-m");
+    expect(argv[argv.indexOf("-m") + 1]).toBe("fake");
+
+    expect(stdin).toBe("");
+  });
+
   it("parses fenced json output in codex mode", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-runner-codex-"));
     const script = join(root, "runner.mjs");
@@ -264,6 +412,10 @@ function getArgv(result: { output: { fullResponse: string } }): string[] {
   return JSON.parse(result.output.fullResponse) as string[];
 }
 
+function getArgvAndStdin(result: { output: { fullResponse: string } }): { argv: string[]; stdin: string } {
+  return JSON.parse(result.output.fullResponse) as { argv: string[]; stdin: string };
+}
+
 async function createArgvEchoScript(prefix: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), prefix));
   const script = join(root, "runner.mjs");
@@ -274,6 +426,25 @@ let stdin = "";
 for await (const chunk of process.stdin) stdin += chunk;
 process.stdout.write(JSON.stringify({
   fullResponse: JSON.stringify(process.argv),
+  summary: "ok",
+  extractedClaims: [],
+  judgements: []
+}));
+`, { mode: 0o755 });
+
+  return script;
+}
+
+async function createArgvAndStdinEchoScript(prefix: string): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), prefix));
+  const script = join(root, "runner.mjs");
+
+  await writeFile(script, `#!/usr/bin/env node
+import process from "node:process";
+let stdin = "";
+for await (const chunk of process.stdin) stdin += chunk;
+process.stdout.write(JSON.stringify({
+  fullResponse: JSON.stringify({ argv: process.argv, stdin }),
   summary: "ok",
   extractedClaims: [],
   judgements: []
