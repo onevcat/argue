@@ -131,7 +131,40 @@ Mapping:
 - `--action <prompt>` → `actionPolicy.prompt`
 - `--action-agent <id>` → `actionPolicy.actorId` (default: representative)
 
-### 4.2 Standalone mode: `argue act`
+### 4.2 Run input file (`--input task.json`)
+
+Action can be specified in the existing run input file alongside other run parameters:
+
+```json
+{
+  "task": "Review PR #42 for security vulnerabilities",
+  "agents": ["claude-agent", "codex-agent", "gemini-agent"],
+  "minRounds": 2,
+  "maxRounds": 4,
+  "action": {
+    "prompt": "Fix all identified security issues and post a review summary comment on the PR.",
+    "actorId": "codex-agent"
+  }
+}
+```
+
+Schema addition to `RunInputSchema`:
+
+```typescript
+action: z.object({
+  prompt: z.string().min(1),
+  actorId: z.string().min(1).optional()
+}).optional()
+```
+
+Priority: `CLI flags > input JSON (--input) > config defaults`, consistent with existing
+override behavior. `--action` CLI flag overrides `action.prompt` from input file.
+
+This allows teams to version-control their argue task definitions including the action step,
+and enables automated pipelines (CI/CD) to run the full debate-to-action flow from a single
+config file.
+
+### 4.3 Standalone mode: `argue act`
 
 Run action against an existing result, without re-running the debate:
 
