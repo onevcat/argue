@@ -240,9 +240,8 @@ describe("runCli command branches", () => {
     ], io);
 
     expect(result).toEqual({ ok: true, code: 0 });
-    expect(io.logs.some((x) => x.includes("round initial#0 dispatched"))).toBe(true);
+    expect(io.logs.some((x) => x.includes("initial#0") && x.includes("dispatched"))).toBe(true);
     expect(io.logs.some((x) => x.includes("initial#0") && x.includes("responded") && x.includes("claims+"))).toBe(true);
-    expect(io.logs.some((x) => x.includes("summary:"))).toBe(true);
-    expect(io.logs.some((x) => x.includes("round initial#0 completed") && x.includes("claims="))).toBe(true);
+    expect(io.logs.some((x) => x.includes("initial#0") && x.includes("completed") && x.includes("claims="))).toBe(true);
   });
 });

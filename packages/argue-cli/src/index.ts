@@ -1,5 +1,4 @@
 import { access, mkdir, writeFile } from "node:fs/promises";
-import type { ArgueEvent } from "argue";
 import { dirname, resolve } from "node:path";
 import {
   AgentSchema,
@@ -12,6 +11,7 @@ import {
   type ResolveConfigPathOptions
 } from "./config.js";
 import { executeHeadlessRun } from "./headless-run.js";
+import { createOutputFormatter } from "./output.js";
 import { loadRunInput } from "./run-input.js";
 import { resolveRunPlan } from "./run-plan.js";
 import { VENDOR_PRESETS, getVendorNames } from "./vendors.js";
@@ -38,6 +38,8 @@ export type CliRunOptions = {
   traceLevel?: "compact" | "full";
   language?: string;
   tokenBudgetHint?: number;
+  verbose?: boolean;
+  noColor?: boolean;
 };
 
 type ConfigAddProviderOptions = {
@@ -150,40 +152,38 @@ async function runHeadless(args: string[], io: Pick<typeof console, "log" | "err
     return { ok: false, code: 1 };
   }
 
-  io.log("[argue-cli] run plan resolved");
-  io.log(`- config: ${loadedConfig.configPath}`);
-  io.log(`- input: ${options.value.inputPath ?? "(none)"}`);
-  io.log(`- requestId: ${plan.requestId}`);
-  io.log(`- task: ${plan.task}`);
-  io.log(`- agents: ${plan.participantIds.join(", ")}`);
-  io.log(`- rounds: ${plan.startInput.roundPolicy.minRounds}..${plan.startInput.roundPolicy.maxRounds}`);
-  io.log(`- composer: ${plan.startInput.reportPolicy.composer}`);
-  io.log(`- jsonl: ${plan.jsonlPath}`);
-  io.log(`- result: ${plan.resultPath}`);
-  io.log(`- summary: ${plan.summaryPath}`);
+  const out = createOutputFormatter(io, {
+    verbose: options.value.verbose,
+    noColor: options.value.noColor,
+    isTTY: process.stdout.isTTY
+  });
 
-  const onProgressEvent = createHeadlessProgressRenderer(io);
+  out.planResolved({
+    configPath: loadedConfig.configPath,
+    requestId: plan.requestId,
+    task: plan.task,
+    agents: plan.participantIds,
+    rounds: `${plan.startInput.roundPolicy.minRounds}..${plan.startInput.roundPolicy.maxRounds}`,
+    composer: plan.startInput.reportPolicy.composer,
+    jsonlPath: plan.jsonlPath
+  });
 
   try {
     const execution = await executeHeadlessRun({
       loadedConfig,
       plan,
-      onEvent: onProgressEvent
+      onEvent: out.createEventHandler()
     });
 
     if (!execution.ok) {
-      io.error(String(execution.error));
-      io.log(`- jsonl: ${execution.jsonlPath}`);
-      io.log(`- error: ${execution.errorPath}`);
+      out.runFailed(execution.error, execution.errorPath);
       return { ok: false, code: 1 };
     }
 
-    io.log("[argue-cli] run completed");
-    io.log(`- status: ${execution.result.status}`);
-    io.log(`- representative: ${execution.result.representative.participantId}`);
-    io.log(`- jsonl: ${execution.jsonlPath}`);
-    io.log(`- result: ${execution.resultPath}`);
-    io.log(`- summary: ${execution.summaryPath}`);
+    out.runCompleted(execution.result, {
+      resultPath: execution.resultPath,
+      summaryPath: execution.summaryPath
+    });
     return { ok: true, code: 0 };
   } catch (error) {
     io.error(String(error));
@@ -567,6 +567,16 @@ function parseRunOptions(args: string[]):
       continue;
     }
 
+    if (arg === "--verbose" || arg === "-v") {
+      out.verbose = true;
+      continue;
+    }
+
+    if (arg === "--no-color") {
+      out.noColor = true;
+      continue;
+    }
+
     return { ok: false, error: `Unknown option for run: ${arg}` };
   }
 
@@ -907,113 +917,6 @@ function parseFloatArg(flag: string, raw: string | undefined): number | string {
   return n;
 }
 
-function createHeadlessProgressRenderer(io: Pick<typeof console, "log">): (event: ArgueEvent) => void {
-  return (event) => {
-    const payload = event.payload ?? {};
-    const phase = readString(payload.phase);
-    const round = readNumber(payload.round);
-    const roundTag = formatRoundTag(phase, round);
-
-    if (event.type === "RoundDispatched") {
-      const participants = readStringArray(payload.participants);
-      io.log(`[argue-cli] round ${roundTag} dispatched -> ${participants.join(", ")}`);
-      return;
-    }
-
-    if (event.type === "ParticipantResponded") {
-      const participantId = readString(payload.participantId) ?? "unknown";
-      const extractedClaims = readNumber(payload.extractedClaims) ?? 0;
-      const judgements = readNumber(payload.judgements) ?? 0;
-      const claimVotes = readNumber(payload.claimVotes) ?? 0;
-      io.log(
-        `[argue-cli] ${roundTag} ${participantId} responded (claims+${extractedClaims}, judgements=${judgements}, votes=${claimVotes})`
-      );
-
-      const summary = readString(payload.summary);
-      if (summary) {
-        io.log(`  summary: ${singleLine(summary, 120)}`);
-      }
-      return;
-    }
-
-    if (event.type === "ParticipantEliminated") {
-      const participantId = readString(payload.participantId) ?? "unknown";
-      const reason = readString(payload.reason) ?? "unknown";
-      io.log(`[argue-cli] ${roundTag} ${participantId} eliminated (${reason})`);
-      return;
-    }
-
-    if (event.type === "ClaimsMerged") {
-      const source = readString(payload.sourceClaimId) ?? "?";
-      const mergedInto = readString(payload.mergedInto) ?? "?";
-      io.log(`[argue-cli] ${roundTag} claim merged ${source} -> ${mergedInto}`);
-      return;
-    }
-
-    if (event.type === "RoundCompleted") {
-      const completed = readNumber(payload.completed) ?? 0;
-      const timedOut = readNumber(payload.timedOut) ?? 0;
-      const failed = readNumber(payload.failed) ?? 0;
-      const claimCatalogSize = readNumber(payload.claimCatalogSize) ?? 0;
-      const newClaims = readNumber(payload.newClaims) ?? 0;
-      const mergeCount = readNumber(payload.mergeCount) ?? 0;
-      io.log(
-        `[argue-cli] round ${roundTag} completed: done=${completed} timeout=${timedOut} failed=${failed} claims=${claimCatalogSize} (+${newClaims}, ~${mergeCount})`
-      );
-      return;
-    }
-
-    if (event.type === "GlobalDeadlineHit") {
-      io.log("[argue-cli] global deadline hit");
-      return;
-    }
-
-    if (event.type === "EarlyStopTriggered") {
-      io.log(`[argue-cli] early stop triggered at ${roundTag}`);
-      return;
-    }
-
-    if (event.type === "ReportDispatched") {
-      const reporterId = readString(payload.reporterId) ?? "unknown";
-      io.log(`[argue-cli] report dispatched -> ${reporterId}`);
-      return;
-    }
-
-    if (event.type === "ReportCompleted") {
-      const mode = readString(payload.mode) ?? "unknown";
-      const reason = readString(payload.reason);
-      const suffix = reason ? ` (fallback: ${reason})` : "";
-      io.log(`[argue-cli] report completed: ${mode}${suffix}`);
-    }
-  };
-}
-
-function formatRoundTag(phase: string | undefined, round: number | undefined): string {
-  if (phase !== undefined && round !== undefined) return `${phase}#${round}`;
-  if (phase !== undefined) return phase;
-  if (round !== undefined) return `#${round}`;
-  return "n/a";
-}
-
-function readString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function readNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-function readStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === "string");
-}
-
-function singleLine(value: string, maxLen: number): string {
-  const normalized = value.replace(/\s+/g, " ").trim();
-  if (normalized.length <= maxLen) return normalized;
-  return `${normalized.slice(0, maxLen - 1)}…`;
-}
-
 function printHelp(io: Pick<typeof console, "log">): void {
   io.log("argue-cli");
   io.log("");
@@ -1038,6 +941,8 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("  --composer builtin|representative --representative-id <id>");
   io.log("  --trace --trace-level compact|full");
   io.log("  --language <lang> --token-budget <n>");
+  io.log("  --verbose|-v                        # detailed output with agent opinions");
+  io.log("  --no-color                          # disable colored output");
   io.log("");
   io.log("Config commands:");
   io.log("  argue config init [-c <path>] [--local|--project|--global]");

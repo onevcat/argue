@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type { CliConfig, LoadedCliConfig } from "./config.js";
 import { resolveOutputPath } from "./config.js";
 import type { RunInput } from "./run-input.js";
@@ -116,10 +118,15 @@ export function resolveRunPlan(args: {
   const tokenBudgetHint =
     overrides.tokenBudgetHint ?? runInput.tokenBudgetHint ?? config.defaults?.tokenBudgetHint;
 
-  const jsonlRaw = overrides.jsonlPath ?? loadedConfig.config.output?.jsonlPath ?? "./out/{requestId}.events.jsonl";
-  const resultRaw = overrides.resultPath ?? loadedConfig.config.output?.resultPath ?? "./out/{requestId}.result.json";
-  const summaryRaw = overrides.summaryPath ?? loadedConfig.config.output?.summaryPath ?? "./out/{requestId}.summary.md";
-  const errorRaw = "./out/{requestId}.error.json";
+  const globalConfigDir = join(homedir(), ".config", "argue");
+  const isGlobalConfig = loadedConfig.configDir === globalConfigDir;
+  const defaultOutputDir = isGlobalConfig
+    ? join(homedir(), ".argue", "output", "{requestId}")
+    : "./out/{requestId}";
+  const jsonlRaw = overrides.jsonlPath ?? loadedConfig.config.output?.jsonlPath ?? `${defaultOutputDir}/events.jsonl`;
+  const resultRaw = overrides.resultPath ?? loadedConfig.config.output?.resultPath ?? `${defaultOutputDir}/result.json`;
+  const summaryRaw = overrides.summaryPath ?? loadedConfig.config.output?.summaryPath ?? `${defaultOutputDir}/summary.md`;
+  const errorRaw = `${defaultOutputDir}/error.json`;
 
   return {
     requestId,

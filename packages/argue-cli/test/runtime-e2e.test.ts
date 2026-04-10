@@ -81,7 +81,7 @@ describe("argue-cli runtime e2e", () => {
 
     expect(result.ok).toBe(true);
     expect(errors).toHaveLength(0);
-    expect(logs.some((line) => line.includes("run completed"))).toBe(true);
+    expect(logs.some((line) => line.includes("result:"))).toBe(true);
 
     const resultJson = JSON.parse(await readFile(join(root, "out", "mock-e2e.result.json"), "utf8"));
     const summary = await readFile(join(root, "out", "mock-e2e.summary.md"), "utf8");
@@ -139,7 +139,7 @@ describe("argue-cli runtime e2e", () => {
 
     expect(result.ok).toBe(true);
 
-    const resultJson = JSON.parse(await readFile(join(root, "out", "mock-timeout.result.json"), "utf8"));
+    const resultJson = JSON.parse(await readFile(join(root, "out", "mock-timeout", "result.json"), "utf8"));
     expect(resultJson.status).toBe("consensus");
     expect(resultJson.eliminations).toContainEqual(expect.objectContaining({
       participantId: "a3",
@@ -184,7 +184,7 @@ describe("argue-cli runtime e2e", () => {
     ]);
 
     expect(result.ok).toBe(true);
-    const resultJson = JSON.parse(await readFile(join(root, "out", "cli-codex.result.json"), "utf8"));
+    const resultJson = JSON.parse(await readFile(join(root, "out", "cli-codex", "result.json"), "utf8"));
     expect(resultJson.status).toBe("consensus");
   });
 
@@ -227,7 +227,7 @@ describe("argue-cli runtime e2e", () => {
     ]);
 
     expect(result.ok).toBe(true);
-    const resultJson = JSON.parse(await readFile(join(root, "out", "sdk-e2e.result.json"), "utf8"));
+    const resultJson = JSON.parse(await readFile(join(root, "out", "sdk-e2e", "result.json"), "utf8"));
     expect(resultJson.status).toBe("consensus");
     expect(resultJson.rounds[0]?.outputs[0]?.fullResponse).toContain("env=sdk-ok");
   });
@@ -275,7 +275,7 @@ describe("argue-cli runtime e2e", () => {
       ]);
 
       expect(result.ok).toBe(true);
-      const resultJson = JSON.parse(await readFile(join(root, "out", "api-openai.result.json"), "utf8"));
+      const resultJson = JSON.parse(await readFile(join(root, "out", "api-openai", "result.json"), "utf8"));
       expect(resultJson.status).toBe("consensus");
     } finally {
       await server.close();
@@ -325,7 +325,7 @@ describe("argue-cli runtime e2e", () => {
       ]);
 
       expect(result.ok).toBe(true);
-      const resultJson = JSON.parse(await readFile(join(root, "out", "api-anthropic.result.json"), "utf8"));
+      const resultJson = JSON.parse(await readFile(join(root, "out", "api-anthropic", "result.json"), "utf8"));
       expect(resultJson.status).toBe("consensus");
     } finally {
       await server.close();

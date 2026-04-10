@@ -354,7 +354,7 @@ describe("cli config loader", () => {
     expect(result.ok).toBe(true);
     expect(result.code).toBe(0);
     expect(errors).toHaveLength(0);
-    expect(logs.some((x) => x.includes("run plan resolved"))).toBe(true);
+    expect(logs.some((x) => x.includes("run started"))).toBe(true);
   });
 
   it("defaults to TUI on bare command when TTY is available", async () => {
