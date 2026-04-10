@@ -514,6 +514,54 @@ describe("cli config loader", () => {
     }
   });
 
+
+  it("config init is idempotent when existing config is valid", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-init-idempotent-"));
+    const configPath = join(root, "argue.config.json");
+    await writeJson(configPath, VALID_CONFIG);
+
+    const before = await readFile(configPath, "utf8");
+    const logs: string[] = [];
+    const errors: string[] = [];
+
+    const result = await runCli(["config", "init", "--config", configPath], {
+      log: (msg: string) => logs.push(msg),
+      error: (msg: string) => errors.push(msg)
+    });
+
+    const after = await readFile(configPath, "utf8");
+    expect(result).toEqual({ ok: true, code: 0 });
+    expect(errors).toHaveLength(0);
+    expect(logs.some((line) => line.includes(`config already initialized: ${configPath}`))).toBe(true);
+    expect(after).toBe(before);
+  });
+
+  it("config init warns and keeps invalid config untouched", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-init-invalid-"));
+    const configPath = join(root, "argue.config.json");
+    await writeJson(configPath, {
+      schemaVersion: 1,
+      providers: {},
+      agents: []
+    });
+
+    const before = await readFile(configPath, "utf8");
+    const logs: string[] = [];
+    const errors: string[] = [];
+
+    const result = await runCli(["config", "init", "--config", configPath], {
+      log: (msg: string) => logs.push(msg),
+      error: (msg: string) => errors.push(msg)
+    });
+
+    const after = await readFile(configPath, "utf8");
+    expect(result).toEqual({ ok: false, code: 1 });
+    expect(logs).toHaveLength(0);
+    expect(errors.some((line) => line.includes("existing config is invalid and was not overwritten"))).toBe(true);
+    expect(errors.some((line) => line.includes("config.providers must contain at least one provider"))).toBe(true);
+    expect(after).toBe(before);
+  });
+
   it("config init rejects mixed scope flags", async () => {
     const errors: string[] = [];
     const result = await runCli(["config", "init", "--local", "--global"], {

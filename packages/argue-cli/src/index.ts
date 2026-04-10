@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, writeFile } from "node:fs/promises";
 import type { ArgueEvent } from "argue";
 import { dirname, resolve } from "node:path";
 import {
@@ -203,6 +203,32 @@ async function runConfigCommand(args: string[], io: Pick<typeof console, "log" |
 
     try {
       const target = configPath.value;
+
+      if (await fileExists(target)) {
+        try {
+          const loaded = await loadRawCliConfig(target);
+          const strict = CliConfigSchema.safeParse(loaded.config);
+
+          if (strict.success) {
+            io.log(`[argue-cli] config already initialized: ${target}`);
+            return { ok: true, code: 0 };
+          }
+
+          io.error(`[argue-cli] existing config is invalid and was not overwritten: ${target}`);
+          for (const issue of strict.error.issues.slice(0, 5)) {
+            const path = issue.path.length > 0 ? issue.path.join(".") : "(root)";
+            io.error(`- ${path}: ${issue.message}`);
+          }
+          io.error("Fix the config or move/delete it, then run 'argue config init' again.");
+          return { ok: false, code: 1 };
+        } catch (error) {
+          io.error(`[argue-cli] existing config is invalid and was not overwritten: ${target}`);
+          io.error(`- ${String(error)}`);
+          io.error("Fix the config or move/delete it, then run 'argue config init' again.");
+          return { ok: false, code: 1 };
+        }
+      }
+
       await writeConfigFile(target, {
         schemaVersion: 1,
         providers: {},
@@ -836,6 +862,16 @@ function buildProviderFromOptions(options: ConfigAddProviderOptions): unknown {
     type: "mock",
     models: modelConfig
   });
+}
+
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function writeConfigFile(path: string, nextConfig: unknown): Promise<void> {
