@@ -63,12 +63,19 @@ Quick workspace commands:
 │                        │  builtin /   │              │
 │                        │representative│              │
 │                        └──────┬───────┘              │
+│                              │                       │
+│                              v                       │
+│                        ┌──────────────┐              │
+│                        │   Action     │              │
+│                        │  (optional)  │              │
+│                        └──────┬───────┘              │
 └───────────────────────────────|──────────────────────┘
                                 |
       ^                         v
       | AgentTaskDelegate   ArgueResult
   host dispatches          status + claims + rounds
-  round/report tasks       + representative + metrics
+  round/report/action      + representative + metrics
+  tasks                    + action output
 ```
 
 ## Core flow
@@ -80,8 +87,9 @@ Quick workspace commands:
 5. **Claim consensus**: each claim is resolved by `acceptCount / totalVoters >= threshold`.
 6. **Representative**: selected from active participants by score (or host-designated active id).
 7. **Report compose**:
-   - `builtin`: engine-generated report
+   - `builtin`: engine-generated report with structured summary
    - `representative`: engine dispatches a separate `kind="report"` task; failures fallback to builtin
+8. **Action** (optional): if `actionPolicy` is set, engine dispatches a `kind="action"` task to an agent (default: representative) to perform real-world operations based on the debate outcome. Action failure does not invalidate the debate result.
 
 ## Delegate contract
 
@@ -89,8 +97,9 @@ Host implements a single delegate with task kind routing:
 
 - `kind="round"` + `phase="initial" | "debate" | "final_vote"`: round task
 - `kind="report"`: representative report composition task
+- `kind="action"`: post-debate action execution task
 
-Both use the same `dispatch` + `awaitResult` interface.
+All use the same `dispatch` + `awaitResult` interface.
 
 ## Quick start
 
@@ -115,7 +124,10 @@ const result = await engine.start({
   ],
   roundPolicy: { minRounds: 2, maxRounds: 4 },
   consensusPolicy: { threshold: 0.67 },
-  reportPolicy: { composer: "representative" }
+  reportPolicy: { composer: "representative" },
+  actionPolicy: {
+    prompt: "Fix all identified issues and post a summary comment on the PR."
+  }
 });
 
 // result.status: consensus | partial_consensus | unresolved | failed
@@ -123,6 +135,7 @@ const result = await engine.start({
 // result.representative: selected spokesperson
 // result.eliminations: timeout/error removals
 // result.rounds: full round records
+// result.action?: action output (if actionPolicy was set)
 ```
 
 ## M2 status
@@ -145,8 +158,12 @@ Reference implementation ADR: [`docs/adr/0002-m2-implementation.md`](docs/adr/00
 Implemented in current `master`:
 
 - `argue run` / `argue exec` execute end-to-end
+- `argue act` execute action against existing result
 - provider types: `mock`, `cli`, `api`, `sdk`
+- CLI agent types: `claude`, `codex`, `copilot`, `gemini`, `pi`, `opencode`, `droid`, `amp`, `generic`
 - output artifacts: `result.json`, `events.jsonl`, `summary.md`
+- `--action <prompt>` / `--action-agent <id>` for post-debate action
+- `--verbose` for detailed per-agent output with stances, confidence, and full responses
 
 ## Development
 
