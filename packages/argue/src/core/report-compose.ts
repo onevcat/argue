@@ -1,4 +1,4 @@
-import type { FinalReport, OpinionShift, ParticipantRoundOutput } from "../contracts/result.js";
+import type { Claim, ClaimResolution, FinalReport, OpinionShift, ParticipantRoundOutput } from "../contracts/result.js";
 
 type BuildBuiltinReportInput = {
   includeDeliberationTrace: boolean;
@@ -7,6 +7,8 @@ type BuildBuiltinReportInput = {
   representativeSpeech: string;
   rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }>;
   representativeId: string;
+  finalClaims: Claim[];
+  claimResolutions: ClaimResolution[];
 };
 
 export function buildBuiltinReport(input: BuildBuiltinReportInput): FinalReport {
@@ -18,19 +20,65 @@ export function buildBuiltinReport(input: BuildBuiltinReportInput): FinalReport 
     ? buildRoundHighlights(input.rounds, input.traceLevel)
     : undefined;
 
-  const claimCount = new Set(
-    input.rounds.flatMap((r) => r.outputs.flatMap((o) => o.judgements.map((j) => j.claimId)))
-  ).size;
-
   return {
     mode: "builtin",
     traceIncluded: input.includeDeliberationTrace,
     traceLevel: input.traceLevel,
-    finalSummary: `status=${input.status}; representative=${input.representativeId}; claims=${claimCount}`,
+    finalSummary: buildFinalSummary(input),
     representativeSpeech: input.representativeSpeech,
     opinionShiftTimeline: shifts,
     roundHighlights
   };
+}
+
+function buildFinalSummary(input: BuildBuiltinReportInput): string {
+  const lines: string[] = [];
+
+  // Status headline
+  const activeClaims = input.finalClaims.filter((c) => c.status === "active");
+  const resolved = input.claimResolutions.filter((r) => r.status === "resolved");
+  const unresolved = input.claimResolutions.filter((r) => r.status === "unresolved");
+
+  const statusLabel = input.status === "consensus"
+    ? "Consensus reached"
+    : input.status === "partial_consensus"
+      ? "Partial consensus"
+      : input.status === "unresolved"
+        ? "Unresolved"
+        : "Failed";
+
+  lines.push(`${statusLabel}. ${activeClaims.length} claims: ${resolved.length} resolved, ${unresolved.length} unresolved.`);
+
+  // Claim list with vote results
+  if (activeClaims.length > 0) {
+    lines.push("");
+    for (const claim of activeClaims) {
+      const resolution = input.claimResolutions.find((r) => r.claimId === claim.claimId);
+      const voteStr = resolution
+        ? ` (${resolution.acceptCount}/${resolution.totalVoters} accept)`
+        : "";
+      lines.push(`- ${claim.claimId}: ${claim.title}${voteStr}`);
+    }
+  }
+
+  // Last round participant summaries
+  const lastRound = input.rounds.length > 0
+    ? input.rounds.reduce((a, b) => a.round > b.round ? a : b)
+    : undefined;
+
+  if (lastRound && lastRound.outputs.length > 0) {
+    lines.push("");
+    lines.push("Final round summaries:");
+    for (const output of lastRound.outputs) {
+      lines.push(`- ${output.participantId}: ${singleLine(output.summary)}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function singleLine(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
 }
 
 function buildOpinionShiftTimeline(

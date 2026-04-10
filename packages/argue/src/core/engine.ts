@@ -519,7 +519,9 @@ export class ArgueEngine {
       status: args.status,
       representativeSpeech: args.representative.speech,
       rounds: args.rounds,
-      representativeId: args.representative.participantId
+      representativeId: args.representative.participantId,
+      finalClaims: args.finalClaims,
+      claimResolutions: args.claimResolutions
     });
 
     if (args.normalized.reportPolicy.composer !== "representative") {

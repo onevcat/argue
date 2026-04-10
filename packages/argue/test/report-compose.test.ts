@@ -1,14 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { buildBuiltinReport } from "../src/core/report-compose.js";
 
+const baseInput = {
+  includeDeliberationTrace: false,
+  traceLevel: "compact" as const,
+  status: "consensus" as const,
+  representativeSpeech: "rep",
+  representativeId: "a1",
+  finalClaims: [],
+  claimResolutions: []
+};
+
 describe("buildBuiltinReport", () => {
   it("omits timeline/highlights when trace is disabled", () => {
     const report = buildBuiltinReport({
-      includeDeliberationTrace: false,
-      traceLevel: "compact",
-      status: "consensus",
-      representativeSpeech: "rep",
-      representativeId: "a1",
+      ...baseInput,
       rounds: [
         {
           round: 0,
@@ -61,20 +67,18 @@ describe("buildBuiltinReport", () => {
     ];
 
     const compact = buildBuiltinReport({
+      ...baseInput,
       includeDeliberationTrace: true,
       traceLevel: "compact",
       status: "partial_consensus",
-      representativeSpeech: "rep",
-      representativeId: "a1",
       rounds
     });
 
     const full = buildBuiltinReport({
+      ...baseInput,
       includeDeliberationTrace: true,
       traceLevel: "full",
       status: "partial_consensus",
-      representativeSpeech: "rep",
-      representativeId: "a1",
       rounds
     });
 
@@ -85,6 +89,82 @@ describe("buildBuiltinReport", () => {
 
     expect(compact.roundHighlights?.[0]?.summary.length).toBe(140);
     expect(full.roundHighlights?.[0]?.summary.length).toBe(280);
-    expect(compact.finalSummary).toContain("representative=a1");
+  });
+
+  it("builds summary with status, claims, and vote results", () => {
+    const report = buildBuiltinReport({
+      ...baseInput,
+      status: "consensus",
+      finalClaims: [
+        { claimId: "c1", title: "Main point", statement: "s1", proposedBy: ["a1"], status: "active" },
+        { claimId: "c2", title: "Supporting fact", statement: "s2", proposedBy: ["a1", "a2"], status: "active" }
+      ],
+      claimResolutions: [
+        { claimId: "c1", status: "resolved", acceptCount: 2, rejectCount: 0, totalVoters: 2, votes: [] },
+        { claimId: "c2", status: "resolved", acceptCount: 2, rejectCount: 0, totalVoters: 2, votes: [] }
+      ],
+      rounds: [
+        {
+          round: 0,
+          outputs: [
+            { participantId: "a1", phase: "initial", round: 0, fullResponse: "f", summary: "Agent A's view", judgements: [] },
+            { participantId: "a2", phase: "initial", round: 0, fullResponse: "f", summary: "Agent B's view", judgements: [] }
+          ]
+        }
+      ]
+    });
+
+    expect(report.finalSummary).toContain("Consensus reached");
+    expect(report.finalSummary).toContain("2 claims");
+    expect(report.finalSummary).toContain("2 resolved");
+    expect(report.finalSummary).toContain("0 unresolved");
+    expect(report.finalSummary).toContain("c1: Main point (2/2 accept)");
+    expect(report.finalSummary).toContain("c2: Supporting fact (2/2 accept)");
+    expect(report.finalSummary).toContain("Agent A's view");
+    expect(report.finalSummary).toContain("Agent B's view");
+  });
+
+  it("shows partial consensus and unresolved claims", () => {
+    const report = buildBuiltinReport({
+      ...baseInput,
+      status: "partial_consensus",
+      finalClaims: [
+        { claimId: "c1", title: "Agreed", statement: "s1", proposedBy: ["a1"], status: "active" },
+        { claimId: "c2", title: "Disputed", statement: "s2", proposedBy: ["a2"], status: "active" }
+      ],
+      claimResolutions: [
+        { claimId: "c1", status: "resolved", acceptCount: 2, rejectCount: 0, totalVoters: 2, votes: [] },
+        { claimId: "c2", status: "unresolved", acceptCount: 1, rejectCount: 1, totalVoters: 2, votes: [] }
+      ],
+      rounds: []
+    });
+
+    expect(report.finalSummary).toContain("Partial consensus");
+    expect(report.finalSummary).toContain("1 resolved, 1 unresolved");
+    expect(report.finalSummary).toContain("c2: Disputed (1/2 accept)");
+  });
+
+  it("includes last round summaries, not earlier rounds", () => {
+    const report = buildBuiltinReport({
+      ...baseInput,
+      rounds: [
+        {
+          round: 0,
+          outputs: [{ participantId: "a1", phase: "initial", round: 0, fullResponse: "f", summary: "Early thoughts", judgements: [] }]
+        },
+        {
+          round: 2,
+          outputs: [{ participantId: "a1", phase: "debate", round: 2, fullResponse: "f", summary: "Final thoughts", judgements: [] }]
+        },
+        {
+          round: 1,
+          outputs: [{ participantId: "a1", phase: "debate", round: 1, fullResponse: "f", summary: "Middle thoughts", judgements: [] }]
+        }
+      ]
+    });
+
+    expect(report.finalSummary).toContain("Final thoughts");
+    expect(report.finalSummary).not.toContain("Early thoughts");
+    expect(report.finalSummary).not.toContain("Middle thoughts");
   });
 });
