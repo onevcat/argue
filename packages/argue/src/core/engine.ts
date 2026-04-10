@@ -422,6 +422,9 @@ export class ArgueEngine {
             summary: event.output?.summary,
             extractedClaims: event.output?.extractedClaims?.length ?? 0,
             judgements: event.output?.judgements.length ?? 0,
+            stanceAgree: event.output?.judgements.filter(j => j.stance === "agree").length ?? 0,
+            stanceDisagree: event.output?.judgements.filter(j => j.stance === "disagree").length ?? 0,
+            stanceRevise: event.output?.judgements.filter(j => j.stance === "revise").length ?? 0,
             claimVotes: event.output?.phase === "final_vote" ? event.output.claimVotes.length : 0
           }, event.at);
           return;

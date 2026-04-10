@@ -64,14 +64,22 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
         if (event.type === "ParticipantResponded") {
           const participantId = readString(payload.participantId) ?? "unknown";
           const extractedClaims = readNumber(payload.extractedClaims) ?? 0;
-          const judgements = readNumber(payload.judgements) ?? 0;
+          const stanceAgree = readNumber(payload.stanceAgree) ?? 0;
+          const stanceDisagree = readNumber(payload.stanceDisagree) ?? 0;
+          const stanceRevise = readNumber(payload.stanceRevise) ?? 0;
           const claimVotes = readNumber(payload.claimVotes) ?? 0;
-          const stats = c.dim(`(claims+${extractedClaims}, judgements=${judgements}, votes=${claimVotes})`);
+          const judgementParts = [
+            stanceAgree > 0 ? `${stanceAgree}✓` : null,
+            stanceDisagree > 0 ? `${stanceDisagree}✗` : null,
+            stanceRevise > 0 ? `${stanceRevise}↻` : null
+          ].filter(Boolean).join(" ");
+          const judgementStr = judgementParts || "0";
+          const stats = c.dim(`(claims+${extractedClaims}, judgements=${judgementStr}, votes=${claimVotes})`);
           io.log(`${tag} ${c.bold(roundTag)} ${c.blue(participantId)} responded ${stats}`);
 
           const summary = readString(payload.summary);
           if (summary) {
-            io.log(c.dim(`  ${singleLine(summary, verbose ? 300 : 120)}`));
+            io.log(c.dim(`  ${singleLine(summary)}`));
           }
           return;
         }
@@ -184,10 +192,8 @@ function formatRoundTag(phase: string | undefined, round: number | undefined): s
   return "unknown";
 }
 
-function singleLine(value: string, maxLen: number): string {
-  const normalized = value.replace(/\s+/g, " ").trim();
-  if (normalized.length <= maxLen) return normalized;
-  return `${normalized.slice(0, maxLen - 1)}…`;
+function singleLine(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
 }
 
 function formatNumber(value: number): string {

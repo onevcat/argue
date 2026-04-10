@@ -853,6 +853,9 @@ describe("ArgueEngine M2", () => {
       summary: expect.any(String),
       extractedClaims: expect.any(Number),
       judgements: expect.any(Number),
+      stanceAgree: expect.any(Number),
+      stanceDisagree: expect.any(Number),
+      stanceRevise: expect.any(Number),
       claimVotes: 0
     }));
     expect(initialRoundCompleted).toBeDefined();
