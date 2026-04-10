@@ -367,6 +367,55 @@ process.stdout.write(JSON.stringify(output));
     expect(stdin).toBe("");
   });
 
+  it("builds droid base args with exec subcommand and stdin prompt", async () => {
+    const script = await createArgvAndStdinEchoScript("argue-cli-runner-droid-");
+
+    const runner = createCliRunner({
+      type: "cli",
+      cliType: "droid",
+      command: script,
+      args: [],
+      models: { fake: {} }
+    });
+
+    const result = await runner.runTask({ task: makeRoundTask(), agent });
+    const { argv, stdin } = getArgvAndStdin(result as { kind: string; output: { fullResponse: string } });
+
+    expect(argv).toContain("exec");
+    expect(argv).toContain("--auto");
+    expect(argv[argv.indexOf("--auto") + 1]).toBe("high");
+    expect(argv).toContain("-m");
+    expect(argv[argv.indexOf("-m") + 1]).toBe("fake");
+
+    expect(stdin).toContain("argue CLI host");
+  });
+
+  it("builds amp base args with -x prompt and no model flag", async () => {
+    const script = await createArgvAndStdinEchoScript("argue-cli-runner-amp-");
+
+    const runner = createCliRunner({
+      type: "cli",
+      cliType: "amp",
+      command: script,
+      args: [],
+      models: { fake: {} }
+    });
+
+    const result = await runner.runTask({ task: makeRoundTask(), agent });
+    const { argv, stdin } = getArgvAndStdin(result as { kind: string; output: { fullResponse: string } });
+
+    expect(argv).toContain("-x");
+    const xIdx = argv.indexOf("-x");
+    const promptValue = argv[xIdx + 1]!;
+    expect(promptValue).toContain("argue CLI host");
+
+    expect(argv).toContain("--dangerously-allow-all");
+    expect(argv).not.toContain("--model");
+    expect(argv).not.toContain("-m");
+
+    expect(stdin).toBe("");
+  });
+
   it("parses fenced json output in codex mode", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-runner-codex-"));
     const script = join(root, "runner.mjs");

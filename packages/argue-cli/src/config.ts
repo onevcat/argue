@@ -25,7 +25,7 @@ export const ApiProviderSchema = z.object({
 
 export const CliProviderSchema = z.object({
   type: z.literal("cli"),
-  cliType: z.enum(["codex", "claude", "copilot", "gemini", "pi", "opencode", "generic"]),
+  cliType: z.enum(["codex", "claude", "copilot", "gemini", "pi", "opencode", "droid", "amp", "generic"]),
   command: z.string().min(1),
   args: z.array(z.string()).default([]),
   env: z.record(z.string()).optional(),

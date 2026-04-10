@@ -52,7 +52,7 @@ type ConfigAddProviderOptions = {
   protocol?: "openai-compatible" | "anthropic-compatible";
   baseUrl?: string;
   apiKeyEnv?: string;
-  cliType?: "codex" | "claude" | "copilot" | "gemini" | "pi" | "opencode" | "generic";
+  cliType?: "codex" | "claude" | "copilot" | "gemini" | "pi" | "opencode" | "droid" | "amp" | "generic";
   command?: string;
   args?: string[];
   adapter?: string;
@@ -640,7 +640,7 @@ function parseConfigAddProviderOptions(args: string[]):
 
     if (arg === "--cli-type") {
       const value = args[i + 1];
-      const validCliTypes = ["codex", "claude", "copilot", "gemini", "pi", "opencode", "generic"] as const;
+      const validCliTypes = ["codex", "claude", "copilot", "gemini", "pi", "opencode", "droid", "amp", "generic"] as const;
       if (!value || !validCliTypes.includes(value as typeof validCliTypes[number])) {
         return { ok: false, error: `--cli-type must be one of: ${validCliTypes.join(", ")}` };
       }
@@ -706,7 +706,7 @@ function parseConfigAddProviderOptions(args: string[]):
 
   if (out.type === "cli") {
     if (!out.cliType) {
-      return { ok: false, error: "CLI provider requires --cli-type <codex|claude|copilot|gemini|pi|opencode|generic>." };
+      return { ok: false, error: "CLI provider requires --cli-type <codex|claude|copilot|gemini|pi|opencode|droid|amp|generic>." };
     }
     if (!out.command) {
       return { ok: false, error: "CLI provider requires --command <binary>." };
@@ -915,7 +915,7 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("  argue config init [-c <path>] [--local|--project|--global]");
   io.log("  argue config add-provider --id <provider-id> --type <api|cli|sdk|mock> --model-id <model-id> [type options]");
   io.log(`    api options: --vendor <${getVendorNames().join("|")}> | --protocol <openai-compatible|anthropic-compatible> [--base-url <url>] [--api-key-env <ENV_VAR>]`);
-  io.log("    cli options: --cli-type <codex|claude|copilot|gemini|pi|opencode|generic> --command <binary> [--args a,b,c (extra)]");
+  io.log("    cli options: --cli-type <codex|claude|copilot|gemini|pi|opencode|droid|amp|generic> --command <binary> [--args a,b,c (extra)]");
   io.log("    sdk options: --adapter <module> [--export-name <name>]");
   io.log("  argue config add-agent --id <agent-id> --provider <provider-id> --model <model-id> [--role <text>] [--system-prompt <text>]");
   io.log("                         [--timeout-ms <n>] [--temperature <0..2>]");
