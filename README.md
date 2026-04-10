@@ -148,10 +148,6 @@ Implemented in current `master`:
 - provider types: `mock`, `cli`, `api`, `sdk`
 - output artifacts: `result.json`, `events.jsonl`, `summary.md`
 
-Current known gap:
-
-- TUI entry exists, but still remains a skeleton for the next phase.
-
 ## Development
 
 ```bash

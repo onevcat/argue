@@ -75,19 +75,15 @@ export type CliResult = {
   code: number;
 };
 
-export type CliRuntime = {
-  isTTY: boolean;
-};
-
 export async function runCli(
   argv: string[],
-  io: Pick<typeof console, "log" | "error"> = console,
-  runtime: CliRuntime = { isTTY: Boolean(process.stdout.isTTY) }
+  io: Pick<typeof console, "log" | "error"> = console
 ): Promise<CliResult> {
   const [command, ...rest] = argv;
 
   if (!command) {
-    return enterDefaultMode(io, runtime);
+    printHelp(io);
+    return { ok: true, code: 0 };
   }
 
   if (command === "help" || command === "--help" || command === "-h") {
@@ -98,10 +94,6 @@ export async function runCli(
   if (command === "version" || command === "--version" || command === "-v") {
     io.log("argue-cli v0.1.0");
     return { ok: true, code: 0 };
-  }
-
-  if (command === "tui") {
-    return enterTuiMode(io, runtime);
   }
 
   if (command === "run" || command === "exec") {
@@ -373,30 +365,6 @@ function parseConfigInitPath(args: string[]): { ok: true; value: string } | { ok
   return { ok: true, value: createExampleConfigPath() };
 }
 
-function enterDefaultMode(io: Pick<typeof console, "log" | "error">, runtime: CliRuntime): CliResult {
-  if (!runtime.isTTY) {
-    io.error("No TTY detected. Use 'argue run ...' or 'argue exec ...' for headless mode.");
-    return { ok: false, code: 1 };
-  }
-
-  io.log("[argue-cli] entering TUI mode (skeleton)");
-  io.log("- interactive agent selection: TODO");
-  io.log("- interactive task input: TODO");
-  io.log("- switch to headless anytime with: argue run/exec");
-  return { ok: true, code: 0 };
-}
-
-function enterTuiMode(io: Pick<typeof console, "log" | "error">, runtime: CliRuntime): CliResult {
-  if (!runtime.isTTY) {
-    io.error("Command 'argue tui' requires a TTY. Use 'argue run ...' or 'argue exec ...' in non-interactive environments.");
-    return { ok: false, code: 1 };
-  }
-
-  io.log("[argue-cli] entering TUI mode (skeleton)");
-  io.log("- interactive agent selection: TODO");
-  io.log("- interactive task input: TODO");
-  return { ok: true, code: 0 };
-}
 
 function parseRunOptions(args: string[]):
   | { ok: true; value: CliRunOptions }
@@ -921,9 +889,7 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("argue-cli");
   io.log("");
   io.log("Usage:");
-  io.log("  argue                           # TUI mode (when TTY is available)");
-  io.log("  argue tui                       # force TUI mode");
-  io.log("  argue run|exec [options]        # headless mode");
+  io.log("  argue run|exec [options]        # run a debate session");
   io.log("  argue config init                # create empty config file");
   io.log("  argue config add-provider ...    # append provider to config");
   io.log("  argue config add-agent ...       # append agent to config");

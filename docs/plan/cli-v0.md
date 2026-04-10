@@ -16,15 +16,7 @@
 
 ## 2. 模式与入口（固定）
 
-### 2.1 交互模式（TUI）
-
-- `argue`（无子命令）
-  - 有 TTY：进入 TUI
-  - 无 TTY：报错并提示使用 headless
-- `argue tui`
-  - 强制进入 TUI（无 TTY 则报错）
-
-### 2.2 无头模式（headless）
+### 2.1 无头模式（headless）
 
 - `argue run ...`
 - `argue exec ...`（`run` 别名）
@@ -90,7 +82,7 @@
 - JSON config schema + 校验
 - run input schema + 校验
 - 运行计划解析（resolve run plan）
-- 入口模式固定（TUI 默认 + run/exec）
+- 入口模式固定（run/exec）
 
 ### CLI-M2（已完成）
 
@@ -102,6 +94,5 @@
 
 ### CLI-M3（收敛）
 
-- TUI 真正可用（选 agent、填 task）
 - 配置初始化命令（如 `argue config init`）
 - `argue agents list` 等可观测命令

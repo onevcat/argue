@@ -39,16 +39,11 @@ describe("runCli command branches", () => {
     expect(io.errors.some((x) => x.includes("Unknown command: wat"))).toBe(true);
   });
 
-  it("handles tui command with and without tty", async () => {
-    const nonTtyIO = createIO();
-    const nonTty = await runCli(["tui"], nonTtyIO, { isTTY: false });
-    expect(nonTty).toEqual({ ok: false, code: 1 });
-    expect(nonTtyIO.errors.some((x) => x.includes("requires a TTY"))).toBe(true);
-
-    const ttyIO = createIO();
-    const tty = await runCli(["tui"], ttyIO, { isTTY: true });
-    expect(tty).toEqual({ ok: true, code: 0 });
-    expect(ttyIO.logs.some((x) => x.includes("entering TUI mode"))).toBe(true);
+  it("treats 'tui' as unknown command", async () => {
+    const io = createIO();
+    const result = await runCli(["tui"], io);
+    expect(result).toEqual({ ok: false, code: 1 });
+    expect(io.errors.some((x) => x.includes("Unknown command: tui"))).toBe(true);
   });
 
   it("returns parser errors for missing option values and invalid values", async () => {

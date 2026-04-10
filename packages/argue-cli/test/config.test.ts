@@ -357,34 +357,19 @@ describe("cli config loader", () => {
     expect(logs.some((x) => x.includes("run started"))).toBe(true);
   });
 
-  it("defaults to TUI on bare command when TTY is available", async () => {
+  it("bare command prints help", async () => {
     const logs: string[] = [];
     const errors: string[] = [];
 
     const result = await runCli([], {
       log: (msg: string) => logs.push(msg),
       error: (msg: string) => errors.push(msg)
-    }, { isTTY: true });
+    });
 
     expect(result.ok).toBe(true);
     expect(result.code).toBe(0);
     expect(errors).toHaveLength(0);
-    expect(logs.some((x) => x.includes("entering TUI mode"))).toBe(true);
-  });
-
-  it("bare command fails without TTY and suggests headless mode", async () => {
-    const logs: string[] = [];
-    const errors: string[] = [];
-
-    const result = await runCli([], {
-      log: (msg: string) => logs.push(msg),
-      error: (msg: string) => errors.push(msg)
-    }, { isTTY: false });
-
-    expect(result.ok).toBe(false);
-    expect(result.code).toBe(1);
-    expect(logs).toHaveLength(0);
-    expect(errors.some((x) => x.includes("No TTY detected"))).toBe(true);
+    expect(logs.some((x) => x.includes("Usage:"))).toBe(true);
   });
 
   it("rejects loosely-typed integer arguments", async () => {
