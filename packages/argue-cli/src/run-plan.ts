@@ -23,6 +23,8 @@ export type RunOverrides = {
   traceLevel?: "compact" | "full";
   language?: string;
   tokenBudgetHint?: number;
+  action?: string;
+  actionAgent?: string;
 };
 
 export type ResolvedRunPlan = {
@@ -55,6 +57,11 @@ export type ResolvedRunPlan = {
       tokenBudgetHint?: number;
     };
     context?: Record<string, unknown>;
+    actionPolicy?: {
+      prompt: string;
+      actorId?: string;
+      includeFullResult?: boolean;
+    };
   };
 };
 
@@ -118,6 +125,12 @@ export function resolveRunPlan(args: {
   const tokenBudgetHint =
     overrides.tokenBudgetHint ?? runInput.tokenBudgetHint ?? config.defaults?.tokenBudgetHint;
 
+  const actionPrompt = overrides.action ?? runInput.action?.prompt;
+  const actionActorId = overrides.actionAgent ?? runInput.action?.actorId;
+  const actionPolicy = actionPrompt
+    ? { prompt: actionPrompt, ...(actionActorId ? { actorId: actionActorId } : {}), includeFullResult: true }
+    : undefined;
+
   const globalConfigDir = join(homedir(), ".config", "argue");
   const isGlobalConfig = loadedConfig.configDir === globalConfigDir;
   const defaultOutputDir = isGlobalConfig
@@ -161,7 +174,8 @@ export function resolveRunPlan(args: {
           }
         }
         : {}),
-      ...(runInput.context ? { context: runInput.context } : {})
+      ...(runInput.context ? { context: runInput.context } : {}),
+      ...(actionPolicy ? { actionPolicy } : {})
     }
   };
 }

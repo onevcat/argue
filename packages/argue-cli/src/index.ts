@@ -38,6 +38,8 @@ export type CliRunOptions = {
   traceLevel?: "compact" | "full";
   language?: string;
   tokenBudgetHint?: number;
+  action?: string;
+  actionAgent?: string;
   verbose?: boolean;
   noColor?: boolean;
 };
@@ -535,6 +537,22 @@ function parseRunOptions(args: string[]):
       continue;
     }
 
+    if (arg === "--action") {
+      const value = args[i + 1];
+      if (!value) return { ok: false, error: "--action requires a prompt" };
+      out.action = value;
+      i += 1;
+      continue;
+    }
+
+    if (arg === "--action-agent") {
+      const value = args[i + 1];
+      if (!value) return { ok: false, error: "--action-agent requires an agent id" };
+      out.actionAgent = value;
+      i += 1;
+      continue;
+    }
+
     if (arg === "--verbose" || arg === "-v") {
       out.verbose = true;
       continue;
@@ -908,6 +926,8 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("  --composer builtin|representative --representative-id <id>");
   io.log("  --trace --trace-level compact|full");
   io.log("  --language <lang> --token-budget <n>");
+  io.log("  --action <prompt>                   # execute action after debate");
+  io.log("  --action-agent <id>                 # override action actor (default: representative)");
   io.log("  --verbose|-v                        # detailed output with agent opinions");
   io.log("  --no-color                          # disable colored output");
   io.log("");

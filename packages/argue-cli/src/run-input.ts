@@ -17,7 +17,11 @@ export const RunInputSchema = z.object({
   traceLevel: z.enum(["compact", "full"]).optional(),
   language: z.string().min(1).optional(),
   tokenBudgetHint: z.number().int().positive().optional(),
-  context: z.record(z.unknown()).optional()
+  context: z.record(z.unknown()).optional(),
+  action: z.object({
+    prompt: z.string().min(1),
+    actorId: z.string().min(1).optional()
+  }).strict().optional()
 }).strict();
 
 export type RunInput = z.infer<typeof RunInputSchema>;
