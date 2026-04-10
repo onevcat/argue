@@ -94,7 +94,7 @@ export class DefaultWaitCoordinator implements WaitCoordinator {
 
           await settleTask(taskId, {
             status: "completed",
-            output: parsed.data.output,
+            output: { ...parsed.data.output, respondedAt: settledAt },
             settledAt
           });
         } catch (error) {

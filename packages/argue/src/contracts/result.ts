@@ -55,7 +55,8 @@ const ParticipantRoundOutputBaseSchema = z.object({
   })).optional(),
   judgements: z.array(ClaimJudgementSchema),
   selfScore: z.number().min(0).max(100).optional(),
-  summary: z.string().min(1)
+  summary: z.string().min(1),
+  respondedAt: z.string().min(1).optional()
 });
 
 export const InitialParticipantRoundOutputSchema = ParticipantRoundOutputBaseSchema.extend({

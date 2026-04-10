@@ -10,6 +10,8 @@ export const ArgueEventTypeSchema = z.enum([
   "EarlyStopTriggered",
   "GlobalDeadlineHit",
   "ConsensusDrafted",
+  "ReportDispatched",
+  "ReportCompleted",
   "Finalized",
   "Failed"
 ]);

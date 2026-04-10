@@ -970,6 +970,20 @@ function createHeadlessProgressRenderer(io: Pick<typeof console, "log">): (event
 
     if (event.type === "EarlyStopTriggered") {
       io.log(`[argue-cli] early stop triggered at ${roundTag}`);
+      return;
+    }
+
+    if (event.type === "ReportDispatched") {
+      const reporterId = readString(payload.reporterId) ?? "unknown";
+      io.log(`[argue-cli] report dispatched -> ${reporterId}`);
+      return;
+    }
+
+    if (event.type === "ReportCompleted") {
+      const mode = readString(payload.mode) ?? "unknown";
+      const reason = readString(payload.reason);
+      const suffix = reason ? ` (fallback: ${reason})` : "";
+      io.log(`[argue-cli] report completed: ${mode}${suffix}`);
     }
   };
 }

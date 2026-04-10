@@ -549,10 +549,18 @@ export class ArgueEngine {
       }
     };
 
+    await this.emit(args.normalized, args.sessionId, "ReportDispatched", {
+      reporterId,
+      composer: "representative"
+    });
+
     let dispatched: Awaited<ReturnType<AgentTaskDelegate["dispatch"]>>;
     try {
       dispatched = await this.deps.taskDelegate.dispatch(task as AgentTaskInput);
     } catch {
+      await this.emit(args.normalized, args.sessionId, "ReportCompleted", {
+        reporterId, mode: "builtin", reason: "dispatch_failed"
+      });
       return fallback();
     }
 
@@ -563,17 +571,30 @@ export class ArgueEngine {
         args.normalized.waitingPolicy.perTaskTimeoutMs
       );
     } catch {
+      await this.emit(args.normalized, args.sessionId, "ReportCompleted", {
+        reporterId, mode: "builtin", reason: "await_failed"
+      });
       return fallback();
     }
 
     if (!awaited.ok || !awaited.output) {
+      await this.emit(args.normalized, args.sessionId, "ReportCompleted", {
+        reporterId, mode: "builtin", reason: "task_failed"
+      });
       return fallback();
     }
 
     const parsed = ReportTaskResultSchema.safeParse(awaited.output);
     if (!parsed.success) {
+      await this.emit(args.normalized, args.sessionId, "ReportCompleted", {
+        reporterId, mode: "builtin", reason: "parse_failed"
+      });
       return fallback();
     }
+
+    await this.emit(args.normalized, args.sessionId, "ReportCompleted", {
+      reporterId, mode: "representative"
+    });
 
     return {
       ...parsed.data.output,
@@ -797,6 +818,8 @@ export class ArgueEngine {
       | "EarlyStopTriggered"
       | "GlobalDeadlineHit"
       | "ConsensusDrafted"
+      | "ReportDispatched"
+      | "ReportCompleted"
       | "Finalized"
       | "Failed",
     payload?: Record<string, unknown>,

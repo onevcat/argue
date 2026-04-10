@@ -152,6 +152,12 @@ describe("ArgueEngine M2", () => {
       reason: "timeout"
     }));
     expect(result.metrics.earlyStopTriggered).toBe(true);
+
+    for (const round of result.rounds) {
+      for (const output of round.outputs) {
+        expect(output.respondedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      }
+    }
   });
 
   it("falls back to builtin report when representative report task fails", async () => {
