@@ -81,6 +81,14 @@ argue run \
 
 Notice what happened: claude-agent initially misidentified the problem (it couldn't access the GitHub issue). Through structured debate, codex-agent's corrections led claude-agent to self-correct and converge. The final consensus was unanimous, and the representative agent turned it into a real PR.
 
+After each run, argue writes three output files to `~/.argue/output/<requestId>/` (global config) or `./out/<requestId>/` (local config):
+
+| File           | Contents                                                                        |
+| -------------- | ------------------------------------------------------------------------------- |
+| `events.jsonl` | Streaming event log — every dispatch, response, merge, vote, and score          |
+| `result.json`  | Structured result — status, claims, resolutions, scores, representative, action |
+| `summary.md`   | Human-readable report from the representative agent                             |
+
 [See the full unabridged output of this run.](https://gist.github.com/onevcat/bbf42778888180c443bea78f395f255b)
 
 ## Using as a Library

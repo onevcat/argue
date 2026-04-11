@@ -81,6 +81,14 @@ argue run \
 
 注意发生了什么：claude-agent 最初误判了问题（它无法访问 GitHub issue），在结构化辩论中，codex-agent 的纠正促使 claude-agent 自我修正并收敛。最终共识全票通过，代表 agent 将结论转化为了一个实际的 PR。
 
+每次运行后，argue 会将三个输出文件写入 `~/.argue/output/<requestId>/`（全局配置）或 `./out/<requestId>/`（本地配置）：
+
+| 文件           | 内容                                                |
+| -------------- | --------------------------------------------------- |
+| `events.jsonl` | 流式事件日志——每次 dispatch、响应、合并、投票和评分 |
+| `result.json`  | 结构化结果——状态、主张、决议、评分、代表、action    |
+| `summary.md`   | 代表 agent 撰写的可读报告                           |
+
 [查看这次运行的完整输出。](https://gist.github.com/onevcat/bbf42778888180c443bea78f395f255b)
 
 ## 作为库使用
