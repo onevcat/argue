@@ -31,9 +31,7 @@ vi.mock("@ai-sdk/anthropic", () => ({
 
 describe("createApiRunner", () => {
   const envKeys = ["OPENAI_TEST_KEY", "ANTHROPIC_TEST_KEY", "GROQ_API_KEY"] as const;
-  const envBackup = new Map<string, string | undefined>(
-    envKeys.map((key) => [key, process.env[key]])
-  );
+  const envBackup = new Map<string, string | undefined>(envKeys.map((key) => [key, process.env[key]]));
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -100,9 +98,7 @@ describe("createApiRunner", () => {
     expect(mockGenerateText).toHaveBeenCalledWith({
       model: "openai-model-instance",
       system: "system",
-      messages: expect.arrayContaining([
-        expect.objectContaining({ role: "user" })
-      ]),
+      messages: expect.arrayContaining([expect.objectContaining({ role: "user" })]),
       temperature: 0.2,
       maxOutputTokens: 777,
       abortSignal: abortController.signal
@@ -419,10 +415,7 @@ function makeInitialRoundTask(prompt: string): AgentTaskInput {
   };
 }
 
-function makeAgent(
-  providerName = "api-provider",
-  options?: { systemPrompt?: string; temperature?: number }
-) {
+function makeAgent(providerName = "api-provider", options?: { systemPrompt?: string; temperature?: number }) {
   return {
     id: "agent-1",
     provider: providerName,
