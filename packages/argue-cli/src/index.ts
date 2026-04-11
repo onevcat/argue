@@ -1,6 +1,7 @@
 import { access, mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { ActionTaskResultSchema, ArgueResultSchema, type ActionTaskInput, type AgentTaskInput } from "argue";
+import { ActionTaskResultSchema, ArgueResultSchema, type ActionTaskInput, type AgentTaskInput } from "@onevcat/argue";
+import packageMetadata from "../package.json" with { type: "json" };
 import {
   AgentSchema,
   CliConfigSchema,
@@ -95,7 +96,7 @@ export async function runCli(argv: string[], io: Pick<typeof console, "log" | "e
   }
 
   if (command === "version" || command === "--version" || command === "-v") {
-    io.log("argue-cli v0.1.0");
+    io.log(`${packageMetadata.name} v${packageMetadata.version}`);
     return { ok: true, code: 0 };
   }
 

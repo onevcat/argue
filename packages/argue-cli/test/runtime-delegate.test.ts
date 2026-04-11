@@ -1,4 +1,4 @@
-import type { AgentTaskInput } from "argue";
+import type { AgentTaskInput } from "@onevcat/argue";
 import { describe, expect, it } from "vitest";
 import { resolveRunPlan } from "../src/run-plan.js";
 import { createTaskDelegate } from "../src/runtime/delegate.js";

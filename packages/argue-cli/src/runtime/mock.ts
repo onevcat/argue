@@ -1,4 +1,4 @@
-import type { AgentTaskInput, Claim } from "argue";
+import type { AgentTaskInput, Claim } from "@onevcat/argue";
 import type { MockProviderConfig } from "../config.js";
 import type { ProviderTaskRunner, ResolvedAgentRuntime } from "./types.js";
 

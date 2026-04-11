@@ -1,4 +1,4 @@
-import type { AgentTaskInput } from "argue";
+import type { AgentTaskInput } from "@onevcat/argue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VENDOR_PRESETS } from "../src/vendors.js";
 import { createApiRunner } from "../src/runtime/api.js";

@@ -1,4 +1,4 @@
-import { ArgueEngine, JsonlObserver, MemorySessionStore, type ArgueEvent, type ArgueObserver } from "argue";
+import { ArgueEngine, JsonlObserver, MemorySessionStore, type ArgueEvent, type ArgueObserver } from "@onevcat/argue";
 import type { LoadedCliConfig } from "./config.js";
 import type { ResolvedRunPlan } from "./run-plan.js";
 import { writeRunArtifacts, writeErrorArtifact } from "./artifacts.js";

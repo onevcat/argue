@@ -1,4 +1,4 @@
-import type { ActionTaskInput, AgentTaskInput } from "argue";
+import type { ActionTaskInput, AgentTaskInput } from "@onevcat/argue";
 import type { ResolvedAgentRuntime } from "./types.js";
 import { getTaskOutputJsonSchema } from "./task-output.js";
 

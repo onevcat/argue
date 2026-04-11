@@ -1,7 +1,7 @@
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ArgueResult } from "argue";
+import type { ArgueResult } from "@onevcat/argue";
 import { describe, expect, it } from "vitest";
 import { buildResultSummary, formatMs, writeRunArtifacts } from "../src/artifacts.js";
 

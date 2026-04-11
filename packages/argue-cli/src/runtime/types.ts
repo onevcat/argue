@@ -1,4 +1,4 @@
-import type { AgentTaskInput } from "argue";
+import type { AgentTaskInput } from "@onevcat/argue";
 import type {
   ApiProviderConfig,
   CliAgentConfig,

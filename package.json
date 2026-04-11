@@ -13,7 +13,9 @@
     "check": "npm run -ws --if-present check",
     "test": "npm run -ws --if-present test",
     "test:watch": "npm run -ws --if-present test:watch",
-    "ci": "npm run check && npm run test && npm run build"
+    "ci": "npm run check && npm run test && npm run build",
+    "smoke:pack": "node ./scripts/smoke-packages.mjs",
+    "release:check": "npm run ci && npm run smoke:pack"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

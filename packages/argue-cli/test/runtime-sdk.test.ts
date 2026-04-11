@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentTaskInput } from "argue";
+import type { AgentTaskInput } from "@onevcat/argue";
 import { describe, expect, it } from "vitest";
 import { createSdkRunner } from "../src/runtime/sdk.js";
 

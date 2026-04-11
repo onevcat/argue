@@ -1,4 +1,4 @@
-import type { ArgueEvent, ArgueResult } from "argue";
+import type { ArgueEvent, ArgueResult } from "@onevcat/argue";
 import { describe, expect, it } from "vitest";
 import { createOutputFormatter } from "../src/output.js";
 

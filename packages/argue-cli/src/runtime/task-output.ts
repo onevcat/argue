@@ -11,7 +11,7 @@ import {
   type AgentTaskResult,
   type ReportTaskInput,
   type RoundTaskInput
-} from "argue";
+} from "@onevcat/argue";
 import { z } from "zod";
 import { parseJsonObject } from "./json.js";
 

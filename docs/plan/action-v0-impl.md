@@ -63,7 +63,7 @@
 // packages/argue-cli/test/artifacts.test.ts
 import { describe, expect, it } from "vitest";
 import { buildResultSummary } from "../src/artifacts.js";
-import type { ArgueResult } from "argue";
+import type { ArgueResult } from "@onevcat/argue";
 
 function makeResult(overrides: Partial<ArgueResult> = {}): ArgueResult {
   return {

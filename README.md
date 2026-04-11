@@ -23,6 +23,21 @@ Quick workspace commands:
 - `npm test`
 - `npm run build`
 
+## Install
+
+Library:
+
+```bash
+npm install @onevcat/argue
+```
+
+CLI:
+
+```bash
+npm install -g @onevcat/argue-cli
+argue --help
+```
+
 ## Why argue
 
 | Problem                                 | How argue solves it                                         |
@@ -104,7 +119,7 @@ All use the same `dispatch` + `awaitResult` interface.
 ## Quick start
 
 ```ts
-import { ArgueEngine, MemorySessionStore, DefaultWaitCoordinator } from "argue";
+import { ArgueEngine, MemorySessionStore, DefaultWaitCoordinator } from "@onevcat/argue";
 
 const taskDelegate = myTaskDelegate;
 
@@ -165,6 +180,11 @@ Implemented in current `master`:
 - `--action <prompt>` / `--action-agent <id>` for post-debate action
 - `--verbose` for detailed per-agent output with stances, confidence, and full responses
 
+Repo examples:
+
+- [CLI config example](https://github.com/onevcat/argue/blob/master/packages/argue-cli/examples/config.example.json)
+- [CLI task input example](https://github.com/onevcat/argue/blob/master/packages/argue-cli/examples/task.example.json)
+
 ## Development
 
 ```bash
@@ -183,7 +203,15 @@ Before committing:
 
 ```bash
 npm run ci               # check + test + build
+npm run release:check    # plus tarball smoke tests
 ```
+
+## Release
+
+- Package names: `@onevcat/argue`, `@onevcat/argue-cli`
+- Packages are versioned independently
+- When CLI depends on a newer library version, release `@onevcat/argue` first, then bump CLI dependency and release `@onevcat/argue-cli`
+- Detailed steps: [docs/release.md](docs/release.md)
 
 ## License
 

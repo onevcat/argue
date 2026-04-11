@@ -1,4 +1,4 @@
-import type { AgentTaskDelegate, AgentTaskInput, AgentTaskResult } from "argue";
+import type { AgentTaskDelegate, AgentTaskInput, AgentTaskResult } from "@onevcat/argue";
 import type { LoadedCliConfig, ProviderConfig } from "../config.js";
 import type { ResolvedRunPlan } from "../run-plan.js";
 import { createApiRunner } from "./api.js";

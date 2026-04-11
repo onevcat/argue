@@ -1,5 +1,5 @@
 import pc from "picocolors";
-import type { ArgueEvent, ArgueResult } from "argue";
+import type { ArgueEvent, ArgueResult } from "@onevcat/argue";
 import { formatMs } from "./artifacts.js";
 
 export type OutputOptions = {

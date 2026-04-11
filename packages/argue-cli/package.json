@@ -1,5 +1,5 @@
 {
-  "name": "argue-cli",
+  "name": "@onevcat/argue-cli",
   "version": "0.1.0",
   "description": "CLI host for argue multi-agent orchestration.",
   "type": "module",
@@ -7,6 +7,17 @@
   "types": "dist/index.d.ts",
   "bin": {
     "argue": "dist/cli.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onevcat/argue.git"
+  },
+  "homepage": "https://github.com/onevcat/argue",
+  "bugs": {
+    "url": "https://github.com/onevcat/argue/issues"
   },
   "files": [
     "dist"
@@ -24,8 +35,8 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.68",
     "@ai-sdk/openai-compatible": "^2.0.41",
+    "@onevcat/argue": "^0.1.0",
     "ai": "^6.0.153",
-    "argue": "file:../argue",
     "picocolors": "^1.1.1",
     "zod": "^3.24.2"
   }

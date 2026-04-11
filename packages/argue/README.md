@@ -2,6 +2,12 @@
 
 Harness-agnostic orchestration engine for multi-agent consensus workflows.
 
-Includes built-in JSONL run logging support via `JsonlObserver`.
+Install:
 
-See repository root README for full design and usage examples.
+```bash
+npm install @onevcat/argue
+```
+
+Documentation and examples live in the repository README:
+
+- https://github.com/onevcat/argue#readme

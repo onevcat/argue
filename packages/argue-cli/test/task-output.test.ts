@@ -1,4 +1,4 @@
-import type { AgentTaskInput } from "argue";
+import type { AgentTaskInput } from "@onevcat/argue";
 import { describe, expect, it } from "vitest";
 import { normalizeTaskOutput, normalizeTaskOutputFromText } from "../src/runtime/task-output.js";
 

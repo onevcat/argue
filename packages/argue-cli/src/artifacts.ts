@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import type { ArgueResult } from "argue";
+import type { ArgueResult } from "@onevcat/argue";
 
 export async function writeRunArtifacts(args: {
   result: ArgueResult;

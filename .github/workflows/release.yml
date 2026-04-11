@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package to publish
+        required: true
+        type: choice
+        options:
+          - argue
+          - argue-cli
+      dry_run:
+        description: Run validation without publishing
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+
+      - run: npm run release:check
+
+      - name: Verify CLI dependency shape
+        if: ${{ inputs.package == 'argue-cli' }}
+        run: |
+          node --input-type=module -e '
+            import pkg from "./packages/argue-cli/package.json" with { type: "json" };
+            const value = pkg.dependencies?.["@onevcat/argue"];
+            if (!value) {
+              throw new Error("Missing @onevcat/argue dependency");
+            }
+            if (value.startsWith("file:") || value.startsWith("workspace:")) {
+              throw new Error(`CLI dependency must be a semver range, got ${value}`);
+            }
+          '
+
+      - name: Publish @onevcat/argue
+        if: ${{ inputs.package == 'argue' && !inputs.dry_run }}
+        run: npm publish --workspace packages/argue --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @onevcat/argue-cli
+        if: ${{ inputs.package == 'argue-cli' && !inputs.dry_run }}
+        run: npm publish --workspace packages/argue-cli --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

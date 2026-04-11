@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runCli } from "../src/index.js";
+import packageMetadata from "../package.json" with { type: "json" };
 
 type IOLogs = { logs: string[]; errors: string[] };
 
@@ -30,7 +31,7 @@ describe("runCli command branches", () => {
       const io = createIO();
       const result = await runCli([cmd], io);
       expect(result).toEqual({ ok: true, code: 0 });
-      expect(io.logs).toContain("argue-cli v0.1.0");
+      expect(io.logs).toContain(`${packageMetadata.name} v${packageMetadata.version}`);
     }
 
     const io = createIO();
