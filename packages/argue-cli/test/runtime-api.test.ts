@@ -329,31 +329,31 @@ describe("createApiRunner", () => {
   it("throws a clear error when an openai-compatible apiKeyEnv is missing", () => {
     delete process.env.OPENAI_TEST_KEY;
 
-    expect(() => createApiRunner("openai-provider", {
-      type: "api",
-      protocol: "openai-compatible",
-      apiKeyEnv: "OPENAI_TEST_KEY",
-      models: {
-        m: {}
-      }
-    })).toThrow(
-      'API key environment variable "OPENAI_TEST_KEY" is not set for provider "openai-provider"'
-    );
+    expect(() =>
+      createApiRunner("openai-provider", {
+        type: "api",
+        protocol: "openai-compatible",
+        apiKeyEnv: "OPENAI_TEST_KEY",
+        models: {
+          m: {}
+        }
+      })
+    ).toThrow('API key environment variable "OPENAI_TEST_KEY" is not set for provider "openai-provider"');
   });
 
   it("throws a clear error when an anthropic-compatible apiKeyEnv is empty", () => {
     process.env.ANTHROPIC_TEST_KEY = "   ";
 
-    expect(() => createApiRunner("anthropic-provider", {
-      type: "api",
-      protocol: "anthropic-compatible",
-      apiKeyEnv: "ANTHROPIC_TEST_KEY",
-      models: {
-        m: {}
-      }
-    })).toThrow(
-      'API key environment variable "ANTHROPIC_TEST_KEY" is not set for provider "anthropic-provider"'
-    );
+    expect(() =>
+      createApiRunner("anthropic-provider", {
+        type: "api",
+        protocol: "anthropic-compatible",
+        apiKeyEnv: "ANTHROPIC_TEST_KEY",
+        models: {
+          m: {}
+        }
+      })
+    ).toThrow('API key environment variable "ANTHROPIC_TEST_KEY" is not set for provider "anthropic-provider"');
   });
 
   it("adds provider/model context and retryability for rate-limit errors", async () => {
