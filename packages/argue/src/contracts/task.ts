@@ -21,10 +21,11 @@ const ClaimDraftSchema = ClaimSchema.pick({
 });
 
 const ExtractedClaimOutputSchema = ClaimSchema.pick({
-  claimId: true,
   title: true,
   statement: true,
   category: true
+}).extend({
+  claimId: z.string().min(1).optional()
 });
 
 export const InitialRoundTaskOutputContentSchema = z.object({
@@ -66,9 +67,8 @@ export const REPORT_OUTPUT_CONTENT_SCHEMA_REF = "argue.report.output-content.v1"
 const CLAIM_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["claimId", "title", "statement"],
+  required: ["title", "statement"],
   properties: {
-    claimId: { type: "string" },
     title: { type: "string" },
     statement: { type: "string" },
     category: { type: "string", enum: ["pro", "con", "risk", "tradeoff", "todo"] }

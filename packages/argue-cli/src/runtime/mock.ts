@@ -60,7 +60,6 @@ function buildDeterministicOutput(task: AgentTaskInput, agent: ResolvedAgentRunt
       summary: `Initial position from ${agent.id}.`,
       extractedClaims: [
         {
-          claimId: `${agent.id}-claim-0`,
           title: `Proposal from ${agent.id}`,
           statement: `${agent.id}${roleSuffix} recommends a concrete next step.`,
           category: "pro"

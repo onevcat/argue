@@ -113,7 +113,6 @@ describe("createApiRunner", () => {
         summary: "Concise summary",
         extractedClaims: [
           {
-            claimId: "c-1",
             title: "Title 1",
             statement: "Statement 1",
             category: "pro"
@@ -153,7 +152,6 @@ describe("createApiRunner", () => {
         summary: "Concise summary",
         extractedClaims: [
           {
-            claimId: "c-1",
             title: "Title 1",
             statement: "Statement 1",
             category: "pro"

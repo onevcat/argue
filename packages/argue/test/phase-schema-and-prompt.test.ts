@@ -25,7 +25,7 @@ describe("phase schemas", () => {
         round: 0,
         fullResponse: "x",
         summary: "x",
-        extractedClaims: [{ claimId: "c1", title: "t", statement: "s" }],
+        extractedClaims: [{ title: "t", statement: "s" }],
         judgements: []
       })
     ).not.toThrow();
@@ -37,7 +37,7 @@ describe("phase schemas", () => {
         round: 0,
         fullResponse: "x",
         summary: "x",
-        extractedClaims: [{ claimId: "c1", title: "t", statement: "s" }],
+        extractedClaims: [{ title: "t", statement: "s" }],
         judgements: [],
         claimVotes: [{ claimId: "c1", vote: "accept" }]
       })
@@ -93,7 +93,7 @@ describe("built-in prompt templates", () => {
           round: 0,
           fullResponse: "init a",
           summary: "init a",
-          extractedClaims: [{ claimId: "c1", title: "c1", statement: "s1" }],
+          extractedClaims: [{ title: "c1", statement: "s1" }],
           judgements: []
         })
       },
@@ -105,7 +105,7 @@ describe("built-in prompt templates", () => {
           round: 0,
           fullResponse: "init b",
           summary: "init b",
-          extractedClaims: [{ claimId: "c2", title: "c2", statement: "s2" }],
+          extractedClaims: [{ title: "c2", statement: "s2" }],
           judgements: []
         })
       },
@@ -183,7 +183,7 @@ describe("built-in prompt templates", () => {
           round: 0,
           fullResponse: "init a",
           summary: "init a",
-          extractedClaims: [{ claimId: "c1", title: "c1", statement: "s1" }],
+          extractedClaims: [{ title: "c1", statement: "s1" }],
           judgements: []
         })
       },
@@ -195,7 +195,7 @@ describe("built-in prompt templates", () => {
           round: 0,
           fullResponse: "init b",
           summary: "init b",
-          extractedClaims: [{ claimId: "c2", title: "c2", statement: "s2" }],
+          extractedClaims: [{ title: "c2", statement: "s2" }],
           judgements: []
         })
       },

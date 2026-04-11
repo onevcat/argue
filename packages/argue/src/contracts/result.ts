@@ -50,10 +50,11 @@ const ParticipantRoundOutputBaseSchema = z.object({
   extractedClaims: z
     .array(
       ClaimSchema.pick({
-        claimId: true,
         title: true,
         statement: true,
         category: true
+      }).extend({
+        claimId: z.string().min(1).optional()
       })
     )
     .optional(),

@@ -507,11 +507,12 @@ function anthropicMessageResponse(phase: "initial" | "debate" | "final_vote", pi
 
 function contentForPhase(
   phase: "initial" | "debate" | "final_vote",
-  pid: string = "unknown",
+  _pid: string = "unknown",
   allPids: string[] = ["a1", "a2"]
 ): Record<string, unknown> {
-  const myClaimId = `claim-${pid}`;
-  const allClaimIds = allPids.map((id) => `claim-${id}`);
+  // Engine assigns IDs as {participantId}:0:0, so debate/final_vote
+  // reference those IDs from the catalog.
+  const allClaimIds = allPids.map((id) => `${id}:0:0`);
 
   if (phase === "initial") {
     return {
@@ -519,9 +520,8 @@ function contentForPhase(
       summary: "Initial summary",
       extractedClaims: [
         {
-          claimId: myClaimId,
-          title: `Claim from ${pid}`,
-          statement: `Statement from ${pid}`,
+          title: "Shared claim",
+          statement: "Shared statement",
           category: "pro"
         }
       ],
@@ -593,7 +593,7 @@ if (phase === "initial") {
     fullResponse: "CLI initial response",
     summary: "CLI initial summary",
     extractedClaims: [
-      { claimId: myClaimId, title: "Claim from " + pid, statement: "Statement from " + pid, category: "pro" }
+      { title: "Claim from " + pid, statement: "Statement from " + pid, category: "pro" }
     ],
     judgements: []
   };
@@ -650,7 +650,7 @@ export function createArgueSdkAdapter(args) {
             "SDK initial response env=" + mark,
           summary: "SDK initial summary",
           extractedClaims: [
-            { claimId: myClaimId, title: "Claim from " + task.participantId, statement: "Statement from " + task.participantId, category: "pro" }
+            { title: "Claim from " + task.participantId, statement: "Statement from " + task.participantId, category: "pro" }
           ],
           judgements: []
         };
