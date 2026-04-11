@@ -64,6 +64,7 @@ type ConfigAddProviderOptions = {
   args?: string[];
   adapter?: string;
   exportName?: string;
+  agentId?: string;
 };
 
 type ConfigAddAgentOptions = {
@@ -258,8 +259,22 @@ async function runConfigCommand(args: string[], io: Pick<typeof console, "log" |
         throw new Error(`Provider id already exists: ${options.value.id}`);
       }
 
+      if (options.value.agentId && loaded.config.agents.some((a) => a.id === options.value.agentId)) {
+        throw new Error(`Agent id already exists: ${options.value.agentId}`);
+      }
+
       const provider = buildProviderFromOptions(options.value);
       loaded.config.providers[options.value.id] = provider;
+
+      if (options.value.agentId) {
+        loaded.config.agents.push(
+          AgentSchema.parse({
+            id: options.value.agentId,
+            provider: options.value.id,
+            model: options.value.modelId
+          })
+        );
+      }
 
       await writeConfigFile(configPath, loaded.config);
 
@@ -267,6 +282,10 @@ async function runConfigCommand(args: string[], io: Pick<typeof console, "log" |
       io.log(`- config: ${configPath}`);
       io.log(`- type: ${options.value.type}`);
       io.log(`- model: ${options.value.modelId}`);
+      if (options.value.agentId) {
+        io.log(`[argue-cli] agent added: ${options.value.agentId}`);
+        io.log(`- provider/model: ${options.value.id}/${options.value.modelId}`);
+      }
       return { ok: true, code: 0 };
     } catch (error) {
       io.error(String(error));
@@ -896,6 +915,14 @@ function parseConfigAddProviderOptions(
       continue;
     }
 
+    if (arg === "--agent") {
+      const value = args[i + 1];
+      if (!value || value.startsWith("-")) return { ok: false, error: "--agent requires an agent id" };
+      out.agentId = value;
+      i += 1;
+      continue;
+    }
+
     return { ok: false, error: `Unknown option for config add-provider: ${arg}` };
   }
 
@@ -1171,13 +1198,13 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("Config commands:");
   io.log("  argue config init [-c <path>] [--local|--project|--global]");
   io.log(
-    "  argue config add-provider --id <provider-id> --type <api|cli|sdk|mock> --model-id <model-id> [type options]"
+    "  argue config add-provider --id <provider-id> --type <api|cli|sdk|mock> --model-id <model-id> [--agent <agent-id>] [type options]"
   );
   io.log(
     `    api options: --vendor <${getVendorNames().join("|")}> | --protocol <openai-compatible|anthropic-compatible> [--base-url <url>] [--api-key-env <ENV_VAR>]`
   );
   io.log(
-    "    cli options: --cli-type <codex|claude|copilot|gemini|pi|opencode|droid|amp|generic> [--command <binary>] [--args a,b,c (extra)]"
+    "    cli options: --cli-type <codex|claude|copilot|gemini|pi|opencode|droid|amp|generic> [--command <binary>] [--args a,b,c]"
   );
   io.log("    sdk options: --adapter <module> [--export-name <name>]");
   io.log(

@@ -179,6 +179,75 @@ describe("cli config loader", () => {
     }
   });
 
+  it("add-provider --agent creates provider and agent atomically", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-agent-shortcut-"));
+    const configPath = join(root, "argue.config.json");
+    await writeJson(configPath, VALID_CONFIG);
+
+    const logs: string[] = [];
+    const result = await runCli(
+      [
+        "config",
+        "add-provider",
+        "--config",
+        configPath,
+        "--id",
+        "p-new",
+        "--type",
+        "cli",
+        "--cli-type",
+        "claude",
+        "--model-id",
+        "s4",
+        "--agent",
+        "my-agent"
+      ],
+      { log: (msg: string) => logs.push(msg), error: () => {} }
+    );
+
+    expect(result.ok).toBe(true);
+    const loaded = await loadCliConfig({ explicitPath: configPath });
+    expect(loaded.config.providers["p-new"]).toBeDefined();
+    const agent = loaded.config.agents.find((a) => a.id === "my-agent");
+    expect(agent).toBeDefined();
+    expect(agent?.provider).toBe("p-new");
+    expect(agent?.model).toBe("s4");
+    expect(logs.some((x) => x.includes("agent added: my-agent"))).toBe(true);
+  });
+
+  it("add-provider --agent rejects duplicate agent id without writing anything", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-agent-dup-"));
+    const configPath = join(root, "argue.config.json");
+    await writeJson(configPath, VALID_CONFIG);
+
+    const errors: string[] = [];
+    const result = await runCli(
+      [
+        "config",
+        "add-provider",
+        "--config",
+        configPath,
+        "--id",
+        "p-dup",
+        "--type",
+        "cli",
+        "--cli-type",
+        "codex",
+        "--model-id",
+        "m",
+        "--agent",
+        "a1"
+      ],
+      { log: () => {}, error: (msg: string) => errors.push(msg) }
+    );
+
+    expect(result.ok).toBe(false);
+    expect(errors.some((x) => x.includes("Agent id already exists: a1"))).toBe(true);
+    // Provider should NOT have been written either
+    const loaded = await loadCliConfig({ explicitPath: configPath });
+    expect(loaded.config.providers["p-dup"]).toBeUndefined();
+  });
+
   it("adds agent via config command", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-add-agent-"));
     const configPath = join(root, "argue.config.json");

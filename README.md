@@ -22,13 +22,9 @@ npm install -g @onevcat/argue-cli
 # Create config file (~/.config/argue/config.json)
 argue config init
 
-# Add two providers (Claude Code + Codex CLI)
-argue config add-provider --id claude --type cli --cli-type claude --model-id sonnet
-argue config add-provider --id codex --type cli --cli-type codex --model-id gpt-5.3-codex
-
-# Add agents
-argue config add-agent --id claude-agent --provider claude --model sonnet
-argue config add-agent --id codex-agent --provider codex --model gpt-5.3-codex
+# Add providers and agents
+argue config add-provider --id claude --type cli --cli-type claude --model-id sonnet --agent claude-agent
+argue config add-provider --id codex --type cli --cli-type codex --model-id gpt-5.3-codex --agent codex-agent
 ```
 
 ### Run a Debate
