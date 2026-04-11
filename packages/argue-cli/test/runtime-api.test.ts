@@ -226,6 +226,47 @@ describe("createApiRunner", () => {
     expect(secondMessages[2]?.content).toContain("turn-2");
   });
 
+  it("bounds multi-turn messages with a sliding window", async () => {
+    mockOpenAILanguageModel.mockReturnValue("openai-model-instance");
+    mockGenerateText.mockImplementation(async (args: { messages: Array<{ role: string; content: unknown }> }) => {
+      const latestUser = [...args.messages].reverse().find((message) => message.role === "user");
+      const latestContent = String(latestUser?.content ?? "");
+      const turn = latestContent.match(/turn-\d+/)?.[0] ?? "turn-unknown";
+
+      return {
+        text: JSON.stringify({
+          fullResponse: turn,
+          summary: turn,
+          extractedClaims: [],
+          judgements: []
+        })
+      };
+    });
+
+    const runner = createApiRunner("api-provider", {
+      type: "api",
+      protocol: "openai-compatible",
+      models: {
+        m: {}
+      }
+    });
+
+    for (let turn = 1; turn <= 20; turn++) {
+      const turnLabel = `turn-${String(turn).padStart(2, "0")}`;
+      await runner.runTask({
+        task: makeInitialRoundTask(turnLabel),
+        agent: makeAgent()
+      });
+    }
+
+    const lastCallArgs = mockGenerateText.mock.calls.at(-1)?.[0];
+    const lastMessages = lastCallArgs?.messages as Array<{ role: string; content: unknown }>;
+    expect(lastMessages.length).toBe(25);
+    expect(String(lastMessages[0]?.content)).toContain("turn-08");
+    expect(lastMessages.some((message) => String(message.content).includes("turn-01"))).toBe(false);
+    expect(lastMessages.filter((message) => message.role === "assistant")).toHaveLength(12);
+  });
+
   it("forwards protocol-specific factory options for openai-compatible and anthropic-compatible", async () => {
     process.env.OPENAI_TEST_KEY = "openai-k";
     process.env.ANTHROPIC_TEST_KEY = "anthropic-k";
