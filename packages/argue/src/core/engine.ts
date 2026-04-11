@@ -1010,6 +1010,7 @@ function updateClaims(
   const claimMap = new Map<string, Claim>(
     base.map((claim) => [claim.claimId, { ...claim, proposedBy: [...claim.proposedBy] }])
   );
+  const preExistingIds = new Set(base.map((claim) => claim.claimId));
   const order = new Map<string, number>([...claimMap.keys()].map((id, idx) => [id, idx]));
   let nextOrder = order.size;
   let newClaimCount = 0;
@@ -1031,8 +1032,24 @@ function updateClaims(
         continue;
       }
 
-      if (!existing.proposedBy.includes(output.participantId)) {
-        existing.proposedBy.push(output.participantId);
+      if (preExistingIds.has(extracted.claimId)) {
+        // Claim existed before this round — agent is re-proposing it
+        if (!existing.proposedBy.includes(output.participantId)) {
+          existing.proposedBy.push(output.participantId);
+        }
+      } else {
+        // Collision: another agent created this ID in the same round — disambiguate
+        const disambiguated = `${extracted.claimId}:${output.participantId}`;
+        claimMap.set(disambiguated, {
+          claimId: disambiguated,
+          title: extracted.title,
+          statement: extracted.statement,
+          category: extracted.category,
+          proposedBy: [output.participantId],
+          status: "active"
+        });
+        order.set(disambiguated, nextOrder++);
+        newClaimCount += 1;
       }
     }
   }

@@ -100,21 +100,24 @@ describe("ArgueEngine M2", () => {
   it("uses effective voters as claim-consensus denominator", async () => {
     const scenarios: Record<string, { type: "success"; output: AgentTaskResult } | { type: "timeout" }> = {};
 
+    const claimIds = { onevclaw: "c1", onevpaw: "c2", onevtail: "c3" } as const;
     for (const participant of PARTICIPANTS) {
+      const extractedClaimId = claimIds[participant];
       scenarios[`round:initial:0:${participant}`] = {
         type: "success",
-        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0, extractedClaimId }))
       };
       scenarios[`round:debate:1:${participant}`] = {
         type: "success",
-        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 1 }))
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 1, extractedClaimId }))
       };
       scenarios[`round:debate:2:${participant}`] = {
         type: "success",
-        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 2 }))
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "debate", round: 2, extractedClaimId }))
       };
     }
 
+    const allVotes = Object.values(claimIds).map((id) => ({ claimId: id, vote: "accept" as const }));
     scenarios["round:final_vote:3:onevclaw"] = {
       type: "success",
       output: roundResult(
@@ -122,7 +125,7 @@ describe("ArgueEngine M2", () => {
           participantId: "onevclaw",
           phase: "final_vote",
           round: 3,
-          claimVotes: [{ claimId: "c1", vote: "accept" }]
+          claimVotes: allVotes
         })
       )
     };
@@ -133,7 +136,7 @@ describe("ArgueEngine M2", () => {
           participantId: "onevpaw",
           phase: "final_vote",
           round: 3,
-          claimVotes: [{ claimId: "c1", vote: "accept" }]
+          claimVotes: allVotes
         })
       )
     };
@@ -1195,6 +1198,249 @@ describe("ArgueEngine M2", () => {
         reason: "inactive_actor"
       }
     });
+  });
+
+  it("disambiguates same-round claim ID collisions between agents", async () => {
+    // Two agents independently propose claims with the same IDs (c1, c2) in the
+    // initial round but with completely different content. The engine must treat
+    // them as separate claims rather than silently merging them.
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {
+      "round:initial:0:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "initial",
+            round: 0,
+            extractedClaims: [
+              { claimId: "c1", title: "Alpha claim", statement: "Alpha statement", category: "pro" },
+              { claimId: "c2", title: "Beta claim", statement: "Beta statement", category: "con" }
+            ],
+            judgements: [
+              { claimId: "c1", stance: "agree" },
+              { claimId: "c2", stance: "agree" }
+            ]
+          })
+        )
+      },
+      "round:initial:0:onevpaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevpaw",
+            phase: "initial",
+            round: 0,
+            extractedClaims: [
+              { claimId: "c1", title: "Gamma claim", statement: "Gamma statement", category: "risk" },
+              { claimId: "c2", title: "Delta claim", statement: "Delta statement", category: "todo" }
+            ],
+            judgements: [
+              { claimId: "c1", stance: "agree" },
+              { claimId: "c2", stance: "agree" }
+            ]
+          })
+        )
+      },
+      "round:debate:1:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "debate",
+            round: 1,
+            judgements: [
+              { claimId: "c1", stance: "agree" },
+              { claimId: "c2", stance: "agree" }
+            ]
+          })
+        )
+      },
+      "round:debate:1:onevpaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevpaw",
+            phase: "debate",
+            round: 1,
+            judgements: [
+              { claimId: "c1", stance: "agree" },
+              { claimId: "c2", stance: "agree" }
+            ]
+          })
+        )
+      },
+      "round:final_vote:2:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "final_vote",
+            round: 2,
+            judgements: [
+              { claimId: "c1", stance: "agree" },
+              { claimId: "c2", stance: "agree" }
+            ],
+            claimVotes: [
+              { claimId: "c1", vote: "accept" },
+              { claimId: "c2", vote: "accept" }
+            ]
+          })
+        )
+      },
+      "round:final_vote:2:onevpaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevpaw",
+            phase: "final_vote",
+            round: 2,
+            judgements: [
+              { claimId: "c1", stance: "agree" },
+              { claimId: "c2", stance: "agree" }
+            ],
+            claimVotes: [
+              { claimId: "c1", vote: "accept" },
+              { claimId: "c2", vote: "accept" }
+            ]
+          })
+        )
+      }
+    };
+
+    const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) });
+    const result = await engine.start({
+      requestId: "req-claim-collision",
+      task: "claim ID collision test",
+      participants: [{ id: "onevclaw" }, { id: "onevpaw" }],
+      roundPolicy: { minRounds: 1, maxRounds: 1 }
+    });
+
+    // Both agents proposed c1 and c2 independently — should yield 4 claims, not 2.
+    const activeClaims = result.finalClaims.filter((c) => c.status === "active");
+    expect(activeClaims).toHaveLength(4);
+
+    // onevclaw's claims should only be proposed by onevclaw
+    const alpha = result.finalClaims.find((c) => c.title === "Alpha claim");
+    expect(alpha).toBeDefined();
+    expect(alpha!.proposedBy).toEqual(["onevclaw"]);
+
+    // onevpaw's claims should be preserved with their own content
+    const gamma = result.finalClaims.find((c) => c.title === "Gamma claim");
+    expect(gamma).toBeDefined();
+    expect(gamma!.proposedBy).toEqual(["onevpaw"]);
+
+    // The two c1 claims should have different IDs after disambiguation
+    expect(alpha!.claimId).not.toBe(gamma!.claimId);
+  });
+
+  it("still allows re-proposal of pre-existing claims from prior rounds", async () => {
+    // In the debate round, an agent re-extracts a claim that already exists in
+    // the catalog from a prior round. This should be treated as a legitimate
+    // re-proposal (adding to proposedBy), NOT as a collision.
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {
+      "round:initial:0:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "initial",
+            round: 0,
+            extractedClaims: [{ claimId: "c1", title: "Original claim", statement: "original", category: "pro" }],
+            judgements: [{ claimId: "c1", stance: "agree" }]
+          })
+        )
+      },
+      "round:initial:0:onevpaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevpaw",
+            phase: "initial",
+            round: 0,
+            extractedClaims: [{ claimId: "c2", title: "Second claim", statement: "second", category: "con" }],
+            judgements: [{ claimId: "c2", stance: "agree" }]
+          })
+        )
+      },
+      "round:debate:1:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "debate",
+            round: 1,
+            judgements: [
+              { claimId: "c1", stance: "agree" },
+              { claimId: "c2", stance: "agree" }
+            ]
+          })
+        )
+      },
+      "round:debate:1:onevpaw": {
+        type: "success",
+        output: {
+          kind: "round",
+          output: {
+            participantId: "onevpaw",
+            phase: "debate" as const,
+            round: 1,
+            fullResponse: "onevpaw:debate:1",
+            summary: "onevpaw summary",
+            // onevpaw re-extracts c1 from the catalog — legitimate re-proposal
+            extractedClaims: [{ claimId: "c1", title: "Original claim", statement: "original", category: "pro" }],
+            judgements: [
+              { claimId: "c1", stance: "agree" as const, confidence: 0.9, rationale: "agree" },
+              { claimId: "c2", stance: "agree" as const, confidence: 0.9, rationale: "agree" }
+            ]
+          }
+        }
+      },
+      "round:final_vote:2:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "final_vote",
+            round: 2,
+            claimVotes: [
+              { claimId: "c1", vote: "accept" },
+              { claimId: "c2", vote: "accept" }
+            ]
+          })
+        )
+      },
+      "round:final_vote:2:onevpaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevpaw",
+            phase: "final_vote",
+            round: 2,
+            claimVotes: [
+              { claimId: "c1", vote: "accept" },
+              { claimId: "c2", vote: "accept" }
+            ]
+          })
+        )
+      }
+    };
+
+    const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) });
+    const result = await engine.start({
+      requestId: "req-reproposal",
+      task: "re-proposal test",
+      participants: [{ id: "onevclaw" }, { id: "onevpaw" }],
+      roundPolicy: { minRounds: 1, maxRounds: 1 }
+    });
+
+    // c1 should still be a single claim with both agents as proposers
+    const c1 = result.finalClaims.find((c) => c.claimId === "c1");
+    expect(c1).toBeDefined();
+    expect(c1!.proposedBy.sort()).toEqual(["onevclaw", "onevpaw"]);
+
+    // No duplicate of c1 should exist
+    const c1Matches = result.finalClaims.filter((c) => c.title === "Original claim");
+    expect(c1Matches).toHaveLength(1);
   });
 
   it("rejects removed waiting/report policy fields", async () => {
