@@ -15,9 +15,12 @@ export class MemorySessionStore implements SessionStore {
   async update(sessionId: string, patch: unknown): Promise<void> {
     const existing = this.sessions.get(sessionId);
     const current = isObject(existing) ? existing : {};
+    if (!isObject(patch)) {
+      throw new Error("patch must be a plain object");
+    }
     const next = {
       ...current,
-      ...(isObject(patch) ? patch : { patch })
+      ...patch
     };
     this.sessions.set(sessionId, next);
   }

@@ -11,20 +11,21 @@ describe("MemorySessionStore", () => {
     await expect(store.load("missing")).resolves.toBeNull();
   });
 
-  it("merges object patch and wraps non-object patch", async () => {
+  it("merges object patch into existing session", async () => {
     const store = new MemorySessionStore();
     await store.save({ sessionId: "s2", state: "created", retries: 0 });
 
     await store.update("s2", { state: "running", retries: 1 });
     await expect(store.load("s2")).resolves.toEqual({ sessionId: "s2", state: "running", retries: 1 });
+  });
 
-    await store.update("s2", "raw-patch");
-    await expect(store.load("s2")).resolves.toEqual({
-      sessionId: "s2",
-      state: "running",
-      retries: 1,
-      patch: "raw-patch"
-    });
+  it("rejects non-object patch with descriptive error", async () => {
+    const store = new MemorySessionStore();
+    await store.save({ sessionId: "s3", state: "created" });
+
+    await expect(store.update("s3", "raw-patch")).rejects.toThrow(/patch must be a plain object/);
+    await expect(store.update("s3", 42)).rejects.toThrow(/patch must be a plain object/);
+    await expect(store.update("s3", null)).rejects.toThrow(/patch must be a plain object/);
   });
 
   it("rejects save without non-empty sessionId", async () => {
