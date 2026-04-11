@@ -7,7 +7,8 @@ import { buildTaskPrompt } from "./prompt.js";
 import { normalizeTaskOutput, normalizeTaskOutputFromText } from "./task-output.js";
 import type { ProviderTaskRunner } from "./types.js";
 
-export function createCliRunner(provider: CliProviderConfig): ProviderTaskRunner {
+export function createCliRunner(raw: CliProviderConfig): ProviderTaskRunner {
+  const provider = { ...raw, command: raw.command ?? raw.cliType };
   const sessionUUID = randomUUID();
   let callCount = 0;
 

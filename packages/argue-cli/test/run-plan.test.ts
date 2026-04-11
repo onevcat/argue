@@ -109,16 +109,16 @@ describe("resolveRunPlan", () => {
     ).toThrow(/maxRounds must be >= minRounds/);
   });
 
-  it("throws when composer is representative but representativeId is missing", () => {
+  it("allows representative composer without explicit representativeId", () => {
     const loadedConfig = makeLoadedConfig();
 
-    expect(() =>
-      resolveRunPlan({
-        loadedConfig,
-        runInput: { task: "t", composer: "representative" },
-        overrides: {}
-      })
-    ).toThrow(/representativeId is required when composer is 'representative'/);
+    const plan = resolveRunPlan({
+      loadedConfig,
+      runInput: { task: "t", composer: "representative" },
+      overrides: {}
+    });
+    expect(plan.startInput.reportPolicy.composer).toBe("representative");
+    expect(plan.startInput.reportPolicy.representativeId).toBeUndefined();
   });
 
   it("throws when selected agents are unknown", () => {

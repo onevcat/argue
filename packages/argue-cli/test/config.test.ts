@@ -147,6 +147,38 @@ describe("cli config loader", () => {
     expect(loaded.config.providers.p3?.models.m3?.providerModel).toBe("gpt-5-mini");
   });
 
+  it("cli provider defaults command to cliType when omitted", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-default-cmd-"));
+    const configPath = join(root, "argue.config.json");
+    await writeJson(configPath, VALID_CONFIG);
+
+    const result = await runCli(
+      [
+        "config",
+        "add-provider",
+        "--config",
+        configPath,
+        "--id",
+        "cc",
+        "--type",
+        "cli",
+        "--cli-type",
+        "claude",
+        "--model-id",
+        "s"
+      ],
+      { log: () => {}, error: () => {} }
+    );
+
+    expect(result.ok).toBe(true);
+    const loaded = await loadCliConfig({ explicitPath: configPath });
+    const provider = loaded.config.providers.cc;
+    expect(provider?.type).toBe("cli");
+    if (provider?.type === "cli") {
+      expect(provider.command).toBe("claude");
+    }
+  });
+
   it("adds agent via config command", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-add-agent-"));
     const configPath = join(root, "argue.config.json");

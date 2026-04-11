@@ -19,30 +19,16 @@ npm install -g @onevcat/argue-cli
 ### 配置
 
 ```bash
-# 创建配置文件
-argue config init --local
+# 创建配置文件 (~/.config/argue/config.json)
+argue config init
 
-# 添加 Claude Code 作为 provider
-argue config add-provider \
-  --id claude \
-  --type cli \
-  --cli-type claude \
-  --command claude \
-  --args "--print,--permission-mode,bypassPermissions" \
-  --model-id sonnet
+# 添加两个 provider（Claude Code + Codex CLI）
+argue config add-provider --id claude --type cli --cli-type claude --model-id sonnet
+argue config add-provider --id codex --type cli --cli-type codex --model-id gpt-5.3-codex
 
-# 添加 Codex CLI 作为另一个 provider
-argue config add-provider \
-  --id codex \
-  --type cli \
-  --cli-type codex \
-  --command codex \
-  --args "--full-auto" \
-  --model-id codex
-
-# 添加不同角色的 agent
-argue config add-agent --id claude-agent --provider claude --model sonnet --role "senior-engineer"
-argue config add-agent --id codex-agent --provider codex --model codex --role "senior-engineer"
+# 添加 agent
+argue config add-agent --id claude-agent --provider claude --model sonnet
+argue config add-agent --id codex-agent --provider codex --model gpt-5.3-codex
 ```
 
 ### 发起辩论
@@ -114,15 +100,14 @@ import type { AgentTaskDelegate } from "@onevcat/argue";
 
 const delegate: AgentTaskDelegate = {
   async dispatch(task) {
-    // 将任务路由到你的 agent 基础设施
-    // task.kind: "round" | "report" | "action"
-    // round 任务中，task.phase: "initial" | "debate" | "final_vote"
+    // 发起任务并立即返回 taskId。引擎会并行 dispatch 所有参与者，
+    // 然后分别 await 结果——所以这里应尽快返回，不要长时间阻塞。
     const taskId = await myAgentFramework.submit(task);
     return { taskId, participantId: task.participantId, kind: task.kind };
   },
 
   async awaitResult(taskId, timeoutMs) {
-    // 等待 agent 完成并返回结构化输出
+    // 按 taskId 收集结果。引擎用它来管理超时、淘汰和逐步结算。
     const result = await myAgentFramework.waitFor(taskId, timeoutMs);
     return { ok: true, output: result };
   }

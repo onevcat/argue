@@ -19,30 +19,16 @@ npm install -g @onevcat/argue-cli
 ### 設定
 
 ```bash
-# 設定ファイルを作成
-argue config init --local
+# 設定ファイルを作成 (~/.config/argue/config.json)
+argue config init
 
-# Claude Code をプロバイダーとして追加
-argue config add-provider \
-  --id claude \
-  --type cli \
-  --cli-type claude \
-  --command claude \
-  --args "--print,--permission-mode,bypassPermissions" \
-  --model-id sonnet
+# 2 つのプロバイダーを追加（Claude Code + Codex CLI）
+argue config add-provider --id claude --type cli --cli-type claude --model-id sonnet
+argue config add-provider --id codex --type cli --cli-type codex --model-id gpt-5.3-codex
 
-# Codex CLI を別のプロバイダーとして追加
-argue config add-provider \
-  --id codex \
-  --type cli \
-  --cli-type codex \
-  --command codex \
-  --args "--full-auto" \
-  --model-id codex
-
-# 異なる役割のエージェントを追加
-argue config add-agent --id claude-agent --provider claude --model sonnet --role "senior-engineer"
-argue config add-agent --id codex-agent --provider codex --model codex --role "senior-engineer"
+# エージェントを追加
+argue config add-agent --id claude-agent --provider claude --model sonnet
+argue config add-agent --id codex-agent --provider codex --model gpt-5.3-codex
 ```
 
 ### 討論を開始
@@ -114,15 +100,16 @@ import type { AgentTaskDelegate } from "@onevcat/argue";
 
 const delegate: AgentTaskDelegate = {
   async dispatch(task) {
-    // タスクをエージェント基盤にルーティング
-    // task.kind: "round" | "report" | "action"
-    // round タスクの場合、task.phase: "initial" | "debate" | "final_vote"
+    // タスクを発行し、taskId を即座に返す。エンジンは全参加者を
+    // 並列に dispatch してから個別に結果を await するため、
+    // ここで長時間ブロックせず速やかに返すこと。
     const taskId = await myAgentFramework.submit(task);
     return { taskId, participantId: task.participantId, kind: task.kind };
   },
 
   async awaitResult(taskId, timeoutMs) {
-    // エージェントの完了を待ち、構造化された出力を返す
+    // taskId ごとに結果を収集。エンジンはこれを使ってタイムアウト、
+    // 排除、段階的な結果確定を管理する。
     const result = await myAgentFramework.waitFor(taskId, timeoutMs);
     return { ok: true, output: result };
   }

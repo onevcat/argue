@@ -31,7 +31,7 @@ export const CliProviderSchema = z
   .object({
     type: z.literal("cli"),
     cliType: z.enum(["codex", "claude", "copilot", "gemini", "pi", "opencode", "droid", "amp", "generic"]),
-    command: z.string().min(1),
+    command: z.string().min(1).optional(),
     args: z.array(z.string()).default([]),
     env: z.record(z.string()).optional(),
     models: ProviderModelsSchema

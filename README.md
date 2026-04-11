@@ -19,30 +19,16 @@ npm install -g @onevcat/argue-cli
 ### Configure
 
 ```bash
-# Create config file
-argue config init --local
+# Create config file (~/.config/argue/config.json)
+argue config init
 
-# Add Claude Code as a provider
-argue config add-provider \
-  --id claude \
-  --type cli \
-  --cli-type claude \
-  --command claude \
-  --args "--print,--permission-mode,bypassPermissions" \
-  --model-id sonnet
+# Add two providers (Claude Code + Codex CLI)
+argue config add-provider --id claude --type cli --cli-type claude --model-id sonnet
+argue config add-provider --id codex --type cli --cli-type codex --model-id gpt-5.3-codex
 
-# Add Codex CLI as another provider
-argue config add-provider \
-  --id codex \
-  --type cli \
-  --cli-type codex \
-  --command codex \
-  --args "--full-auto" \
-  --model-id codex
-
-# Add agents with different roles
-argue config add-agent --id claude-agent --provider claude --model sonnet --role "senior-engineer"
-argue config add-agent --id codex-agent --provider codex --model codex --role "senior-engineer"
+# Add agents
+argue config add-agent --id claude-agent --provider claude --model sonnet
+argue config add-agent --id codex-agent --provider codex --model gpt-5.3-codex
 ```
 
 ### Run a Debate
@@ -114,15 +100,16 @@ import type { AgentTaskDelegate } from "@onevcat/argue";
 
 const delegate: AgentTaskDelegate = {
   async dispatch(task) {
-    // Route task to your agent infrastructure.
-    // task.kind is "round" | "report" | "action"
-    // For round tasks, task.phase is "initial" | "debate" | "final_vote"
+    // Fire off the task and return a taskId immediately.
+    // The engine dispatches all participants in parallel, then awaits
+    // results separately — so this should return quickly without waiting for completion.
     const taskId = await myAgentFramework.submit(task);
     return { taskId, participantId: task.participantId, kind: task.kind };
   },
 
   async awaitResult(taskId, timeoutMs) {
-    // Wait for the agent to finish and return structured output.
+    // Called per task to collect the result. The engine uses the taskId
+    // to track timeouts, eliminations, and progressive settlement.
     const result = await myAgentFramework.waitFor(taskId, timeoutMs);
     return { ok: true, output: result };
   }

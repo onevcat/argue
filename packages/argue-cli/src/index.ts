@@ -927,7 +927,7 @@ function parseConfigAddProviderOptions(
       };
     }
     if (!out.command) {
-      return { ok: false, error: "CLI provider requires --command <binary>." };
+      out.command = out.cliType;
     }
   }
 
@@ -1177,7 +1177,7 @@ function printHelp(io: Pick<typeof console, "log">): void {
     `    api options: --vendor <${getVendorNames().join("|")}> | --protocol <openai-compatible|anthropic-compatible> [--base-url <url>] [--api-key-env <ENV_VAR>]`
   );
   io.log(
-    "    cli options: --cli-type <codex|claude|copilot|gemini|pi|opencode|droid|amp|generic> --command <binary> [--args a,b,c (extra)]"
+    "    cli options: --cli-type <codex|claude|copilot|gemini|pi|opencode|droid|amp|generic> [--command <binary>] [--args a,b,c (extra)]"
   );
   io.log("    sdk options: --adapter <module> [--export-name <name>]");
   io.log(

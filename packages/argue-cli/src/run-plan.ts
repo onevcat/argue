@@ -108,11 +108,8 @@ export function resolveRunPlan(args: {
   const threshold =
     overrides.consensusThreshold ?? runInput.consensusThreshold ?? config.defaults?.consensusThreshold ?? 1;
 
-  const composer = overrides.composer ?? runInput.composer ?? config.defaults?.composer ?? "builtin";
+  const composer = overrides.composer ?? runInput.composer ?? config.defaults?.composer ?? "representative";
   const representativeId = overrides.representativeId ?? runInput.representativeId ?? config.defaults?.representativeId;
-  if (composer === "representative" && !representativeId) {
-    throw new Error("representativeId is required when composer is 'representative'");
-  }
   const includeDeliberationTrace =
     overrides.includeDeliberationTrace ??
     runInput.includeDeliberationTrace ??
