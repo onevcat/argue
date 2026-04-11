@@ -879,6 +879,153 @@ describe("ArgueEngine M2", () => {
     expect(c3?.mergedInto).toBe("onevclaw:0:0");
   });
 
+  it("covers full claim lifecycle: create, debate-introduce, merge, revise, vote", async () => {
+    // Round 0 (initial): each agent proposes one claim → engine assigns IDs
+    // Round 1 (debate): onevpaw introduces a NEW claim; onevclaw merges
+    //                    onevpaw:0:0 into onevclaw:0:0 and revises statement
+    // Round 2 (final_vote): vote on all active claims
+    //
+    // Expected final catalog:
+    //   onevclaw:0:0 — active (merged with onevpaw:0:0, revised statement)
+    //   onevpaw:0:0  — merged into onevclaw:0:0
+    //   onevpaw:1:0  — active (new claim introduced in debate round 1)
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {
+      "round:initial:0:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "initial",
+            round: 0,
+            extractedClaims: [{ title: "Perf is fine", statement: "Benchmarks show no regression", category: "pro" }]
+          })
+        )
+      },
+      "round:initial:0:onevpaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevpaw",
+            phase: "initial",
+            round: 0,
+            extractedClaims: [{ title: "Perf needs work", statement: "Latency p99 is too high", category: "con" }]
+          })
+        )
+      },
+      // Debate: onevclaw merges onevpaw:0:0 into onevclaw:0:0 with revised statement
+      "round:debate:1:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "debate",
+            round: 1,
+            judgements: [
+              {
+                claimId: "onevpaw:0:0",
+                stance: "revise",
+                revisedStatement: "Perf is acceptable after targeted p99 fix",
+                mergesWith: "onevclaw:0:0"
+              }
+            ]
+          })
+        )
+      },
+      // Debate: onevpaw introduces a NEW claim and agrees on existing
+      "round:debate:1:onevpaw": {
+        type: "success",
+        output: {
+          kind: "round",
+          output: {
+            participantId: "onevpaw",
+            phase: "debate" as const,
+            round: 1,
+            fullResponse: "onevpaw:debate:1",
+            summary: "onevpaw debate summary",
+            extractedClaims: [
+              { title: "Missing test coverage", statement: "No integration tests for the new path", category: "risk" }
+            ],
+            judgements: [
+              { claimId: "onevclaw:0:0", stance: "agree" as const, confidence: 0.9, rationale: "agree" }
+            ]
+          }
+        }
+      },
+      // Final vote: vote on active claims (onevclaw:0:0 survived merge, onevpaw:1:0 is new)
+      "round:final_vote:2:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "final_vote",
+            round: 2,
+            catalogClaimIds: ["onevclaw:0:0", "onevpaw:1:0"],
+            claimVotes: [
+              { claimId: "onevclaw:0:0", vote: "accept" },
+              { claimId: "onevpaw:1:0", vote: "accept" }
+            ]
+          })
+        )
+      },
+      "round:final_vote:2:onevpaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevpaw",
+            phase: "final_vote",
+            round: 2,
+            catalogClaimIds: ["onevclaw:0:0", "onevpaw:1:0"],
+            claimVotes: [
+              { claimId: "onevclaw:0:0", vote: "accept" },
+              { claimId: "onevpaw:1:0", vote: "accept" }
+            ]
+          })
+        )
+      }
+    };
+
+    const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) });
+    const result = await engine.start({
+      requestId: "req-lifecycle",
+      task: "full claim lifecycle",
+      participants: [{ id: "onevclaw" }, { id: "onevpaw" }],
+      roundPolicy: { minRounds: 1, maxRounds: 1 }
+    });
+
+    // 1. Initial claims get engine-assigned IDs with round 0
+    const perfClaim = result.finalClaims.find((c) => c.claimId === "onevclaw:0:0");
+    const latencyClaim = result.finalClaims.find((c) => c.claimId === "onevpaw:0:0");
+    expect(perfClaim).toBeDefined();
+    expect(latencyClaim).toBeDefined();
+
+    // 2. Merge: onevpaw:0:0 merged into onevclaw:0:0
+    expect(latencyClaim!.status).toBe("merged");
+    expect(latencyClaim!.mergedInto).toBe("onevclaw:0:0");
+    expect(perfClaim!.status).toBe("active");
+    expect(perfClaim!.proposedBy.sort()).toEqual(["onevclaw", "onevpaw"]);
+
+    // 3. Revise: revisedStatement applies to the judged claim (the loser), not the survivor
+    expect(latencyClaim!.statement).toBe("Perf is acceptable after targeted p99 fix");
+    expect(perfClaim!.statement).toBe("Benchmarks show no regression");
+
+    // 4. New claim introduced in debate round 1 gets round=1 in its ID
+    const newClaim = result.finalClaims.find((c) => c.claimId === "onevpaw:1:0");
+    expect(newClaim).toBeDefined();
+    expect(newClaim!.title).toBe("Missing test coverage");
+    expect(newClaim!.proposedBy).toEqual(["onevpaw"]);
+    expect(newClaim!.status).toBe("active");
+
+    // 5. No ID collisions — total claims = 3
+    expect(result.finalClaims).toHaveLength(3);
+
+    // 6. Consensus on active claims
+    expect(result.status).toBe("consensus");
+    const perfRes = result.claimResolutions.find((r) => r.claimId === "onevclaw:0:0");
+    const newRes = result.claimResolutions.find((r) => r.claimId === "onevpaw:1:0");
+    expect(perfRes?.status).toBe("resolved");
+    expect(newRes?.status).toBe("resolved");
+  });
+
   it("emits round participant events in real completion timeline", async () => {
     const twoClaimIds = ["onevclaw:0:0", "onevpaw:0:0"];
     const scenarios: Record<string, { type: "success"; output: AgentTaskResult; delayMs?: number }> = {
