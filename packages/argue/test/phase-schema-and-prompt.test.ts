@@ -18,55 +18,67 @@ function mkRoundResult(output: ParticipantRoundOutput): AgentTaskResult {
 
 describe("phase schemas", () => {
   it("enforces phase-specific payload rules", () => {
-    expect(() => InitialParticipantRoundOutputSchema.parse({
-      participantId: "a",
-      phase: "initial",
-      round: 0,
-      fullResponse: "x",
-      summary: "x",
-      extractedClaims: [{ claimId: "c1", title: "t", statement: "s" }],
-      judgements: []
-    })).not.toThrow();
+    expect(() =>
+      InitialParticipantRoundOutputSchema.parse({
+        participantId: "a",
+        phase: "initial",
+        round: 0,
+        fullResponse: "x",
+        summary: "x",
+        extractedClaims: [{ claimId: "c1", title: "t", statement: "s" }],
+        judgements: []
+      })
+    ).not.toThrow();
 
-    expect(() => InitialParticipantRoundOutputSchema.parse({
-      participantId: "a",
-      phase: "initial",
-      round: 0,
-      fullResponse: "x",
-      summary: "x",
-      extractedClaims: [{ claimId: "c1", title: "t", statement: "s" }],
-      judgements: [],
-      claimVotes: [{ claimId: "c1", vote: "accept" }]
-    })).toThrow();
+    expect(() =>
+      InitialParticipantRoundOutputSchema.parse({
+        participantId: "a",
+        phase: "initial",
+        round: 0,
+        fullResponse: "x",
+        summary: "x",
+        extractedClaims: [{ claimId: "c1", title: "t", statement: "s" }],
+        judgements: [],
+        claimVotes: [{ claimId: "c1", vote: "accept" }]
+      })
+    ).toThrow();
 
-    expect(() => DebateParticipantRoundOutputSchema.parse({
-      participantId: "a",
-      phase: "debate",
-      round: 1,
-      fullResponse: "x",
-      summary: "x",
-      judgements: [{
-        claimId: "c1",
-        stance: "disagree",
-        confidence: 0.8,
-        rationale: "..."
-      }]
-    })).not.toThrow();
+    expect(() =>
+      DebateParticipantRoundOutputSchema.parse({
+        participantId: "a",
+        phase: "debate",
+        round: 1,
+        fullResponse: "x",
+        summary: "x",
+        judgements: [
+          {
+            claimId: "c1",
+            stance: "disagree",
+            confidence: 0.8,
+            rationale: "..."
+          }
+        ]
+      })
+    ).not.toThrow();
 
-    expect(() => FinalVoteParticipantRoundOutputSchema.parse({
-      participantId: "a",
-      phase: "final_vote",
-      round: 2,
-      fullResponse: "x",
-      summary: "x",
-      judgements: [{
-        claimId: "c1",
-        stance: "agree",
-        confidence: 0.8,
-        rationale: "..."
-      }],
-      claimVotes: []
-    })).toThrow();
+    expect(() =>
+      FinalVoteParticipantRoundOutputSchema.parse({
+        participantId: "a",
+        phase: "final_vote",
+        round: 2,
+        fullResponse: "x",
+        summary: "x",
+        judgements: [
+          {
+            claimId: "c1",
+            stance: "agree",
+            confidence: 0.8,
+            rationale: "..."
+          }
+        ],
+        claimVotes: []
+      })
+    ).toThrow();
   });
 });
 
@@ -195,12 +207,14 @@ describe("built-in prompt templates", () => {
           round: 1,
           fullResponse: "debate a",
           summary: "debate a",
-          judgements: [{
-            claimId: "c2",
-            stance: "disagree",
-            confidence: 0.8,
-            rationale: "need change"
-          }]
+          judgements: [
+            {
+              claimId: "c2",
+              stance: "disagree",
+              confidence: 0.8,
+              rationale: "need change"
+            }
+          ]
         })
       },
       "round:debate:1:b": {
@@ -211,12 +225,14 @@ describe("built-in prompt templates", () => {
           round: 1,
           fullResponse: "debate b",
           summary: "debate b",
-          judgements: [{
-            claimId: "c1",
-            stance: "agree",
-            confidence: 0.8,
-            rationale: "ok"
-          }]
+          judgements: [
+            {
+              claimId: "c1",
+              stance: "agree",
+              confidence: 0.8,
+              rationale: "ok"
+            }
+          ]
         })
       },
       "round:final_vote:2:a": {
@@ -227,12 +243,14 @@ describe("built-in prompt templates", () => {
           round: 2,
           fullResponse: "vote a",
           summary: "vote a",
-          judgements: [{
-            claimId: "c1",
-            stance: "agree",
-            confidence: 0.8,
-            rationale: "ok"
-          }],
+          judgements: [
+            {
+              claimId: "c1",
+              stance: "agree",
+              confidence: 0.8,
+              rationale: "ok"
+            }
+          ],
           claimVotes: [{ claimId: "c1", vote: "accept" }]
         })
       },
@@ -244,12 +262,14 @@ describe("built-in prompt templates", () => {
           round: 2,
           fullResponse: "vote b",
           summary: "vote b",
-          judgements: [{
-            claimId: "c1",
-            stance: "agree",
-            confidence: 0.8,
-            rationale: "ok"
-          }],
+          judgements: [
+            {
+              claimId: "c1",
+              stance: "agree",
+              confidence: 0.8,
+              rationale: "ok"
+            }
+          ],
           claimVotes: [{ claimId: "c1", vote: "accept" }]
         })
       },
@@ -310,12 +330,22 @@ describe("built-in prompt templates", () => {
     const finalMeta = finalDispatch?.metadata as Record<string, unknown> | undefined;
     const reportMeta = reportDispatch?.metadata as Record<string, unknown> | undefined;
 
-    expect((initialMeta?.outputSchema as Record<string, unknown> | undefined)?.ref).toBe("argue.round.initial.output-content.v1");
-    expect((debateMeta?.outputSchema as Record<string, unknown> | undefined)?.ref).toBe("argue.round.debate.output-content.v1");
-    expect((finalMeta?.outputSchema as Record<string, unknown> | undefined)?.ref).toBe("argue.round.final_vote.output-content.v1");
-    expect((reportMeta?.outputSchema as Record<string, unknown> | undefined)?.ref).toBe("argue.report.output-content.v1");
+    expect((initialMeta?.outputSchema as Record<string, unknown> | undefined)?.ref).toBe(
+      "argue.round.initial.output-content.v1"
+    );
+    expect((debateMeta?.outputSchema as Record<string, unknown> | undefined)?.ref).toBe(
+      "argue.round.debate.output-content.v1"
+    );
+    expect((finalMeta?.outputSchema as Record<string, unknown> | undefined)?.ref).toBe(
+      "argue.round.final_vote.output-content.v1"
+    );
+    expect((reportMeta?.outputSchema as Record<string, unknown> | undefined)?.ref).toBe(
+      "argue.report.output-content.v1"
+    );
 
-    const finalVoteSchema = (finalMeta?.outputSchema as Record<string, unknown> | undefined)?.jsonSchema as Record<string, unknown> | undefined;
+    const finalVoteSchema = (finalMeta?.outputSchema as Record<string, unknown> | undefined)?.jsonSchema as
+      | Record<string, unknown>
+      | undefined;
     expect((finalVoteSchema?.properties as Record<string, unknown> | undefined)?.claimVotes).toBeDefined();
   });
 });

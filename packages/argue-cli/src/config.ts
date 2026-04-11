@@ -3,65 +3,79 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
 
-export const ProviderModelSchema = z.object({
-  providerModel: z.string().min(1).optional(),
-  contextWindow: z.number().int().positive().optional(),
-  maxOutputTokens: z.number().int().positive().optional(),
-  temperature: z.number().min(0).max(2).optional()
-}).strict();
+export const ProviderModelSchema = z
+  .object({
+    providerModel: z.string().min(1).optional(),
+    contextWindow: z.number().int().positive().optional(),
+    maxOutputTokens: z.number().int().positive().optional(),
+    temperature: z.number().min(0).max(2).optional()
+  })
+  .strict();
 
 const ProviderModelsSchema = z.record(ProviderModelSchema).refine((models) => Object.keys(models).length > 0, {
   message: "provider.models must contain at least one model"
 });
 
-export const ApiProviderSchema = z.object({
-  type: z.literal("api"),
-  protocol: z.enum(["openai-compatible", "anthropic-compatible"]),
-  baseUrl: z.string().url().optional(),
-  apiKeyEnv: z.string().min(1).optional(),
-  headers: z.record(z.string()).optional(),
-  models: ProviderModelsSchema
-}).strict();
+export const ApiProviderSchema = z
+  .object({
+    type: z.literal("api"),
+    protocol: z.enum(["openai-compatible", "anthropic-compatible"]),
+    baseUrl: z.string().url().optional(),
+    apiKeyEnv: z.string().min(1).optional(),
+    headers: z.record(z.string()).optional(),
+    models: ProviderModelsSchema
+  })
+  .strict();
 
-export const CliProviderSchema = z.object({
-  type: z.literal("cli"),
-  cliType: z.enum(["codex", "claude", "copilot", "gemini", "pi", "opencode", "droid", "amp", "generic"]),
-  command: z.string().min(1),
-  args: z.array(z.string()).default([]),
-  env: z.record(z.string()).optional(),
-  models: ProviderModelsSchema
-}).strict();
+export const CliProviderSchema = z
+  .object({
+    type: z.literal("cli"),
+    cliType: z.enum(["codex", "claude", "copilot", "gemini", "pi", "opencode", "droid", "amp", "generic"]),
+    command: z.string().min(1),
+    args: z.array(z.string()).default([]),
+    env: z.record(z.string()).optional(),
+    models: ProviderModelsSchema
+  })
+  .strict();
 
-export const SdkProviderSchema = z.object({
-  type: z.literal("sdk"),
-  adapter: z.string().min(1),
-  exportName: z.string().min(1).optional(),
-  env: z.record(z.string()).optional(),
-  options: z.record(z.unknown()).optional(),
-  models: ProviderModelsSchema
-}).strict();
+export const SdkProviderSchema = z
+  .object({
+    type: z.literal("sdk"),
+    adapter: z.string().min(1),
+    exportName: z.string().min(1).optional(),
+    env: z.record(z.string()).optional(),
+    options: z.record(z.unknown()).optional(),
+    models: ProviderModelsSchema
+  })
+  .strict();
 
-export const MockProviderActionSchema = z.object({
-  behavior: z.enum(["deterministic", "timeout", "error", "malformed"]).default("deterministic"),
-  delayMs: z.number().int().nonnegative().optional(),
-  error: z.string().min(1).optional()
-}).strict();
+export const MockProviderActionSchema = z
+  .object({
+    behavior: z.enum(["deterministic", "timeout", "error", "malformed"]).default("deterministic"),
+    delayMs: z.number().int().nonnegative().optional(),
+    error: z.string().min(1).optional()
+  })
+  .strict();
 
-export const MockParticipantScenarioSchema = z.object({
-  initial: MockProviderActionSchema.optional(),
-  debate: MockProviderActionSchema.optional(),
-  final_vote: MockProviderActionSchema.optional(),
-  report: MockProviderActionSchema.optional(),
-  action: MockProviderActionSchema.optional()
-}).strict();
+export const MockParticipantScenarioSchema = z
+  .object({
+    initial: MockProviderActionSchema.optional(),
+    debate: MockProviderActionSchema.optional(),
+    final_vote: MockProviderActionSchema.optional(),
+    report: MockProviderActionSchema.optional(),
+    action: MockProviderActionSchema.optional()
+  })
+  .strict();
 
-export const MockProviderSchema = z.object({
-  type: z.literal("mock"),
-  seed: z.string().min(1).optional(),
-  defaultBehavior: MockProviderActionSchema.optional(),
-  participants: z.record(MockParticipantScenarioSchema).optional(),
-  models: ProviderModelsSchema
-}).strict();
+export const MockProviderSchema = z
+  .object({
+    type: z.literal("mock"),
+    seed: z.string().min(1).optional(),
+    defaultBehavior: MockProviderActionSchema.optional(),
+    participants: z.record(MockParticipantScenarioSchema).optional(),
+    models: ProviderModelsSchema
+  })
+  .strict();
 
 export const ProviderSchema = z.discriminatedUnion("type", [
   ApiProviderSchema,
@@ -70,47 +84,55 @@ export const ProviderSchema = z.discriminatedUnion("type", [
   MockProviderSchema
 ]);
 
-export const AgentSchema = z.object({
-  id: z.string().min(1),
-  provider: z.string().min(1),
-  model: z.string().min(1),
-  role: z.string().min(1).optional(),
-  systemPrompt: z.string().min(1).optional(),
-  timeoutMs: z.number().int().positive().optional(),
-  temperature: z.number().min(0).max(2).optional()
-}).strict();
+export const AgentSchema = z
+  .object({
+    id: z.string().min(1),
+    provider: z.string().min(1),
+    model: z.string().min(1),
+    role: z.string().min(1).optional(),
+    systemPrompt: z.string().min(1).optional(),
+    timeoutMs: z.number().int().positive().optional(),
+    temperature: z.number().min(0).max(2).optional()
+  })
+  .strict();
 
-export const DefaultsSchema = z.object({
-  defaultAgents: z.array(z.string().min(1)).min(2).optional(),
-  language: z.string().min(1).optional(),
-  tokenBudgetHint: z.number().int().positive().optional(),
-  minRounds: z.number().int().min(0).optional(),
-  maxRounds: z.number().int().min(1).optional(),
-  perTaskTimeoutMs: z.number().int().positive().optional(),
-  perRoundTimeoutMs: z.number().int().positive().optional(),
-  globalDeadlineMs: z.number().int().positive().optional(),
-  consensusThreshold: z.number().min(0).max(1).optional(),
-  composer: z.enum(["builtin", "representative"]).optional(),
-  representativeId: z.string().min(1).optional(),
-  includeDeliberationTrace: z.boolean().optional(),
-  traceLevel: z.enum(["compact", "full"]).optional()
-}).strict();
+export const DefaultsSchema = z
+  .object({
+    defaultAgents: z.array(z.string().min(1)).min(2).optional(),
+    language: z.string().min(1).optional(),
+    tokenBudgetHint: z.number().int().positive().optional(),
+    minRounds: z.number().int().min(0).optional(),
+    maxRounds: z.number().int().min(1).optional(),
+    perTaskTimeoutMs: z.number().int().positive().optional(),
+    perRoundTimeoutMs: z.number().int().positive().optional(),
+    globalDeadlineMs: z.number().int().positive().optional(),
+    consensusThreshold: z.number().min(0).max(1).optional(),
+    composer: z.enum(["builtin", "representative"]).optional(),
+    representativeId: z.string().min(1).optional(),
+    includeDeliberationTrace: z.boolean().optional(),
+    traceLevel: z.enum(["compact", "full"]).optional()
+  })
+  .strict();
 
-export const OutputSchema = z.object({
-  jsonlPath: z.string().min(1).optional(),
-  resultPath: z.string().min(1).optional(),
-  summaryPath: z.string().min(1).optional()
-}).strict();
+export const OutputSchema = z
+  .object({
+    jsonlPath: z.string().min(1).optional(),
+    resultPath: z.string().min(1).optional(),
+    summaryPath: z.string().min(1).optional()
+  })
+  .strict();
 
-const CliConfigSchemaBase = z.object({
-  schemaVersion: z.literal(1),
-  output: OutputSchema.optional(),
-  defaults: DefaultsSchema.optional(),
-  providers: z.record(ProviderSchema).refine((providers) => Object.keys(providers).length > 0, {
-    message: "config.providers must contain at least one provider"
-  }),
-  agents: z.array(AgentSchema).min(2)
-}).strict();
+const CliConfigSchemaBase = z
+  .object({
+    schemaVersion: z.literal(1),
+    output: OutputSchema.optional(),
+    defaults: DefaultsSchema.optional(),
+    providers: z.record(ProviderSchema).refine((providers) => Object.keys(providers).length > 0, {
+      message: "config.providers must contain at least one provider"
+    }),
+    agents: z.array(AgentSchema).min(2)
+  })
+  .strict();
 
 export const CliConfigSchema = CliConfigSchemaBase.superRefine((config, ctx) => {
   const seen = new Set<string>();
@@ -244,11 +266,13 @@ export type LoadedRawCliConfig = {
   config: RawCliConfig;
 };
 
-const RawCliConfigSchema = z.object({
-  schemaVersion: z.literal(1),
-  providers: z.record(z.unknown()).default({}),
-  agents: z.array(z.record(z.unknown())).default([])
-}).passthrough();
+const RawCliConfigSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    providers: z.record(z.unknown()).default({}),
+    agents: z.array(z.record(z.unknown())).default([])
+  })
+  .passthrough();
 
 export async function loadRawCliConfig(configPath: string): Promise<LoadedRawCliConfig> {
   const json = await readJsonFile(configPath);

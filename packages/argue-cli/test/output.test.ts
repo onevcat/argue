@@ -81,13 +81,19 @@ function makeMinimalResult(): ArgueResult {
       {
         participantId: "agent-a",
         total: 85.5,
-        byRound: [{ round: 0, score: 80 }, { round: 1, score: 91 }],
+        byRound: [
+          { round: 0, score: 80 },
+          { round: 1, score: 91 }
+        ],
         breakdown: { correctness: 90, completeness: 85, actionability: 80, consistency: 87 }
       },
       {
         participantId: "agent-b",
         total: 78.2,
-        byRound: [{ round: 0, score: 75 }, { round: 1, score: 81.4 }],
+        byRound: [
+          { round: 0, score: 75 },
+          { round: 1, score: 81.4 }
+        ],
         breakdown: { correctness: 80, completeness: 75, actionability: 78, consistency: 80 }
       }
     ],
@@ -180,11 +186,19 @@ describe("output formatter", () => {
       const fmt = createOutputFormatter(io, { verbose: true, noColor: true });
       const handler = fmt.createEventHandler();
 
-      handler(makeParticipantRespondedEvent({
-        judgementsDetail: [
-          { claimId: "c1", stance: "revise", confidence: 0.8, rationale: "Needs refinement.", revisedStatement: "Updated claim text." }
-        ]
-      }));
+      handler(
+        makeParticipantRespondedEvent({
+          judgementsDetail: [
+            {
+              claimId: "c1",
+              stance: "revise",
+              confidence: 0.8,
+              rationale: "Needs refinement.",
+              revisedStatement: "Updated claim text."
+            }
+          ]
+        })
+      );
 
       const all = io.logs.join("\n");
       expect(all).toContain("revised:");
@@ -196,14 +210,16 @@ describe("output formatter", () => {
       const fmt = createOutputFormatter(io, { verbose: true, noColor: true });
       const handler = fmt.createEventHandler();
 
-      handler(makeParticipantRespondedEvent({
-        phase: "final_vote",
-        claimVotes: 2,
-        claimVotesDetail: [
-          { claimId: "c1", vote: "accept", reason: "Solid conclusion." },
-          { claimId: "c2", vote: "reject", reason: "Insufficient evidence." }
-        ]
-      }));
+      handler(
+        makeParticipantRespondedEvent({
+          phase: "final_vote",
+          claimVotes: 2,
+          claimVotesDetail: [
+            { claimId: "c1", vote: "accept", reason: "Solid conclusion." },
+            { claimId: "c2", vote: "reject", reason: "Insufficient evidence." }
+          ]
+        })
+      );
 
       const all = io.logs.join("\n");
       expect(all).toContain("votes:");
@@ -279,9 +295,7 @@ describe("output formatter", () => {
       const io = createIO();
       const fmt = createOutputFormatter(io, { verbose: true, noColor: true });
       const result = makeMinimalResult();
-      result.disagreements = [
-        { claimId: "c1", participantId: "agent-b", reason: "I still disagree." }
-      ];
+      result.disagreements = [{ claimId: "c1", participantId: "agent-b", reason: "I still disagree." }];
       fmt.runCompleted(result, { resultPath: "/out/r.json", summaryPath: "/out/s.md" });
 
       const all = io.logs.join("\n");
@@ -342,9 +356,7 @@ describe("output formatter", () => {
       const io = createIO();
       const fmt = createOutputFormatter(io, { verbose: true, noColor: true });
       const result = makeMinimalResult();
-      result.eliminations = [
-        { participantId: "agent-c", round: 2, reason: "timeout", at: "2026-04-10T00:00:00Z" }
-      ];
+      result.eliminations = [{ participantId: "agent-c", round: 2, reason: "timeout", at: "2026-04-10T00:00:00Z" }];
       fmt.runCompleted(result, { resultPath: "/out/r.json", summaryPath: "/out/s.md" });
 
       const all = io.logs.join("\n");

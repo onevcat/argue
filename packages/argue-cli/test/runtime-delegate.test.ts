@@ -11,17 +11,19 @@ describe("createTaskDelegate task lifecycle", () => {
       runInput: {},
       overrides: {
         requestId: "req-cleanup",
-        task: "topic",
+        task: "topic"
       }
     });
 
     const delegate = await createTaskDelegate({ loadedConfig, plan });
 
-    const dispatch = await delegate.dispatch(makeRoundTask({
-      requestId: "req-cleanup",
-      sessionId: "s1",
-      participantId: "a1"
-    }));
+    const dispatch = await delegate.dispatch(
+      makeRoundTask({
+        requestId: "req-cleanup",
+        sessionId: "s1",
+        participantId: "a1"
+      })
+    );
 
     const first = await delegate.awaitResult(dispatch.taskId, 1000);
     expect(first.ok).toBe(true);
@@ -38,17 +40,19 @@ describe("createTaskDelegate task lifecycle", () => {
       runInput: {},
       overrides: {
         requestId: "req-cancel",
-        task: "topic",
+        task: "topic"
       }
     });
 
     const delegate = await createTaskDelegate({ loadedConfig, plan });
 
-    const dispatch = await delegate.dispatch(makeRoundTask({
-      requestId: "req-cancel",
-      sessionId: "s2",
-      participantId: "a1"
-    }));
+    const dispatch = await delegate.dispatch(
+      makeRoundTask({
+        requestId: "req-cancel",
+        sessionId: "s2",
+        participantId: "a1"
+      })
+    );
 
     await delegate.cancel?.(dispatch.taskId);
 
@@ -64,17 +68,21 @@ describe("createTaskDelegate task lifecycle", () => {
       runInput: {},
       overrides: {
         requestId: "req-unknown-agent",
-        task: "topic",
+        task: "topic"
       }
     });
 
     const delegate = await createTaskDelegate({ loadedConfig, plan });
 
-    await expect(delegate.dispatch(makeRoundTask({
-      requestId: "req-unknown-agent",
-      sessionId: "s4",
-      participantId: "ghost"
-    }))).rejects.toThrow(/Unknown agent id/);
+    await expect(
+      delegate.dispatch(
+        makeRoundTask({
+          requestId: "req-unknown-agent",
+          sessionId: "s4",
+          participantId: "ghost"
+        })
+      )
+    ).rejects.toThrow(/Unknown agent id/);
   });
 
   it("throws on unknown model in agent catalog", async () => {
@@ -117,11 +125,7 @@ describe("createTaskDelegate task lifecycle", () => {
   });
 });
 
-function makeRoundTask(args: {
-  requestId: string;
-  sessionId: string;
-  participantId: string;
-}): AgentTaskInput {
+function makeRoundTask(args: { requestId: string; sessionId: string; participantId: string }): AgentTaskInput {
   return {
     kind: "round",
     sessionId: args.sessionId,

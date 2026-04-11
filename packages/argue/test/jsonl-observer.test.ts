@@ -149,7 +149,11 @@ describe("JsonlObserver", () => {
     await observer.flush();
 
     const raw = await readFile(path, "utf8");
-    const records = raw.trim().split("\n").filter(Boolean).map((line) => JsonlRunEventSchema.parse(JSON.parse(line)));
+    const records = raw
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JsonlRunEventSchema.parse(JSON.parse(line)));
 
     expect(records.length).toBeGreaterThan(0);
     expect(records[0]?.event.type).toBe("SessionStarted");

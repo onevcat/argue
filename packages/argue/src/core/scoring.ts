@@ -59,9 +59,8 @@ export function computeParticipantScores(args: {
     const rounds = [...(byParticipantRound.get(participant) ?? [])].sort((a, b) => a.round - b.round);
     const byRound = rounds.map(({ round, score }) => ({ round, score }));
 
-    const total = byRound.length > 0
-      ? roundTo2(byRound.reduce((sum, item) => sum + item.score, 0) / byRound.length)
-      : 0;
+    const total =
+      byRound.length > 0 ? roundTo2(byRound.reduce((sum, item) => sum + item.score, 0) / byRound.length) : 0;
 
     result.push({
       participantId: participant,
@@ -102,9 +101,10 @@ export function chooseRepresentative(args: {
     };
   }
 
-  const winner = args.tieBreaker === "least-objection"
-    ? breakTieByLeastObjection(ties, args.rounds)
-    : breakTieByLatestRoundScore(ties);
+  const winner =
+    args.tieBreaker === "least-objection"
+      ? breakTieByLeastObjection(ties, args.rounds)
+      : breakTieByLatestRoundScore(ties);
 
   return {
     participantId: winner.participantId,
@@ -235,26 +235,32 @@ function breakTieByLeastObjection(
   return winner;
 }
 
-function scoreOutputNonCorrectness(output: ParticipantRoundOutput, roundClaimTarget: number): Omit<ScoreBreakdown, "correctness"> {
-  const stanceAvg = output.judgements.length > 0
-    ? output.judgements.reduce((sum, judgement) => sum + stanceFactor(judgement.stance), 0) / output.judgements.length
-    : 0.7;
+function scoreOutputNonCorrectness(
+  output: ParticipantRoundOutput,
+  roundClaimTarget: number
+): Omit<ScoreBreakdown, "correctness"> {
+  const stanceAvg =
+    output.judgements.length > 0
+      ? output.judgements.reduce((sum, judgement) => sum + stanceFactor(judgement.stance), 0) / output.judgements.length
+      : 0.7;
 
-  const completeness = roundTo2((
-    clamp(output.judgements.length / Math.max(1, roundClaimTarget), 0, 1) * 0.5 +
-    clamp(output.fullResponse.trim().length / 160, 0, 1) * 0.3 +
-    clamp(output.summary.trim().length / 80, 0, 1) * 0.2
-  ) * 100);
+  const completeness = roundTo2(
+    (clamp(output.judgements.length / Math.max(1, roundClaimTarget), 0, 1) * 0.5 +
+      clamp(output.fullResponse.trim().length / 160, 0, 1) * 0.3 +
+      clamp(output.summary.trim().length / 80, 0, 1) * 0.2) *
+      100
+  );
 
   const hasRevision = output.judgements.some((judgement) => typeof judgement.revisedStatement === "string");
   const hasVotes = output.phase === "final_vote" && (output.claimVotes?.length ?? 0) > 0;
 
-  const actionability = roundTo2((
-    clamp(output.summary.trim().length / 60, 0, 1) * 0.45 +
-    clamp(output.fullResponse.trim().length / 180, 0, 1) * 0.25 +
-    (hasRevision ? 1 : 0.55) * 0.2 +
-    (hasVotes ? 1 : 0.7) * 0.1
-  ) * 100);
+  const actionability = roundTo2(
+    (clamp(output.summary.trim().length / 60, 0, 1) * 0.45 +
+      clamp(output.fullResponse.trim().length / 180, 0, 1) * 0.25 +
+      (hasRevision ? 1 : 0.55) * 0.2 +
+      (hasVotes ? 1 : 0.7) * 0.1) *
+      100
+  );
 
   const consistency = roundTo2(clamp(stanceAvg * 100, 0, 100));
 
@@ -276,24 +282,20 @@ function aggregateBreakdowns(breakdowns: ScoreBreakdown[]): ScoreBreakdown | und
   };
 }
 
-function weightedTotal(
-  breakdown: ScoreBreakdown,
-  weights: RubricWeights
-): number {
+function weightedTotal(breakdown: ScoreBreakdown, weights: RubricWeights): number {
   const totalWeight = weights.correctness + weights.completeness + weights.actionability + weights.consistency;
   const normalizedWeight = totalWeight > 0 ? totalWeight : 1;
 
-  return roundTo2((
-    breakdown.correctness * weights.correctness +
-    breakdown.completeness * weights.completeness +
-    breakdown.actionability * weights.actionability +
-    breakdown.consistency * weights.consistency
-  ) / normalizedWeight);
+  return roundTo2(
+    (breakdown.correctness * weights.correctness +
+      breakdown.completeness * weights.completeness +
+      breakdown.actionability * weights.actionability +
+      breakdown.consistency * weights.consistency) /
+      normalizedWeight
+  );
 }
 
-function normalizeWeights(
-  rubric: RubricWeights
-): RubricWeights {
+function normalizeWeights(rubric: RubricWeights): RubricWeights {
   const total = rubric.correctness + rubric.completeness + rubric.actionability + rubric.consistency;
   if (total > 0) {
     return { ...rubric };

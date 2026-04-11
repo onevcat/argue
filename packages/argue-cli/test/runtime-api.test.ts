@@ -31,9 +31,7 @@ vi.mock("@ai-sdk/anthropic", () => ({
 
 describe("createApiRunner", () => {
   const envKeys = ["OPENAI_TEST_KEY", "ANTHROPIC_TEST_KEY", "GROQ_API_KEY"] as const;
-  const envBackup = new Map<string, string | undefined>(
-    envKeys.map((key) => [key, process.env[key]])
-  );
+  const envBackup = new Map<string, string | undefined>(envKeys.map((key) => [key, process.env[key]]));
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -100,9 +98,7 @@ describe("createApiRunner", () => {
     expect(mockGenerateText).toHaveBeenCalledWith({
       model: "openai-model-instance",
       system: "system",
-      messages: expect.arrayContaining([
-        expect.objectContaining({ role: "user" })
-      ]),
+      messages: expect.arrayContaining([expect.objectContaining({ role: "user" })]),
       temperature: 0.2,
       maxOutputTokens: 777,
       abortSignal: abortController.signal
@@ -329,31 +325,31 @@ describe("createApiRunner", () => {
   it("throws a clear error when an openai-compatible apiKeyEnv is missing", () => {
     delete process.env.OPENAI_TEST_KEY;
 
-    expect(() => createApiRunner("openai-provider", {
-      type: "api",
-      protocol: "openai-compatible",
-      apiKeyEnv: "OPENAI_TEST_KEY",
-      models: {
-        m: {}
-      }
-    })).toThrow(
-      'API key environment variable "OPENAI_TEST_KEY" is not set for provider "openai-provider"'
-    );
+    expect(() =>
+      createApiRunner("openai-provider", {
+        type: "api",
+        protocol: "openai-compatible",
+        apiKeyEnv: "OPENAI_TEST_KEY",
+        models: {
+          m: {}
+        }
+      })
+    ).toThrow('API key environment variable "OPENAI_TEST_KEY" is not set for provider "openai-provider"');
   });
 
   it("throws a clear error when an anthropic-compatible apiKeyEnv is empty", () => {
     process.env.ANTHROPIC_TEST_KEY = "   ";
 
-    expect(() => createApiRunner("anthropic-provider", {
-      type: "api",
-      protocol: "anthropic-compatible",
-      apiKeyEnv: "ANTHROPIC_TEST_KEY",
-      models: {
-        m: {}
-      }
-    })).toThrow(
-      'API key environment variable "ANTHROPIC_TEST_KEY" is not set for provider "anthropic-provider"'
-    );
+    expect(() =>
+      createApiRunner("anthropic-provider", {
+        type: "api",
+        protocol: "anthropic-compatible",
+        apiKeyEnv: "ANTHROPIC_TEST_KEY",
+        models: {
+          m: {}
+        }
+      })
+    ).toThrow('API key environment variable "ANTHROPIC_TEST_KEY" is not set for provider "anthropic-provider"');
   });
 
   it("adds provider/model context and retryability for rate-limit errors", async () => {
@@ -419,10 +415,7 @@ function makeInitialRoundTask(prompt: string): AgentTaskInput {
   };
 }
 
-function makeAgent(
-  providerName = "api-provider",
-  options?: { systemPrompt?: string; temperature?: number }
-) {
+function makeAgent(providerName = "api-provider", options?: { systemPrompt?: string; temperature?: number }) {
   return {
     id: "agent-1",
     provider: providerName,

@@ -100,21 +100,25 @@ describe("resolveRunPlan", () => {
   it("throws when rounds are invalid", () => {
     const loadedConfig = makeLoadedConfig();
 
-    expect(() => resolveRunPlan({
-      loadedConfig,
-      runInput: { task: "t" },
-      overrides: { minRounds: 3, maxRounds: 1 }
-    })).toThrow(/maxRounds must be >= minRounds/);
+    expect(() =>
+      resolveRunPlan({
+        loadedConfig,
+        runInput: { task: "t" },
+        overrides: { minRounds: 3, maxRounds: 1 }
+      })
+    ).toThrow(/maxRounds must be >= minRounds/);
   });
 
   it("throws when selected agents are unknown", () => {
     const loadedConfig = makeLoadedConfig();
 
-    expect(() => resolveRunPlan({
-      loadedConfig,
-      runInput: { task: "t" },
-      overrides: { agents: ["a1", "ghost"] }
-    })).toThrow(/Unknown agent id in selection/);
+    expect(() =>
+      resolveRunPlan({
+        loadedConfig,
+        runInput: { task: "t" },
+        overrides: { agents: ["a1", "ghost"] }
+      })
+    ).toThrow(/Unknown agent id in selection/);
   });
 
   it("respects includeFullResult from run input and CLI override", () => {

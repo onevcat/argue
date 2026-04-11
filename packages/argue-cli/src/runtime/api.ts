@@ -6,10 +6,7 @@ import { buildTaskPrompt } from "./prompt.js";
 import { normalizeTaskOutputFromText } from "./task-output.js";
 import type { ProviderTaskRunner } from "./types.js";
 
-export function createApiRunner(
-  providerName: string,
-  provider: ApiProviderConfig
-): ProviderTaskRunner {
+export function createApiRunner(providerName: string, provider: ApiProviderConfig): ProviderTaskRunner {
   const modelFactory = createModelFactory(providerName, provider);
   const messages: ModelMessage[] = [];
 
@@ -44,10 +41,7 @@ export function createApiRunner(
   };
 }
 
-function createModelFactory(
-  providerName: string,
-  provider: ApiProviderConfig
-): (modelId: string) => LanguageModel {
+function createModelFactory(providerName: string, provider: ApiProviderConfig): (modelId: string) => LanguageModel {
   const apiKey = resolveApiKey(providerName, provider);
 
   if (provider.protocol === "openai-compatible") {
@@ -78,9 +72,7 @@ function resolveApiKey(providerName: string, provider: ApiProviderConfig): strin
     return apiKey;
   }
 
-  throw new Error(
-    `API key environment variable "${provider.apiKeyEnv}" is not set for provider "${providerName}"`
-  );
+  throw new Error(`API key environment variable "${provider.apiKeyEnv}" is not set for provider "${providerName}"`);
 }
 
 type WrappedApiErrorArgs = {

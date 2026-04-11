@@ -23,7 +23,9 @@ describe("createSdkRunner", () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-sdk-runner-"));
     const adapterPath = join(root, "adapter.mjs");
 
-    await writeFile(adapterPath, `
+    await writeFile(
+      adapterPath,
+      `
 export function createArgueSdkAdapter(args) {
   return {
     async runTask({ task, environment }) {
@@ -36,7 +38,9 @@ export function createArgueSdkAdapter(args) {
     }
   };
 }
-`, "utf8");
+`,
+      "utf8"
+    );
 
     const runner = await createSdkRunner(
       "sdk-provider",
@@ -85,16 +89,18 @@ export function createArgueSdkAdapter(args) {
     const adapterPath = join(root, "adapter.mjs");
     await writeFile(adapterPath, "export const noop = 1;", "utf8");
 
-    await expect(createSdkRunner(
-      "sdk-provider",
-      {
-        type: "sdk",
-        adapter: "./adapter.mjs",
-        models: {
-          fake: {}
-        }
-      },
-      root
-    )).rejects.toThrow(/missing export/);
+    await expect(
+      createSdkRunner(
+        "sdk-provider",
+        {
+          type: "sdk",
+          adapter: "./adapter.mjs",
+          models: {
+            fake: {}
+          }
+        },
+        root
+      )
+    ).rejects.toThrow(/missing export/);
   });
 });

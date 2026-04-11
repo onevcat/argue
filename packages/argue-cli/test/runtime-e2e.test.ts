@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -7,9 +7,7 @@ import { runCli } from "../src/index.js";
 
 describe("argue-cli runtime e2e", () => {
   const envKeys = ["ARGUE_TEST_OPENAI_KEY", "ARGUE_TEST_ANTHROPIC_KEY"] as const;
-  const originalEnv = new Map<string, string | undefined>(
-    envKeys.map((key) => [key, process.env[key]])
-  );
+  const originalEnv = new Map<string, string | undefined>(envKeys.map((key) => [key, process.env[key]]));
 
   afterEach(() => {
     for (const key of envKeys) {
@@ -66,18 +64,10 @@ describe("argue-cli runtime e2e", () => {
     const logs: string[] = [];
     const errors: string[] = [];
 
-    const result = await runCli(
-      [
-        "run",
-        "--config", configPath,
-        "--request-id", "mock-e2e",
-        "--task", "Mock topic"
-      ],
-      {
-        log: (msg: string) => logs.push(msg),
-        error: (msg: string) => errors.push(msg)
-      }
-    );
+    const result = await runCli(["run", "--config", configPath, "--request-id", "mock-e2e", "--task", "Mock topic"], {
+      log: (msg: string) => logs.push(msg),
+      error: (msg: string) => errors.push(msg)
+    });
 
     expect(result.ok).toBe(true);
     expect(errors).toHaveLength(0);
@@ -126,25 +116,30 @@ describe("argue-cli runtime e2e", () => {
       ]
     });
 
-    const result = await runCli(
-      [
-        "run",
-        "--config", configPath,
-        "--request-id", "mock-timeout",
-        "--task", "Timeout topic",
-        "--per-task-timeout-ms", "1000",
-        "--per-round-timeout-ms", "1000"
-      ]
-    );
+    const result = await runCli([
+      "run",
+      "--config",
+      configPath,
+      "--request-id",
+      "mock-timeout",
+      "--task",
+      "Timeout topic",
+      "--per-task-timeout-ms",
+      "1000",
+      "--per-round-timeout-ms",
+      "1000"
+    ]);
 
     expect(result.ok).toBe(true);
 
     const resultJson = JSON.parse(await readFile(join(root, "out", "mock-timeout", "result.json"), "utf8"));
     expect(resultJson.status).toBe("consensus");
-    expect(resultJson.eliminations).toContainEqual(expect.objectContaining({
-      participantId: "a3",
-      reason: "timeout"
-    }));
+    expect(resultJson.eliminations).toContainEqual(
+      expect.objectContaining({
+        participantId: "a3",
+        reason: "timeout"
+      })
+    );
   });
 
   it("runs codex-style CLI providers and extracts fenced JSON output", async () => {
@@ -176,12 +171,7 @@ describe("argue-cli runtime e2e", () => {
       ]
     });
 
-    const result = await runCli([
-      "run",
-      "--config", configPath,
-      "--request-id", "cli-codex",
-      "--task", "CLI topic"
-    ]);
+    const result = await runCli(["run", "--config", configPath, "--request-id", "cli-codex", "--task", "CLI topic"]);
 
     expect(result.ok).toBe(true);
     const resultJson = JSON.parse(await readFile(join(root, "out", "cli-codex", "result.json"), "utf8"));
@@ -219,12 +209,7 @@ describe("argue-cli runtime e2e", () => {
       ]
     });
 
-    const result = await runCli([
-      "run",
-      "--config", configPath,
-      "--request-id", "sdk-e2e",
-      "--task", "SDK topic"
-    ]);
+    const result = await runCli(["run", "--config", configPath, "--request-id", "sdk-e2e", "--task", "SDK topic"]);
 
     expect(result.ok).toBe(true);
     const resultJson = JSON.parse(await readFile(join(root, "out", "sdk-e2e", "result.json"), "utf8"));
@@ -269,9 +254,12 @@ describe("argue-cli runtime e2e", () => {
 
       const result = await runCli([
         "run",
-        "--config", configPath,
-        "--request-id", "api-openai",
-        "--task", "OpenAI topic"
+        "--config",
+        configPath,
+        "--request-id",
+        "api-openai",
+        "--task",
+        "OpenAI topic"
       ]);
 
       expect(result.ok).toBe(true);
@@ -319,9 +307,12 @@ describe("argue-cli runtime e2e", () => {
 
       const result = await runCli([
         "run",
-        "--config", configPath,
-        "--request-id", "api-anthropic",
-        "--task", "Anthropic topic"
+        "--config",
+        configPath,
+        "--request-id",
+        "api-anthropic",
+        "--task",
+        "Anthropic topic"
       ]);
 
       expect(result.ok).toBe(true);
@@ -372,9 +363,12 @@ describe("argue-cli runtime e2e", () => {
 
       const result = await runCli([
         "run",
-        "--config", configPath,
-        "--request-id", "session-test",
-        "--task", "Session topic"
+        "--config",
+        configPath,
+        "--request-id",
+        "session-test",
+        "--task",
+        "Session topic"
       ]);
 
       expect(result.ok).toBe(true);
@@ -413,7 +407,7 @@ async function startJsonServer(
 
   return {
     baseUrl: `http://127.0.0.1:${address.port}`,
-    close: () => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
+    close: () => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
   };
 }
 
@@ -426,10 +420,10 @@ async function readRequestBody(req: IncomingMessage): Promise<string> {
 }
 
 function phaseFromBody(body: string): "initial" | "debate" | "final_vote" {
-  if (body.includes("\"phase\":\"final_vote\"") || body.includes("phase=final_vote")) {
+  if (body.includes('"phase":"final_vote"') || body.includes("phase=final_vote")) {
     return "final_vote";
   }
-  if (body.includes("\"phase\":\"debate\"") || body.includes("phase=debate")) {
+  if (body.includes('"phase":"debate"') || body.includes("phase=debate")) {
     return "debate";
   }
   return "initial";

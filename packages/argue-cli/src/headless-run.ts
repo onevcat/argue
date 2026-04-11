@@ -8,18 +8,21 @@ export async function executeHeadlessRun(args: {
   loadedConfig: LoadedCliConfig;
   plan: ResolvedRunPlan;
   onEvent?: (event: ArgueEvent) => void | Promise<void>;
-}): Promise<{
-  ok: true;
-  result: Awaited<ReturnType<ArgueEngine["start"]>>;
-  jsonlPath: string;
-  resultPath: string;
-  summaryPath: string;
-} | {
-  ok: false;
-  error: unknown;
-  jsonlPath: string;
-  errorPath: string;
-}> {
+}): Promise<
+  | {
+      ok: true;
+      result: Awaited<ReturnType<ArgueEngine["start"]>>;
+      jsonlPath: string;
+      resultPath: string;
+      summaryPath: string;
+    }
+  | {
+      ok: false;
+      error: unknown;
+      jsonlPath: string;
+      errorPath: string;
+    }
+> {
   const jsonlObserver = new JsonlObserver({ path: args.plan.jsonlPath, append: false });
   const observer: ArgueObserver = {
     onEvent: async (event) => {

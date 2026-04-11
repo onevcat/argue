@@ -26,13 +26,17 @@ describe("loadRunInput", () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-run-input-"));
     const file = join(root, "run.json");
 
-    await writeFile(file, JSON.stringify({
-      task: "T",
-      agents: ["a1", "a2"],
-      minRounds: 1,
-      maxRounds: 2,
-      context: { mode: "test" }
-    }), "utf8");
+    await writeFile(
+      file,
+      JSON.stringify({
+        task: "T",
+        agents: ["a1", "a2"],
+        minRounds: 1,
+        maxRounds: 2,
+        context: { mode: "test" }
+      }),
+      "utf8"
+    );
 
     const input = await loadRunInput(file, loadedConfig);
     expect(input.task).toBe("T");
@@ -43,15 +47,19 @@ describe("loadRunInput", () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-run-input-action-"));
     const file = join(root, "run.json");
 
-    await writeFile(file, JSON.stringify({
-      task: "T",
-      agents: ["a1", "a2"],
-      action: {
-        prompt: "Do it",
-        actorId: "a1",
-        includeFullResult: false
-      }
-    }), "utf8");
+    await writeFile(
+      file,
+      JSON.stringify({
+        task: "T",
+        agents: ["a1", "a2"],
+        action: {
+          prompt: "Do it",
+          actorId: "a1",
+          includeFullResult: false
+        }
+      }),
+      "utf8"
+    );
 
     const input = await loadRunInput(file, loadedConfig);
     expect(input.action).toEqual({

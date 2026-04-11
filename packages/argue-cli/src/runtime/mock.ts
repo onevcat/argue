@@ -14,15 +14,15 @@ export function createMockRunner(provider: MockProviderConfig): ProviderTaskRunn
       }
 
       switch (action.behavior) {
-      case "timeout":
-        return pendingUntilAbort(abortSignal);
-      case "error":
-        throw new Error(action.error ?? `Mock error from ${task.participantId}`);
-      case "malformed":
-        return { malformed: true };
-      case "deterministic":
-      default:
-        return buildDeterministicOutput(task, agent);
+        case "timeout":
+          return pendingUntilAbort(abortSignal);
+        case "error":
+          throw new Error(action.error ?? `Mock error from ${task.participantId}`);
+        case "malformed":
+          return { malformed: true };
+        case "deterministic":
+        default:
+          return buildDeterministicOutput(task, agent);
       }
     }
   };

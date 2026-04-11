@@ -12,9 +12,7 @@ type BuildBuiltinReportInput = {
 };
 
 export function buildBuiltinReport(input: BuildBuiltinReportInput): FinalReport {
-  const shifts = input.includeDeliberationTrace
-    ? buildOpinionShiftTimeline(input.rounds)
-    : undefined;
+  const shifts = input.includeDeliberationTrace ? buildOpinionShiftTimeline(input.rounds) : undefined;
 
   const roundHighlights = input.includeDeliberationTrace
     ? buildRoundHighlights(input.rounds, input.traceLevel)
@@ -39,32 +37,31 @@ function buildFinalSummary(input: BuildBuiltinReportInput): string {
   const resolved = input.claimResolutions.filter((r) => r.status === "resolved");
   const unresolved = input.claimResolutions.filter((r) => r.status === "unresolved");
 
-  const statusLabel = input.status === "consensus"
-    ? "Consensus reached"
-    : input.status === "partial_consensus"
-      ? "Partial consensus"
-      : input.status === "unresolved"
-        ? "Unresolved"
-        : "Failed";
+  const statusLabel =
+    input.status === "consensus"
+      ? "Consensus reached"
+      : input.status === "partial_consensus"
+        ? "Partial consensus"
+        : input.status === "unresolved"
+          ? "Unresolved"
+          : "Failed";
 
-  lines.push(`${statusLabel}. ${activeClaims.length} claims: ${resolved.length} resolved, ${unresolved.length} unresolved.`);
+  lines.push(
+    `${statusLabel}. ${activeClaims.length} claims: ${resolved.length} resolved, ${unresolved.length} unresolved.`
+  );
 
   // Claim list with vote results
   if (activeClaims.length > 0) {
     lines.push("");
     for (const claim of activeClaims) {
       const resolution = input.claimResolutions.find((r) => r.claimId === claim.claimId);
-      const voteStr = resolution
-        ? ` (${resolution.acceptCount}/${resolution.totalVoters} accept)`
-        : "";
+      const voteStr = resolution ? ` (${resolution.acceptCount}/${resolution.totalVoters} accept)` : "";
       lines.push(`- ${claim.claimId}: ${claim.title}${voteStr}`);
     }
   }
 
   // Last round participant summaries
-  const lastRound = input.rounds.length > 0
-    ? input.rounds.reduce((a, b) => a.round > b.round ? a : b)
-    : undefined;
+  const lastRound = input.rounds.length > 0 ? input.rounds.reduce((a, b) => (a.round > b.round ? a : b)) : undefined;
 
   if (lastRound && lastRound.outputs.length > 0) {
     lines.push("");
