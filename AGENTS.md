@@ -132,6 +132,17 @@ This creates `./argue.config.json` in the repo root when missing.
 - Package README files should stay minimal and point back to the repo README.
 - Release process details belong in `docs/release.md`.
 
+## Pre-PR Checklist
+
+Before creating a pull request, always run the full local CI pipeline and ensure it passes:
+
+```bash
+npm run ci            # typecheck + test + build
+npm run format:check  # prettier validation
+```
+
+Do not push or open a PR if either command fails.
+
 ## Notes For Future Changes
 
 - Keep `@onevcat/argue-cli --version` derived from package metadata instead of hardcoded strings.
