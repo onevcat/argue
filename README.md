@@ -49,46 +49,22 @@ argue run \
 ```
 [argue] run started
   task: 研究这个 issue 的解法：https://github.com/onevcat/argue/issues/22
-  agents: claude-agent, codex-agent
-  rounds: 2..3 | composer: representative
+  agents: claude-agent, codex-agent | rounds: 2..3
 
-[argue] initial#0 dispatched -> claude-agent, codex-agent
-[argue] initial#0 codex-agent responded (claims+6, judgements=0, votes=0)
-  推荐在 monorepo 根落地共享 ESLint+Prettier 配置，给两个 package 补 lint/format，
-  并在 CI 加 lint 门禁；规则先轻量化（recommended）以快速稳定落地，后续再渐进加严。
-[argue] initial#0 claude-agent responded (claims+6, judgements=0, votes=0)
-  Identified 6 issues through code review: double normalization in delegate+runner,
-  API runner message leakage across task kinds, CLI template {phase} bug for actions,
-  hardcoded timeout in argue act. Unable to access the actual issue #22 content
-  due to network restrictions.
-[argue] initial#0 completed: done=2 timeout=0 failed=0 claims=6 (+6, -0)
+[argue] initial#0  codex-agent (claims+6) — ESLint+Prettier setup, CI lint gate
+[argue] initial#0  claude-agent (claims+6) — runtime bugs (couldn't access the issue URL)
 
-[argue] debate#1 dispatched -> claude-agent, codex-agent
-[argue] debate#1 codex-agent responded (claims+4, judgements=1✗ 5↻, votes=0)
-  Most existing claims are valid-but-out-of-scope for issue #22; c6 duplicates c2.
-  The solution focus should shift to ESLint/Prettier setup, package scripts,
-  and CI lint checks.
-[argue] debate#1 claude-agent responded (claims+5, judgements=5✗ 1↻, votes=0)
-  Agree with codex-agent that issue #22 is about ESLint/Prettier setup.
-  My previous claims (c1-c6) are off-topic.
-[argue] debate#1 claim merged c6 -> c2
+[argue] debate#1   codex-agent (1✗ 5↻) — claude's claims valid but out-of-scope
+[argue] debate#1   claude-agent (5✗ 1↻) — agreed, self-corrected
+[argue] debate#1   claim merged c6 -> c2
+  ... 2 more rounds, agents refine and converge ...
 
-  ... (2 more debate rounds, agents refine details and converge) ...
-
-[argue] final_vote#4 claude-agent responded (claims+0, judgements=11✓, votes=11)
-[argue] final_vote#4 codex-agent responded (claims+0, judgements=11✓, votes=11)
-
-[argue] result: consensus
-  representative: codex-agent (score: 83.70)
-  Scoreboard:
-  codex-agent: 83.70 (cor=74.29, cpl=87.20, act=91.60, con=86.64)
-  claude-agent: 81.86 (cor=65.79, cpl=90, act=94, con=85.54)
-
-[argue] action completed by codex-agent
-  已按共识完成 #22，并已开 PR：https://github.com/onevcat/argue/pull/28
+[argue] final_vote  11/11 claims accepted unanimously
+[argue] result: consensus — codex-agent representative (83.70)
+[argue] action: codex-agent opened PR #28
 ```
 
-Notice what happened: codex-agent accessed the issue, correctly identified it as an ESLint/Prettier task, and proposed 6 actionable claims. claude-agent couldn't reach the URL due to network restrictions, so it fell back to a code review and found 6 runtime bugs instead. In the first debate round, codex-agent flagged claude-agent's claims as valid but out-of-scope (judgements `1✗ 5↻`), and claude-agent agreed and self-corrected (judgements `5✗ 1↻`). After two more rounds of refinement, all 11 claims passed final vote unanimously. The representative then turned the consensus into a real PR.
+codex-agent accessed the issue and proposed ESLint/Prettier claims. claude-agent couldn't reach the URL and found runtime bugs instead. Through debate, codex-agent flagged them as out-of-scope, claude-agent self-corrected, and both converged. All 11 claims passed unanimously. The representative turned consensus into [a real PR](https://github.com/onevcat/argue/pull/28).
 
 After each run, argue writes three output files to `~/.argue/output/<requestId>/` (global config) or `./out/<requestId>/` (local config):
 
