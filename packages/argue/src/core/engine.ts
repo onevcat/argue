@@ -850,12 +850,12 @@ export class ArgueEngine {
         "Schema requirements (initial):",
         "- fullResponse: string",
         "- summary: string",
-        "- extractedClaims: array of { claimId, title, statement, category? }",
+        "- extractedClaims: array of { title, statement, category? } — do NOT include claimId; the engine assigns IDs",
         "- judgements: array of { claimId, stance, confidence, rationale, revisedStatement?, mergesWith? }",
         "- claimVotes MUST NOT appear in initial phase",
         "",
         "Initial phase JSON template:",
-        '{"fullResponse":"...","summary":"...","extractedClaims":[{"claimId":"c1","title":"...","statement":"...","category":"pro"}],"judgements":[]}'
+        '{"fullResponse":"...","summary":"...","extractedClaims":[{"title":"...","statement":"...","category":"pro"}],"judgements":[]}'
       ].join("\n");
     }
 
@@ -872,7 +872,7 @@ export class ArgueEngine {
         "- fullResponse: string",
         "- summary: string",
         "- judgements: NON-EMPTY array of { claimId, stance, confidence, rationale, revisedStatement?, mergesWith? }",
-        "- extractedClaims: optional array of new claims",
+        "- extractedClaims: optional array of new claims { title, statement, category? } — do NOT include claimId",
         "- claimVotes MUST NOT appear in debate phase",
         "",
         "Debate phase JSON template:",
@@ -1013,27 +1013,23 @@ function updateClaims(
   const order = new Map<string, number>([...claimMap.keys()].map((id, idx) => [id, idx]));
   let nextOrder = order.size;
   let newClaimCount = 0;
+  const seqByParticipant = new Map<string, number>();
 
   for (const output of outputs) {
     for (const extracted of output.extractedClaims ?? []) {
-      const existing = claimMap.get(extracted.claimId);
-      if (!existing) {
-        claimMap.set(extracted.claimId, {
-          claimId: extracted.claimId,
-          title: extracted.title,
-          statement: extracted.statement,
-          category: extracted.category,
-          proposedBy: [output.participantId],
-          status: "active"
-        });
-        order.set(extracted.claimId, nextOrder++);
-        newClaimCount += 1;
-        continue;
-      }
-
-      if (!existing.proposedBy.includes(output.participantId)) {
-        existing.proposedBy.push(output.participantId);
-      }
+      const seq = seqByParticipant.get(output.participantId) ?? 0;
+      seqByParticipant.set(output.participantId, seq + 1);
+      const claimId = `${output.participantId}:${output.round}:${seq}`;
+      claimMap.set(claimId, {
+        claimId,
+        title: extracted.title,
+        statement: extracted.statement,
+        category: extracted.category,
+        proposedBy: [output.participantId],
+        status: "active"
+      });
+      order.set(claimId, nextOrder++);
+      newClaimCount += 1;
     }
   }
 

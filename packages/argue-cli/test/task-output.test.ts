@@ -42,7 +42,6 @@ describe("runtime/task-output", () => {
       summary: "sum",
       extractedClaims: [
         {
-          claimId: "c1",
           title: "C1",
           statement: "claim"
         }

@@ -132,16 +132,26 @@ This creates `./argue.config.json` in the repo root when missing.
 - Package README files should stay minimal and point back to the repo README.
 - Release process details belong in `docs/release.md`.
 
+## Git Hooks
+
+The repo uses husky + lint-staged to enforce quality automatically:
+
+- **pre-commit**: `lint-staged` runs `prettier --write` + `eslint --fix` on staged files (~2.7s)
+- **pre-push**: full `check + test + build` (~13s)
+
+Run `npm install` after cloning to activate hooks (husky `prepare` script).
+
 ## Pre-PR Checklist
 
 Before creating a pull request, always run the full local CI pipeline and ensure it passes:
 
 ```bash
-npm run ci            # typecheck + test + build
 npm run format:check  # prettier validation
+npm run lint          # eslint
+npm run ci            # typecheck + test + build
 ```
 
-Do not push or open a PR if either command fails.
+The pre-push hook runs `check + test + build` automatically, but `format:check` and `lint` must also pass. Do not push or open a PR if any command fails.
 
 ## Notes For Future Changes
 

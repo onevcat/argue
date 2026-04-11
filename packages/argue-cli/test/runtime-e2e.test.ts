@@ -224,7 +224,7 @@ describe("argue-cli runtime e2e", () => {
 
     const server = await startJsonServer((req, res, body) => {
       expect(req.url).toBe("/v1/chat/completions");
-      replyJson(res, openAIChatResponse(phaseFromBody(body)));
+      replyJson(res, openAIChatResponse(phaseFromBody(body), pidFromBody(body)));
     });
 
     try {
@@ -277,7 +277,7 @@ describe("argue-cli runtime e2e", () => {
 
     const server = await startJsonServer((req, res, body) => {
       expect(req.url).toBe("/v1/messages");
-      replyJson(res, anthropicMessageResponse(phaseFromBody(body)));
+      replyJson(res, anthropicMessageResponse(phaseFromBody(body), pidFromBody(body)));
     });
 
     try {
@@ -335,7 +335,7 @@ describe("argue-cli runtime e2e", () => {
       if (Array.isArray(parsed.messages)) {
         messageCounts.push(parsed.messages.length);
       }
-      replyJson(res, openAIChatResponse(phaseFromBody(body)));
+      replyJson(res, openAIChatResponse(phaseFromBody(body), pidFromBody(body)));
     });
 
     try {
@@ -429,13 +429,39 @@ function phaseFromBody(body: string): "initial" | "debate" | "final_vote" {
   return "initial";
 }
 
+function pidFromBody(body: string): string {
+  try {
+    // API providers: body is JSON with messages[].content containing the prompt
+    const parsed = JSON.parse(body);
+    let content = "";
+    for (const m of parsed.messages ?? []) {
+      if (typeof m.content === "string") {
+        content += m.content;
+      } else if (Array.isArray(m.content)) {
+        // Anthropic-style: [{type:"text",text:"..."}]
+        for (const block of m.content) {
+          if (block.text) content += block.text;
+        }
+      }
+    }
+    // Also check the system field (Anthropic puts system prompt there)
+    if (typeof parsed.system === "string") content += parsed.system;
+    const match = content.match(/"participantId"\s*:\s*"([^"]+)"/);
+    if (match) return match[1];
+  } catch {
+    // Non-JSON body (e.g., CLI stdin)
+  }
+  const match = body.match(/"participantId"\s*:\s*"([^"]+)"/);
+  return match ? match[1] : "unknown";
+}
+
 function replyJson(res: ServerResponse, value: unknown): void {
   res.statusCode = 200;
   res.setHeader("content-type", "application/json");
   res.end(JSON.stringify(value));
 }
 
-function openAIChatResponse(phase: "initial" | "debate" | "final_vote"): Record<string, unknown> {
+function openAIChatResponse(phase: "initial" | "debate" | "final_vote", pid: string): Record<string, unknown> {
   return {
     id: "chatcmpl-test",
     object: "chat.completion",
@@ -446,7 +472,7 @@ function openAIChatResponse(phase: "initial" | "debate" | "final_vote"): Record<
         index: 0,
         message: {
           role: "assistant",
-          content: JSON.stringify(contentForPhase(phase))
+          content: JSON.stringify(contentForPhase(phase, pid))
         },
         finish_reason: "stop"
       }
@@ -459,7 +485,7 @@ function openAIChatResponse(phase: "initial" | "debate" | "final_vote"): Record<
   };
 }
 
-function anthropicMessageResponse(phase: "initial" | "debate" | "final_vote"): Record<string, unknown> {
+function anthropicMessageResponse(phase: "initial" | "debate" | "final_vote", pid: string): Record<string, unknown> {
   return {
     id: "msg-test",
     type: "message",
@@ -468,7 +494,7 @@ function anthropicMessageResponse(phase: "initial" | "debate" | "final_vote"): R
     content: [
       {
         type: "text",
-        text: JSON.stringify(contentForPhase(phase))
+        text: JSON.stringify(contentForPhase(phase, pid))
       }
     ],
     stop_reason: "end_turn",
@@ -479,14 +505,21 @@ function anthropicMessageResponse(phase: "initial" | "debate" | "final_vote"): R
   };
 }
 
-function contentForPhase(phase: "initial" | "debate" | "final_vote"): Record<string, unknown> {
+function contentForPhase(
+  phase: "initial" | "debate" | "final_vote",
+  _pid: string = "unknown",
+  allPids: string[] = ["a1", "a2"]
+): Record<string, unknown> {
+  // Engine assigns IDs as {participantId}:0:0, so debate/final_vote
+  // reference those IDs from the catalog.
+  const allClaimIds = allPids.map((id) => `${id}:0:0`);
+
   if (phase === "initial") {
     return {
       fullResponse: "Initial response",
       summary: "Initial summary",
       extractedClaims: [
         {
-          claimId: "shared-claim",
           title: "Shared claim",
           statement: "Shared statement",
           category: "pro"
@@ -500,35 +533,29 @@ function contentForPhase(phase: "initial" | "debate" | "final_vote"): Record<str
     return {
       fullResponse: "Debate response",
       summary: "Debate summary",
-      judgements: [
-        {
-          claimId: "shared-claim",
-          stance: "agree",
-          confidence: 0.9,
-          rationale: "Agree"
-        }
-      ]
+      judgements: allClaimIds.map((id) => ({
+        claimId: id,
+        stance: "agree",
+        confidence: 0.9,
+        rationale: "Agree"
+      }))
     };
   }
 
   return {
     fullResponse: "Final vote response",
     summary: "Final vote summary",
-    judgements: [
-      {
-        claimId: "shared-claim",
-        stance: "agree",
-        confidence: 0.9,
-        rationale: "Agree"
-      }
-    ],
-    claimVotes: [
-      {
-        claimId: "shared-claim",
-        vote: "accept",
-        reason: "Accept"
-      }
-    ]
+    judgements: allClaimIds.map((id) => ({
+      claimId: id,
+      stance: "agree",
+      confidence: 0.9,
+      rationale: "Agree"
+    })),
+    claimVotes: allClaimIds.map((id) => ({
+      claimId: id,
+      vote: "accept",
+      reason: "Accept"
+    }))
   };
 }
 
@@ -546,39 +573,54 @@ for await (const chunk of process.stdin) {
 }
 
 const phase = process.env.ARGUE_TASK_PHASE;
+const pid = process.env.ARGUE_PARTICIPANT_ID;
+const myClaimId = "claim-" + pid;
 let payload;
+
+function catalogFromStdin() {
+  try {
+    const m = stdin.match(/Task context JSON:\\n([\\s\\S]*?)(\\n\\nExpected output JSON schema:|$)/);
+    if (m) {
+      const task = JSON.parse(m[1]);
+      return (task.claimCatalog || []).filter(c => c.status === "active" || !c.status);
+    }
+  } catch {}
+  return [{ claimId: myClaimId }];
+}
 
 if (phase === "initial") {
   payload = {
     fullResponse: "CLI initial response",
     summary: "CLI initial summary",
     extractedClaims: [
-      { claimId: "shared-claim", title: "Shared claim", statement: "Shared statement", category: "pro" }
+      { title: "Claim from " + pid, statement: "Statement from " + pid, category: "pro" }
     ],
     judgements: []
   };
 } else if (phase === "debate") {
+  const catalog = catalogFromStdin();
   payload = {
     fullResponse: "CLI debate response",
     summary: "CLI debate summary",
-    judgements: [
-      { claimId: "shared-claim", stance: "agree", confidence: 0.9, rationale: "Agree" }
-    ]
+    judgements: catalog.map(c => (
+      { claimId: c.claimId, stance: "agree", confidence: 0.9, rationale: "Agree" }
+    ))
   };
 } else {
+  const catalog = catalogFromStdin();
   payload = {
     fullResponse: "CLI final vote response",
     summary: "CLI final vote summary",
-    judgements: [
-      { claimId: "shared-claim", stance: "agree", confidence: 0.9, rationale: "Agree" }
-    ],
-    claimVotes: [
-      { claimId: "shared-claim", vote: "accept", reason: "Accept" }
-    ]
+    judgements: catalog.map(c => (
+      { claimId: c.claimId, stance: "agree", confidence: 0.9, rationale: "Agree" }
+    )),
+    claimVotes: catalog.map(c => (
+      { claimId: c.claimId, vote: "accept", reason: "Accept" }
+    ))
   };
 }
 
-process.stdout.write("Here is the JSON you asked for.\\n\`\`\`json\\n" + JSON.stringify(payload) + "\\n\`\`\`\\n");
+process.stdout.write("Here is the JSON you asked for.\\n\\\`\\\`\\\`json\\n" + JSON.stringify(payload) + "\\n\\\`\\\`\\\`\\n");
 `;
 
 const SDK_ADAPTER_SCRIPT = `
@@ -599,13 +641,16 @@ export function createArgueSdkAdapter(args) {
         };
       }
 
+      const myClaimId = "claim-" + task.participantId;
+      const catalog = (task.claimCatalog || []).filter(c => c.status === "active" || !c.status);
+
       if (task.phase === "initial") {
         return {
-          fullResponse: 
+          fullResponse:
             "SDK initial response env=" + mark,
           summary: "SDK initial summary",
           extractedClaims: [
-            { claimId: "shared-claim", title: "Shared claim", statement: "Shared statement", category: "pro" }
+            { title: "Claim from " + task.participantId, statement: "Statement from " + task.participantId, category: "pro" }
           ],
           judgements: []
         };
@@ -615,21 +660,21 @@ export function createArgueSdkAdapter(args) {
         return {
           fullResponse: "SDK debate response",
           summary: "SDK debate summary",
-          judgements: [
-            { claimId: "shared-claim", stance: "agree", confidence: 0.9, rationale: "Agree" }
-          ]
+          judgements: catalog.map(c => (
+            { claimId: c.claimId, stance: "agree", confidence: 0.9, rationale: "Agree" }
+          ))
         };
       }
 
       return {
         fullResponse: "SDK final vote response",
         summary: "SDK final vote summary",
-        judgements: [
-          { claimId: "shared-claim", stance: "agree", confidence: 0.9, rationale: "Agree" }
-        ],
-        claimVotes: [
-          { claimId: "shared-claim", vote: "accept", reason: "Accept" }
-        ]
+        judgements: catalog.map(c => (
+          { claimId: c.claimId, stance: "agree", confidence: 0.9, rationale: "Agree" }
+        )),
+        claimVotes: catalog.map(c => (
+          { claimId: c.claimId, vote: "accept", reason: "Accept" }
+        ))
       };
     }
   };

@@ -31,9 +31,7 @@ function makeParticipantRespondedEvent(overrides: Record<string, unknown> = {}):
       stanceRevise: 0,
       claimVotes: 0,
       fullResponse: "This is the full LLM response text.",
-      extractedClaimsDetail: [
-        { claimId: "c3", title: "New finding", statement: "A newly discovered insight.", category: "pro" }
-      ],
+      extractedClaimsDetail: [{ title: "New finding", statement: "A newly discovered insight.", category: "pro" }],
       judgementsDetail: [
         { claimId: "c1", stance: "agree", confidence: 0.95, rationale: "Strong evidence supports this." },
         { claimId: "c2", stance: "disagree", confidence: 0.7, rationale: "Contradicts prior analysis." }
@@ -158,7 +156,6 @@ describe("output formatter", () => {
 
       const all = io.logs.join("\n");
       expect(all).toContain("extracted claims:");
-      expect(all).toContain("c3");
       expect(all).toContain("New finding");
       expect(all).toContain("[pro]");
       expect(all).toContain("A newly discovered insight.");

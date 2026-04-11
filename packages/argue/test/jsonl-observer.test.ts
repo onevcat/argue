@@ -69,7 +69,7 @@ describe("JsonlObserver", () => {
           round: 0,
           fullResponse: "init-a",
           summary: "init-a",
-          extractedClaims: [{ claimId: "c1", title: "c1", statement: "s1" }],
+          extractedClaims: [{ title: "c1", statement: "s1" }],
           judgements: []
         })
       },
@@ -81,7 +81,7 @@ describe("JsonlObserver", () => {
           round: 0,
           fullResponse: "init-b",
           summary: "init-b",
-          extractedClaims: [{ claimId: "c1", title: "c1", statement: "s1" }],
+          extractedClaims: [{ title: "c1", statement: "s1" }],
           judgements: []
         })
       },
