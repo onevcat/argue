@@ -6,8 +6,11 @@ import { buildTaskPrompt } from "./prompt.js";
 import { normalizeTaskOutputFromText } from "./task-output.js";
 import type { ProviderTaskRunner } from "./types.js";
 
-export function createApiRunner(provider: ApiProviderConfig): ProviderTaskRunner {
-  const modelFactory = createModelFactory(provider);
+export function createApiRunner(
+  providerName: string,
+  provider: ApiProviderConfig
+): ProviderTaskRunner {
+  const modelFactory = createModelFactory(providerName, provider);
   const messages: ModelMessage[] = [];
 
   return {
@@ -31,9 +34,13 @@ export function createApiRunner(provider: ApiProviderConfig): ProviderTaskRunner
   };
 }
 
-function createModelFactory(provider: ApiProviderConfig): (modelId: string) => LanguageModel {
+function createModelFactory(
+  providerName: string,
+  provider: ApiProviderConfig
+): (modelId: string) => LanguageModel {
+  const apiKey = resolveApiKey(providerName, provider);
+
   if (provider.protocol === "openai-compatible") {
-    const apiKey = provider.apiKeyEnv ? process.env[provider.apiKeyEnv] : undefined;
     const openai = createOpenAICompatible({
       name: "argue-openai-compatible",
       baseURL: provider.baseUrl ?? "https://api.openai.com/v1",
@@ -44,7 +51,6 @@ function createModelFactory(provider: ApiProviderConfig): (modelId: string) => L
     return (modelId: string) => openai.languageModel(modelId);
   }
 
-  const apiKey = provider.apiKeyEnv ? process.env[provider.apiKeyEnv] : undefined;
   const anthropic = createAnthropic({
     baseURL: provider.baseUrl,
     apiKey,
@@ -52,4 +58,17 @@ function createModelFactory(provider: ApiProviderConfig): (modelId: string) => L
     name: "argue-anthropic-compatible"
   });
   return (modelId: string) => anthropic.languageModel(modelId);
+}
+
+function resolveApiKey(providerName: string, provider: ApiProviderConfig): string | undefined {
+  if (!provider.apiKeyEnv) return undefined;
+
+  const apiKey = process.env[provider.apiKeyEnv];
+  if (typeof apiKey === "string" && apiKey.trim().length > 0) {
+    return apiKey;
+  }
+
+  throw new Error(
+    `API key environment variable "${provider.apiKeyEnv}" is not set for provider "${providerName}"`
+  );
 }
