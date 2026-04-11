@@ -121,7 +121,7 @@ async function createRunner(
 ): Promise<ProviderTaskRunner> {
   switch (provider.type) {
     case "api":
-      return createApiRunner(provider);
+      return createApiRunner(providerName, provider);
     case "cli":
       return createCliRunner(provider);
     case "mock":
