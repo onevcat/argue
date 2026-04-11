@@ -1,19 +1,15 @@
 name: Release
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
-      package:
-        description: Package to publish
-        required: true
-        type: choice
-        options:
-          - argue
-          - argue-cli
       dry_run:
         description: Run validation without publishing
         required: true
-        default: false
+        default: true
         type: boolean
 
 jobs:
@@ -36,7 +32,6 @@ jobs:
       - run: npm run release:check
 
       - name: Verify CLI dependency shape
-        if: ${{ inputs.package == 'argue-cli' }}
         run: |
           node --input-type=module -e '
             import pkg from "./packages/argue-cli/package.json" with { type: "json" };
@@ -49,10 +44,32 @@ jobs:
             }
           '
 
-      - name: Publish @onevcat/argue
-        if: ${{ inputs.package == 'argue' && !inputs.dry_run }}
-        run: npm publish --workspace packages/argue --access public --provenance
+      - name: Detect and publish changed packages
+        if: ${{ github.ref_type == 'tag' }}
+        run: |
+          publish_if_needed() {
+            local workspace="$1"
+            local pkg_name="$2"
 
-      - name: Publish @onevcat/argue-cli
-        if: ${{ inputs.package == 'argue-cli' && !inputs.dry_run }}
-        run: npm publish --workspace packages/argue-cli --access public --provenance
+            local local_version
+            local_version=$(node --input-type=module -e "
+              import pkg from './${workspace}/package.json' with { type: 'json' };
+              console.log(pkg.default.version);
+            ")
+
+            local registry_version
+            registry_version=$(npm view "$pkg_name" version 2>/dev/null || echo "0.0.0")
+
+            echo "  ${pkg_name}: local=${local_version} registry=${registry_version}"
+
+            if [ "$local_version" != "$registry_version" ]; then
+              echo "  -> Publishing ${pkg_name}@${local_version}"
+              npm publish --workspace "$workspace" --access public --provenance
+            else
+              echo "  -> Already published, skipping"
+            fi
+          }
+
+          echo "Checking packages..."
+          publish_if_needed "packages/argue" "@onevcat/argue"
+          publish_if_needed "packages/argue-cli" "@onevcat/argue-cli"
