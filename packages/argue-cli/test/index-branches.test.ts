@@ -82,7 +82,17 @@ describe("runCli command branches", () => {
       [["run", "--trace-level", "bad"], "--trace-level must be compact or full"],
       [["run", "--unknown"], "Unknown option for run: --unknown"],
       [["run", "--min-rounds", "9007199254740993123"], "--min-rounds must be a safe integer"],
-      [["run", "--threshold", "1e999"], "--threshold must be a number"]
+      [["run", "--threshold", "1e999"], "--threshold must be a number"],
+      [["run", "--threshold", "1.5"], "--threshold must be between 0 and 1"],
+      [["run", "--threshold", "-0.1"], "--threshold must be between 0 and 1"],
+      [["run", "--min-rounds", "-1"], "--min-rounds must be >= 0"],
+      [["run", "--max-rounds", "0"], "--max-rounds must be >= 1"],
+      [["run", "--min-rounds", "5", "--max-rounds", "3"], "--max-rounds must be >= --min-rounds"],
+      [["run", "--per-task-timeout-ms", "0"], "--per-task-timeout-ms must be positive"],
+      [["run", "--per-task-timeout-ms", "-100"], "--per-task-timeout-ms must be positive"],
+      [["run", "--per-round-timeout-ms", "0"], "--per-round-timeout-ms must be positive"],
+      [["run", "--global-deadline-ms", "-1"], "--global-deadline-ms must be positive"],
+      [["run", "--token-budget", "0"], "--token-budget must be positive"]
     ] as const) {
       const io = createIO();
       const result = await runCli(args as string[], io);
@@ -103,6 +113,14 @@ describe("runCli command branches", () => {
       [
         ["config", "add-agent", "--id", "a4", "--provider", "p1", "--model", "m1", "--unknown"],
         "Unknown option for config add-agent: --unknown"
+      ],
+      [
+        ["config", "add-agent", "--id", "a4", "--provider", "p1", "--model", "m1", "--timeout-ms", "0"],
+        "--timeout-ms must be positive"
+      ],
+      [
+        ["config", "add-agent", "--id", "a4", "--provider", "p1", "--model", "m1", "--temperature", "2.5"],
+        "--temperature must be between 0 and 2"
       ]
     ] as const) {
       const io = createIO();
