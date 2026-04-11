@@ -54,7 +54,7 @@ jobs:
             local local_version
             local_version=$(node --input-type=module -e "
               import pkg from './${workspace}/package.json' with { type: 'json' };
-              console.log(pkg.default.version);
+              console.log(pkg.version);
             ")
 
             local registry_version
