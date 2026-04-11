@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.1] - 2026-04-12
+
+### Fixes
+
+- Fix same-round claim ID collisions when multiple agents produce claims simultaneously (851cf93)
+
+### Other
+
+- Engine now assigns claim IDs centrally; agents no longer self-assign (8753f2e)
+- Add husky + lint-staged for automatic pre-commit and pre-push quality checks (6202de3)
+- Document git hooks and update pre-PR checklist (9a68a97)
+
 ## [0.1.0] - 2026-04-11
 
 Initial release of `@onevcat/argue` and `@onevcat/argue-cli`.
