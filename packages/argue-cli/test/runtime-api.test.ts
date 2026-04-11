@@ -1,12 +1,18 @@
 import type { AgentTaskInput } from "argue";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApiRunner } from "../src/runtime/api.js";
 
 const mockGenerateText = vi.hoisted(() => vi.fn());
 const mockOpenAILanguageModel = vi.hoisted(() => vi.fn());
+const mockAnthropicLanguageModel = vi.hoisted(() => vi.fn());
 const mockCreateOpenAICompatible = vi.hoisted(() =>
   vi.fn(() => ({
     languageModel: mockOpenAILanguageModel
+  }))
+);
+const mockCreateAnthropic = vi.hoisted(() =>
+  vi.fn(() => ({
+    languageModel: mockAnthropicLanguageModel
   }))
 );
 
@@ -19,18 +25,109 @@ vi.mock("@ai-sdk/openai-compatible", () => ({
 }));
 
 vi.mock("@ai-sdk/anthropic", () => ({
-  createAnthropic: vi.fn(() => ({
-    languageModel: vi.fn()
-  }))
+  createAnthropic: mockCreateAnthropic
 }));
 
 describe("createApiRunner", () => {
+  const envKeys = ["OPENAI_TEST_KEY", "ANTHROPIC_TEST_KEY"] as const;
+  const envBackup = new Map<string, string | undefined>(
+    envKeys.map((key) => [key, process.env[key]])
+  );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.resetAllMocks();
+    for (const key of envKeys) {
+      const value = envBackup.get(key);
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  });
+
+  it("passes a resolved openai-compatible API key into the SDK factory", async () => {
+    process.env.OPENAI_TEST_KEY = "openai-secret";
+    mockOpenAILanguageModel.mockReturnValue("openai-model-instance");
+    mockGenerateText.mockResolvedValue({
+      text: JSON.stringify({
+        fullResponse: "ok",
+        summary: "ok",
+        extractedClaims: [],
+        judgements: []
+      })
+    });
+
+    const runner = createApiRunner("openai-provider", {
+      type: "api",
+      protocol: "openai-compatible",
+      baseUrl: "https://example.openai/v1",
+      apiKeyEnv: "OPENAI_TEST_KEY",
+      headers: {
+        "x-test": "1"
+      },
+      models: {
+        m: {}
+      }
+    });
+
+    await runner.runTask({
+      task: makeInitialRoundTask("task-1"),
+      agent: makeAgent("openai-provider")
+    });
+
+    expect(mockCreateOpenAICompatible).toHaveBeenCalledWith({
+      name: "argue-openai-compatible",
+      baseURL: "https://example.openai/v1",
+      apiKey: "openai-secret",
+      headers: {
+        "x-test": "1"
+      },
+      supportsStructuredOutputs: true
+    });
+  });
+
+  it("throws a clear error when an openai-compatible apiKeyEnv is missing", () => {
+    delete process.env.OPENAI_TEST_KEY;
+
+    expect(() => createApiRunner("openai-provider", {
+      type: "api",
+      protocol: "openai-compatible",
+      apiKeyEnv: "OPENAI_TEST_KEY",
+      models: {
+        m: {}
+      }
+    })).toThrow(
+      'API key environment variable "OPENAI_TEST_KEY" is not set for provider "openai-provider"'
+    );
+  });
+
+  it("throws a clear error when an anthropic-compatible apiKeyEnv is empty", () => {
+    process.env.ANTHROPIC_TEST_KEY = "   ";
+
+    expect(() => createApiRunner("anthropic-provider", {
+      type: "api",
+      protocol: "anthropic-compatible",
+      apiKeyEnv: "ANTHROPIC_TEST_KEY",
+      models: {
+        m: {}
+      }
+    })).toThrow(
+      'API key environment variable "ANTHROPIC_TEST_KEY" is not set for provider "anthropic-provider"'
+    );
+  });
+
   it("adds provider/model context and retryability for rate-limit errors", async () => {
     mockOpenAILanguageModel.mockReturnValue("openai-model-instance");
     const rateLimitError = new Error("Rate limit exceeded");
     mockGenerateText.mockRejectedValue(rateLimitError);
 
-    const runner = createApiRunner({
+    const runner = createApiRunner("api-provider", {
       type: "api",
       protocol: "openai-compatible",
       models: { m: {} }
@@ -39,7 +136,7 @@ describe("createApiRunner", () => {
     await expect(
       runner.runTask({
         task: makeInitialRoundTask("task-1"),
-        agent: makeAgent()
+        agent: makeAgent("api-provider")
       })
     ).rejects.toThrow(
       "[argue-cli] API call failed for provider 'api-provider' (protocol: openai-compatible, model: gpt-test, retryable). Cause: Rate limit exceeded"
@@ -53,7 +150,7 @@ describe("createApiRunner", () => {
     });
     mockGenerateText.mockRejectedValue(authError);
 
-    const runner = createApiRunner({
+    const runner = createApiRunner("api-provider", {
       type: "api",
       protocol: "openai-compatible",
       models: { m: {} }
@@ -62,7 +159,7 @@ describe("createApiRunner", () => {
     try {
       await runner.runTask({
         task: makeInitialRoundTask("task-1"),
-        agent: makeAgent()
+        agent: makeAgent("api-provider")
       });
       throw new Error("expected rejection");
     } catch (error) {
@@ -88,12 +185,12 @@ function makeInitialRoundTask(prompt: string): AgentTaskInput {
   };
 }
 
-function makeAgent() {
+function makeAgent(providerName: string) {
   return {
     id: "agent-1",
-    provider: "api-provider",
+    provider: providerName,
     model: "m",
-    providerName: "api-provider",
+    providerName,
     providerConfig: {
       type: "api" as const,
       protocol: "openai-compatible" as const,
