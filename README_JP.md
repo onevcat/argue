@@ -1,28 +1,28 @@
 # argue
 
-**[中文](README_CN.md) | [日本語](README_JP.md)**
+**[English](README.md) | [中文](README_CN.md)**
 
-> _Better answers emerge when AI agents are forced to defend their reasoning._
+> _議論が深まるほど、答えは研ぎ澄まされる。_
 
-argue is a structured multi-agent debate engine. Multiple AI agents analyze the same problem independently, challenge each other's claims across rounds, and converge on consensus through voting — producing higher quality results than any single agent alone.
+argue は構造化されたマルチエージェント討論エンジンです。複数の AI エージェントが同じ問題を独立に分析し、ラウンドを超えて互いの主張を検証し合い、投票によって合意を形成します——単一エージェントでは到達できない品質の結果を生み出します。
 
-Give it a question. Get back claims that survived cross-examination, votes that quantify agreement, and a representative report backed by peer-reviewed scoring. Less hallucination, more rigor.
+問いを与えれば、クロスレビューを経た主張、合意度を定量化した投票結果、そしてピアレビュースコアリングに裏付けされた代表レポートが返されます。ハルシネーションが減り、厳密さが増します。
 
-## Quick Start
+## クイックスタート
 
-### Install
+### インストール
 
 ```bash
 npm install -g @onevcat/argue-cli
 ```
 
-### Configure
+### 設定
 
 ```bash
-# Create config file
+# 設定ファイルを作成
 argue config init --local
 
-# Add Claude Code as a provider
+# Claude Code をプロバイダーとして追加
 argue config add-provider \
   --id claude \
   --type cli \
@@ -31,7 +31,7 @@ argue config add-provider \
   --args "--print,--permission-mode,bypassPermissions" \
   --model-id sonnet
 
-# Add Codex CLI as another provider
+# Codex CLI を別のプロバイダーとして追加
 argue config add-provider \
   --id codex \
   --type cli \
@@ -40,96 +40,96 @@ argue config add-provider \
   --args "--full-auto" \
   --model-id codex
 
-# Add agents with different roles
+# 異なる役割のエージェントを追加
 argue config add-agent --id claude-agent --provider claude --model sonnet --role "senior-engineer"
 argue config add-agent --id codex-agent --provider codex --model codex --role "senior-engineer"
 ```
 
-### Run a Debate
+### 討論を開始
 
 ```bash
-argue run --task "Should we use a monorepo or polyrepo for our microservices?"
+argue run --task "マイクロサービスにはモノレポとポリレポのどちらを採用すべきか？"
 ```
 
-Add `--verbose` to see each agent's reasoning, claims, and judgements in real time.
+`--verbose` をつけると、各エージェントの推論過程・主張・判断がリアルタイムで確認できます。
 
-Need an agent to **act** on the result? Add `--action`:
+エージェントに結果を**実行**させるには `--action` を追加：
 
 ```bash
 argue run \
-  --task "Review the issue: https://github.com/onevcat/argue/issues/22" \
-  --action "Fix the issue based on consensus and open a PR" \
+  --task "この issue を調査して解決策を検討：https://github.com/onevcat/argue/issues/22" \
+  --action "合意に基づいて issue を修正し、PR を作成" \
   --verbose
 ```
 
-### What Happens
+### 実行結果
 
 ```
 [argue] run started
-  task: Review the issue: https://github.com/onevcat/argue/issues/22
+  task: この issue を調査して解決策を検討：https://github.com/onevcat/argue/issues/22
   agents: claude-agent, codex-agent
   rounds: 2..3 | composer: representative
 
 [argue] initial#0 dispatched -> claude-agent, codex-agent
 [argue] initial#0 codex-agent responded (claims+6)
-  Root shared ESLint + Prettier config for the monorepo, with CI lint gate...
+  モノレポのルートに共有 ESLint+Prettier 設定を導入、CI lint ゲートを追加...
 [argue] initial#0 claude-agent responded (claims+6)
-  Found runtime issues: double normalization, API message leakage, template bug...
+  ランタイムの問題を発見：double normalization、API message leakage、template bug...
 
 [argue] debate#1 dispatched -> claude-agent, codex-agent
 [argue] debate#1 codex-agent responded (judgements=1✗ 5↻)
-  Most existing claims are valid-but-out-of-scope for issue #22...
+  既存の主張の多くは有効だが issue #22 のスコープ外...
 [argue] debate#1 claude-agent responded (judgements=5✗ 1↻)
-  Agree with codex-agent that issue #22 is about ESLint/Prettier setup.
-  My previous claims were off-topic...
+  codex-agent の指摘に同意：issue #22 は ESLint/Prettier の設定に関するもの。
+  私の以前の主張はスコープ外だった...
 
-  ... (2 more debate rounds, agents converge) ...
+  ...（さらに 2 ラウンドの討論を経て収束）...
 
 [argue] result: consensus
   representative: codex-agent (score: 83.70)
   Claims: 11 active, 11/11 accepted (1 merged)
 
 [argue] action completed by codex-agent
-  Created PR #28 — ESLint + Prettier config, CI integration
+  PR #28 を作成 — ESLint + Prettier 設定、CI 統合
 ```
 
-Notice what happened: claude-agent initially misidentified the problem (it couldn't access the GitHub issue). Through structured debate, codex-agent's corrections led claude-agent to self-correct and converge. The final consensus was unanimous, and the representative agent turned it into a real PR.
+何が起きたか：claude-agent は最初に問題を誤認しました（GitHub issue にアクセスできなかったため）。構造化された討論を通じて、codex-agent の指摘により claude-agent は自己修正し収束しました。最終的な合意は全会一致で、代表エージェントがそれを実際の PR に変換しました。
 
-[See the full unabridged output of this run.](https://gist.github.com/onevcat/bbf42778888180c443bea78f395f255b)
+[この実行の完全な出力を確認する。](https://gist.github.com/onevcat/bbf42778888180c443bea78f395f255b)
 
-## Using as a Library
+## ライブラリとして使用
 
-The CLI is built on `@onevcat/argue`, a standalone engine you can embed anywhere. Implement one interface — `AgentTaskDelegate` — and the engine handles all orchestration.
+CLI は `@onevcat/argue` の上に構築されています。これは任意のシステムに組み込める独立したエンジンです。`AgentTaskDelegate` という 1 つのインターフェースを実装するだけで、エンジンがすべてのオーケストレーションを処理します。
 
-### Install
+### インストール
 
 ```bash
 npm install @onevcat/argue
 ```
 
-### Implement the Delegate
+### Delegate の実装
 
 ```ts
 import type { AgentTaskDelegate } from "@onevcat/argue";
 
 const delegate: AgentTaskDelegate = {
   async dispatch(task) {
-    // Route task to your agent infrastructure.
-    // task.kind is "round" | "report" | "action"
-    // For round tasks, task.phase is "initial" | "debate" | "final_vote"
+    // タスクをエージェント基盤にルーティング
+    // task.kind: "round" | "report" | "action"
+    // round タスクの場合、task.phase: "initial" | "debate" | "final_vote"
     const taskId = await myAgentFramework.submit(task);
     return { taskId, participantId: task.participantId, kind: task.kind };
   },
 
   async awaitResult(taskId, timeoutMs) {
-    // Wait for the agent to finish and return structured output.
+    // エージェントの完了を待ち、構造化された出力を返す
     const result = await myAgentFramework.waitFor(taskId, timeoutMs);
     return { ok: true, output: result };
   }
 };
 ```
 
-### Run the Engine
+### エンジンの実行
 
 ```ts
 import { ArgueEngine, MemorySessionStore, DefaultWaitCoordinator } from "@onevcat/argue";
@@ -142,7 +142,7 @@ const engine = new ArgueEngine({
 
 const result = await engine.start({
   requestId: "review-42",
-  task: "Review PR #42 for security and correctness issues",
+  task: "PR #42 のセキュリティと正確性の問題をレビュー",
   participants: [
     { id: "security-agent", role: "security-reviewer" },
     { id: "arch-agent", role: "architecture-reviewer" },
@@ -152,19 +152,19 @@ const result = await engine.start({
   consensusPolicy: { threshold: 0.67 },
   reportPolicy: { composer: "representative" },
   actionPolicy: {
-    prompt: "Fix all identified issues and post a summary comment."
+    prompt: "発見されたすべての問題を修正し、サマリーコメントを投稿。"
   }
 });
 
 // result.status → "consensus" | "partial_consensus" | "unresolved"
-// result.claimResolutions → per-claim vote outcomes
-// result.representative → highest-scoring agent
-// result.action → action output (if actionPolicy was set)
+// result.claimResolutions → 主張ごとの投票結果
+// result.representative → 最高スコアのエージェント
+// result.action → アクション出力（actionPolicy が設定されている場合）
 ```
 
-### Integration Example: Claude Code Hook
+### 統合例：Claude Code Hook
 
-You can wire argue into existing tools via hooks. For example, as a [Claude Code hook](https://docs.anthropic.com/en/docs/claude-code/hooks) that triggers multi-agent review before every commit:
+hook を通じて argue を既存ツールに接続できます。例えば、[Claude Code hook](https://docs.anthropic.com/en/docs/claude-code/hooks) として、コミット前にマルチエージェントレビューをトリガー：
 
 ```jsonc
 // .claude/settings.json
@@ -188,8 +188,6 @@ You can wire argue into existing tools via hooks. For example, as a [Claude Code
 ```ts
 // hooks/argue-review.mjs
 import { ArgueEngine, MemorySessionStore, DefaultWaitCoordinator } from "@onevcat/argue";
-
-// Your delegate implementation dispatches to your agent infrastructure
 import { createDelegate } from "./my-delegate.mjs";
 
 const input = JSON.parse(process.argv[2]);
@@ -204,7 +202,7 @@ const engine = new ArgueEngine({
 
 const result = await engine.start({
   requestId: `pre-commit-${Date.now()}`,
-  task: "Review staged changes for bugs, security issues, and style violations",
+  task: "ステージされた変更をバグ、セキュリティ問題、スタイル違反の観点でレビュー",
   participants: [
     { id: "security", role: "security-reviewer" },
     { id: "quality", role: "code-quality-reviewer" }
@@ -214,14 +212,14 @@ const result = await engine.start({
 });
 
 if (result.status !== "consensus") {
-  console.error("Review did not reach consensus. Blocking commit.");
+  console.error("レビューが合意に達しませんでした。コミットをブロックします。");
   process.exit(1);
 }
 ```
 
-## How It Works
+## 仕組み
 
-### Debate Flow
+### 討論フロー
 
 ```
 +------+                      +--------+                           +---------+         +---------+
@@ -291,53 +289,53 @@ if (result.status !== "consensus") {
 +------+                      +--------+                           +---------+         +---------+
 ```
 
-### Phase Rules
+### 各フェーズのルール
 
-| Phase                 | What agents do                                                    | What the engine does                                    |
-| --------------------- | ----------------------------------------------------------------- | ------------------------------------------------------- |
-| **Initial** (round 0) | Propose claims, judge existing ones                               | Collect all claims into a shared pool                   |
-| **Debate** (1..N)     | Judge peers' claims (`agree`/`disagree`/`revise`), propose merges | Merge duplicates, track stance shifts, check early-stop |
-| **Final Vote** (N+1)  | Cast `accept`/`reject` per active claim                           | Compute per-claim consensus against threshold           |
+| フェーズ                  | エージェントの動作                                          | エンジンの動作                               |
+| ------------------------- | ----------------------------------------------------------- | -------------------------------------------- |
+| **Initial**（ラウンド 0） | 主張を提出、既存の主張を評価                                | すべての主張を共有プールに集約               |
+| **Debate**（1..N）        | 他者の主張を評価（`agree`/`disagree`/`revise`）、統合を提案 | 重複を統合、立場の変化を追跡、早期終了を判定 |
+| **Final Vote**（N+1）     | 各アクティブな主張に `accept`/`reject` で投票               | 主張ごとの合意率を閾値と比較                 |
 
-### Key Mechanisms
+### 主要メカニズム
 
-- **Claim lifecycle**: Each claim is `active`, `merged`, or `withdrawn`. Merged claims transfer their proposers to the surviving claim.
-- **Early stop**: If all judgements agree and no new claims emerge for `minRounds`, debate ends early — no wasted rounds.
-- **Elimination**: Agents that timeout or error are permanently removed. Consensus denominators adjust automatically.
-- **Scoring**: Agents are scored on correctness (35%), completeness (25%), actionability (25%), and consistency (15%) via peer review.
-- **Representative**: The highest-scoring agent composes the final report. Falls back to a built-in summary on failure.
-- **Action**: Optionally, the representative (or a designated agent) executes a real-world action based on the consensus.
+- **主張のライフサイクル**：各主張のステータスは `active`、`merged`、`withdrawn`。統合された主張は提案者を存続する主張に引き継ぎます。
+- **早期終了**：すべての判断が一致し新しい主張が出なければ、`minRounds` 到達後に討論を早期終了——無駄なラウンドを削減。
+- **排除**：タイムアウトまたはエラーのエージェントは永久に除外。合意計算の分母は自動調整されます。
+- **スコアリング**：正確性（35%）、網羅性（25%）、実行可能性（25%）、一貫性（15%）の4軸でピアレビュー評価。
+- **代表**：最高スコアのエージェントが最終レポートを作成。失敗時は内蔵サマリーにフォールバック。
+- **アクション**：オプションで、代表（または指定エージェント）が合意に基づいて実際の操作を実行。
 
-### Provider Types
+### プロバイダータイプ
 
-The CLI supports four provider types for connecting agents:
+CLI はエージェント接続用に 4 つのプロバイダータイプをサポート：
 
-| Type   | Use case                             | Example                                              |
-| ------ | ------------------------------------ | ---------------------------------------------------- |
-| `cli`  | Coding agents with CLI interfaces    | Claude Code, Codex CLI, Copilot CLI, Gemini CLI      |
-| `api`  | Direct model API access              | OpenAI, Anthropic, Ollama, any OpenAI-compatible API |
-| `sdk`  | Custom adapters for agent frameworks | Your own SDK integration                             |
-| `mock` | Testing and development              | Deterministic responses, simulated timeouts          |
+| タイプ | 用途                                               | 例                                                 |
+| ------ | -------------------------------------------------- | -------------------------------------------------- |
+| `cli`  | CLI インターフェースを持つコーディングエージェント | Claude Code, Codex CLI, Copilot CLI, Gemini CLI    |
+| `api`  | モデル API への直接アクセス                        | OpenAI, Anthropic, Ollama, OpenAI 互換 API         |
+| `sdk`  | エージェントフレームワーク用カスタムアダプター     | 独自の SDK 統合                                    |
+| `mock` | テストと開発                                       | 決定的なレスポンス、タイムアウトのシミュレーション |
 
-## Config Reference
+## 設定リファレンス
 
-Full config example at [`packages/argue-cli/examples/config.example.json`](packages/argue-cli/examples/config.example.json).
+完全な設定例：[`packages/argue-cli/examples/config.example.json`](packages/argue-cli/examples/config.example.json)
 
-Config lookup order:
+設定ファイルの検索順序：
 
-1. `--config <path>` flag
-2. `./argue.config.json` (local)
-3. `~/.config/argue/config.json` (global)
+1. `--config <path>` フラグ
+2. `./argue.config.json`（ローカル）
+3. `~/.config/argue/config.json`（グローバル）
 
-CLI flags override input JSON, which overrides config defaults.
+CLI フラグ > input JSON > 設定デフォルト値。
 
-## Development
+## 開発
 
 ```bash
 npm install
-npm run dev              # watch mode
-npm run ci               # typecheck + test + build
-npm run release:check    # plus tarball smoke tests
+npm run dev              # watch モード
+npm run ci               # 型チェック + テスト + ビルド
+npm run release:check    # tarball スモークテスト付き
 ```
 
 ## License
