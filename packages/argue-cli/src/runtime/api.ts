@@ -8,19 +8,22 @@ import type { ProviderTaskRunner } from "./types.js";
 
 export function createApiRunner(providerName: string, provider: ApiProviderConfig): ProviderTaskRunner {
   const modelFactory = createModelFactory(providerName, provider);
-  const messages: ModelMessage[] = [];
+  let messageHistory: ModelMessage[] = [];
 
   return {
     async runTask({ task, agent, abortSignal }) {
       const userContent = buildTaskPrompt({ task, agent, includeJsonSchema: true });
-      messages.push({ role: "user", content: userContent });
+      const requestMessages = trimMessages(
+        [...messageHistory, { role: "user", content: userContent }],
+        MAX_HISTORY_MESSAGES + 1
+      );
 
       let result;
       try {
         result = await generateText({
           model: modelFactory(agent.providerModel),
           system: agent.systemPrompt,
-          messages,
+          messages: requestMessages,
           temperature: agent.temperature ?? agent.modelConfig.temperature,
           maxOutputTokens: agent.modelConfig.maxOutputTokens,
           abortSignal
@@ -34,11 +37,24 @@ export function createApiRunner(providerName: string, provider: ApiProviderConfi
         });
       }
 
-      messages.push({ role: "assistant", content: result.text });
+      messageHistory = trimMessages(
+        [...requestMessages, { role: "assistant", content: result.text }],
+        MAX_HISTORY_MESSAGES
+      );
 
       return normalizeTaskOutputFromText(task, result.text);
     }
   };
+}
+
+const MAX_HISTORY_MESSAGES = 24;
+
+function trimMessages(messages: ModelMessage[], maxMessages: number): ModelMessage[] {
+  if (messages.length <= maxMessages) {
+    return messages;
+  }
+
+  return messages.slice(messages.length - maxMessages);
 }
 
 function createModelFactory(providerName: string, provider: ApiProviderConfig): (modelId: string) => LanguageModel {
