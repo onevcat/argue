@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   resolve: {
     alias: {
-      argue: resolve(__dirname, "../argue/src/index.ts")
+      "@onevcat/argue": resolve(__dirname, "../argue/src/index.ts")
     }
   }
 });
