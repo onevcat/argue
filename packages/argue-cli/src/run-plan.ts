@@ -110,6 +110,9 @@ export function resolveRunPlan(args: {
 
   const composer = overrides.composer ?? runInput.composer ?? config.defaults?.composer ?? "builtin";
   const representativeId = overrides.representativeId ?? runInput.representativeId ?? config.defaults?.representativeId;
+  if (composer === "representative" && !representativeId) {
+    throw new Error("representativeId is required when composer is 'representative'");
+  }
   const includeDeliberationTrace =
     overrides.includeDeliberationTrace ??
     runInput.includeDeliberationTrace ??
