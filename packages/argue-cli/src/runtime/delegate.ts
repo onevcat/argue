@@ -120,16 +120,16 @@ async function createRunner(
   configDir: string
 ): Promise<ProviderTaskRunner> {
   switch (provider.type) {
-  case "api":
-    return createApiRunner(provider);
-  case "cli":
-    return createCliRunner(provider);
-  case "mock":
-    return createMockRunner(provider);
-  case "sdk":
-    return createSdkRunner(providerName, provider, configDir);
-  default:
-    return assertNever(provider);
+    case "api":
+      return createApiRunner(provider);
+    case "cli":
+      return createCliRunner(provider);
+    case "mock":
+      return createMockRunner(provider);
+    case "sdk":
+      return createSdkRunner(providerName, provider, configDir);
+    default:
+      return assertNever(provider);
   }
 }
 

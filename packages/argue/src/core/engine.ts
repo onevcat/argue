@@ -1,15 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type {
-  AgentTaskDelegate,
-  ArgueObserver,
-  SessionStore,
-  WaitCoordinator
-} from "../contracts/delegate.js";
-import {
-  normalizeStartInput,
-  type ArgueStartInput,
-  type NormalizedArgueStartInput
-} from "../contracts/request.js";
+import type { AgentTaskDelegate, ArgueObserver, SessionStore, WaitCoordinator } from "../contracts/delegate.js";
+import { normalizeStartInput, type ArgueStartInput, type NormalizedArgueStartInput } from "../contracts/request.js";
 import {
   ArgueResultSchema,
   type ActionOutput,
@@ -161,7 +152,10 @@ export class ArgueEngine {
         claimCatalog = debateResult.claimCatalog;
         previousOutputs = debateResult.outputs;
 
-        if (round >= normalized.roundPolicy.minRounds && shouldEarlyStop(debateResult.outputs, debateResult.newClaimCount)) {
+        if (
+          round >= normalized.roundPolicy.minRounds &&
+          shouldEarlyStop(debateResult.outputs, debateResult.newClaimCount)
+        ) {
           metrics.earlyStopTriggered = true;
           await this.emit(normalized, sessionId, "EarlyStopTriggered", {
             round,
@@ -228,15 +222,15 @@ export class ArgueEngine {
 
       const selected = designatedIsActive
         ? {
-          participantId: designated,
-          score: activeScoreboard.find((x) => x.participantId === designated)?.total ?? 0,
-          reason: "host-designated" as const
-        }
+            participantId: designated,
+            score: activeScoreboard.find((x) => x.participantId === designated)?.total ?? 0,
+            reason: "host-designated" as const
+          }
         : chooseRepresentative({
-          scores: activeScoreboard,
-          rounds,
-          tieBreaker: normalized.scoringPolicy.tieBreaker
-        });
+            scores: activeScoreboard,
+            rounds,
+            tieBreaker: normalized.scoringPolicy.tieBreaker
+          });
 
       const representativeSpeech = this.pickRepresentativeSpeech(selected.participantId, rounds);
 
@@ -297,7 +291,11 @@ export class ArgueEngine {
       });
 
       const actionOutput = await this.executeAction({
-        normalized, requestId: normalized.requestId, sessionId, result, activeParticipants
+        normalized,
+        requestId: normalized.requestId,
+        sessionId,
+        result,
+        activeParticipants
       });
       if (actionOutput) {
         result.action = actionOutput;
@@ -351,59 +349,61 @@ export class ArgueEngine {
     eliminations: EliminationRecord[];
   }): Promise<{ outputs: ParticipantRoundOutput[]; claimCatalog: Claim[]; newClaimCount: number }> {
     const participantIds = [...args.activeParticipants];
-    const dispatches = await Promise.all(participantIds.map(async (participantId) => {
-      const participant = args.normalized.participants.find((item) => item.id === participantId);
-      if (!participant) {
-        throw new Error(`Missing participant configuration for ${participantId}`);
-      }
+    const dispatches = await Promise.all(
+      participantIds.map(async (participantId) => {
+        const participant = args.normalized.participants.find((item) => item.id === participantId);
+        if (!participant) {
+          throw new Error(`Missing participant configuration for ${participantId}`);
+        }
 
-      const peerRoundInputs = args.previousOutputs
-        .filter((output) => output.participantId !== participantId)
-        .slice(0, args.normalized.peerContextPolicy.maxPeersPerRound ?? Number.MAX_SAFE_INTEGER)
-        .map((output) => {
-          const { text, truncated } = applyTextBudget(
-            output.fullResponse,
-            args.normalized.peerContextPolicy.maxCharsPerPeerResponse,
-            args.normalized.peerContextPolicy.overflowStrategy
-          );
-          return {
-            participantId: output.participantId,
-            round: output.round,
-            fullResponse: text,
-            truncated
-          };
+        const peerRoundInputs = args.previousOutputs
+          .filter((output) => output.participantId !== participantId)
+          .slice(0, args.normalized.peerContextPolicy.maxPeersPerRound ?? Number.MAX_SAFE_INTEGER)
+          .map((output) => {
+            const { text, truncated } = applyTextBudget(
+              output.fullResponse,
+              args.normalized.peerContextPolicy.maxCharsPerPeerResponse,
+              args.normalized.peerContextPolicy.overflowStrategy
+            );
+            return {
+              participantId: output.participantId,
+              round: output.round,
+              fullResponse: text,
+              truncated
+            };
+          });
+
+        const task = RoundTaskInputSchema.parse({
+          kind: "round",
+          sessionId: args.sessionId,
+          requestId: args.normalized.requestId,
+          participantId,
+          phase: args.phase,
+          round: args.round,
+          prompt: this.buildRoundPrompt(args.normalized, args.phase, args.round),
+          selfHistoryRef: { stickySession: true },
+          peerRoundInputs,
+          claimCatalog: args.claimCatalog,
+          metadata: {
+            participantSessionKey: args.participantSessionMap.get(participantId),
+            role: participant.role,
+            peerContextPassMode: args.normalized.peerContextPolicy.passMode,
+            constraints: args.normalized.constraints,
+            context: args.normalized.context,
+            outputSchema: {
+              ref: getRoundOutputContentSchemaRef(args.phase),
+              jsonSchema: getRoundOutputContentJsonSchema(args.phase)
+            }
+          }
         });
 
-      const task = RoundTaskInputSchema.parse({
-        kind: "round",
-        sessionId: args.sessionId,
-        requestId: args.normalized.requestId,
-        participantId,
-        phase: args.phase,
-        round: args.round,
-        prompt: this.buildRoundPrompt(args.normalized, args.phase, args.round),
-        selfHistoryRef: { stickySession: true },
-        peerRoundInputs,
-        claimCatalog: args.claimCatalog,
-        metadata: {
-          participantSessionKey: args.participantSessionMap.get(participantId),
-          role: participant.role,
-          peerContextPassMode: args.normalized.peerContextPolicy.passMode,
-          constraints: args.normalized.constraints,
-          context: args.normalized.context,
-          outputSchema: {
-            ref: getRoundOutputContentSchemaRef(args.phase),
-            jsonSchema: getRoundOutputContentJsonSchema(args.phase)
-          }
-        }
-      });
-
-      const dispatched = await this.deps.taskDelegate.dispatch(task);
-      return {
-        taskId: dispatched.taskId,
-        participantId
-      };
-    }));
+        const dispatched = await this.deps.taskDelegate.dispatch(task);
+        return {
+          taskId: dispatched.taskId,
+          participantId
+        };
+      })
+    );
 
     const taskIds = dispatches.map((dispatch) => dispatch.taskId);
     const taskParticipantMap = new Map(dispatches.map((item) => [item.taskId, item.participantId]));
@@ -425,22 +425,28 @@ export class ArgueEngine {
 
         if (event.status === "completed") {
           args.metrics.totalTurns += 1;
-          await this.emit(args.normalized, args.sessionId, "ParticipantResponded", {
-            phase: args.phase,
-            round: args.round,
-            participantId,
-            summary: event.output?.summary,
-            extractedClaims: event.output?.extractedClaims?.length ?? 0,
-            judgements: event.output?.judgements.length ?? 0,
-            stanceAgree: event.output?.judgements.filter(j => j.stance === "agree").length ?? 0,
-            stanceDisagree: event.output?.judgements.filter(j => j.stance === "disagree").length ?? 0,
-            stanceRevise: event.output?.judgements.filter(j => j.stance === "revise").length ?? 0,
-            claimVotes: event.output?.phase === "final_vote" ? event.output.claimVotes.length : 0,
-            fullResponse: event.output?.fullResponse,
-            extractedClaimsDetail: event.output?.extractedClaims,
-            judgementsDetail: event.output?.judgements,
-            claimVotesDetail: event.output?.phase === "final_vote" ? event.output.claimVotes : undefined
-          }, event.at);
+          await this.emit(
+            args.normalized,
+            args.sessionId,
+            "ParticipantResponded",
+            {
+              phase: args.phase,
+              round: args.round,
+              participantId,
+              summary: event.output?.summary,
+              extractedClaims: event.output?.extractedClaims?.length ?? 0,
+              judgements: event.output?.judgements.length ?? 0,
+              stanceAgree: event.output?.judgements.filter((j) => j.stance === "agree").length ?? 0,
+              stanceDisagree: event.output?.judgements.filter((j) => j.stance === "disagree").length ?? 0,
+              stanceRevise: event.output?.judgements.filter((j) => j.stance === "revise").length ?? 0,
+              claimVotes: event.output?.phase === "final_vote" ? event.output.claimVotes.length : 0,
+              fullResponse: event.output?.fullResponse,
+              extractedClaimsDetail: event.output?.extractedClaims,
+              judgementsDetail: event.output?.judgements,
+              claimVotesDetail: event.output?.phase === "final_vote" ? event.output.claimVotes : undefined
+            },
+            event.at
+          );
           return;
         }
 
@@ -460,13 +466,19 @@ export class ArgueEngine {
 
         if (!wasActive) return;
 
-        await this.emit(args.normalized, args.sessionId, "ParticipantEliminated", {
-          phase: args.phase,
-          round: args.round,
-          participantId,
-          reason,
-          error: event.error
-        }, event.at);
+        await this.emit(
+          args.normalized,
+          args.sessionId,
+          "ParticipantEliminated",
+          {
+            phase: args.phase,
+            round: args.round,
+            participantId,
+            reason,
+            error: event.error
+          },
+          event.at
+        );
       }
     });
 
@@ -474,9 +486,10 @@ export class ArgueEngine {
       .filter((output) => output.phase === args.phase && output.round === args.round)
       .filter((output) => args.activeParticipants.has(output.participantId));
 
-    const { claims, newClaimCount, mergeEvents } = args.phase === "final_vote"
-      ? { claims: [...args.claimCatalog], newClaimCount: 0, mergeEvents: [] }
-      : updateClaims(args.claimCatalog, outputs);
+    const { claims, newClaimCount, mergeEvents } =
+      args.phase === "final_vote"
+        ? { claims: [...args.claimCatalog], newClaimCount: 0, mergeEvents: [] }
+        : updateClaims(args.claimCatalog, outputs);
 
     for (const merge of mergeEvents) {
       await this.emit(args.normalized, args.sessionId, "ClaimsMerged", {
@@ -523,16 +536,17 @@ export class ArgueEngine {
     scoreboard: ParticipantScore[];
     activeParticipants: Set<string>;
   }): Promise<FinalReport> {
-    const fallback = (): FinalReport => buildBuiltinReport({
-      includeDeliberationTrace: args.normalized.reportPolicy.includeDeliberationTrace,
-      traceLevel: args.normalized.reportPolicy.traceLevel,
-      status: args.status,
-      representativeSpeech: args.representative.speech,
-      rounds: args.rounds,
-      representativeId: args.representative.participantId,
-      finalClaims: args.finalClaims,
-      claimResolutions: args.claimResolutions
-    });
+    const fallback = (): FinalReport =>
+      buildBuiltinReport({
+        includeDeliberationTrace: args.normalized.reportPolicy.includeDeliberationTrace,
+        traceLevel: args.normalized.reportPolicy.traceLevel,
+        status: args.status,
+        representativeSpeech: args.representative.speech,
+        rounds: args.rounds,
+        representativeId: args.representative.participantId,
+        finalClaims: args.finalClaims,
+        claimResolutions: args.claimResolutions
+      });
 
     if (args.normalized.reportPolicy.composer !== "representative") {
       return fallback();
@@ -578,7 +592,9 @@ export class ArgueEngine {
       dispatched = await this.deps.taskDelegate.dispatch(task as AgentTaskInput);
     } catch {
       await this.emit(args.normalized, args.sessionId, "ReportCompleted", {
-        reporterId, mode: "builtin", reason: "dispatch_failed"
+        reporterId,
+        mode: "builtin",
+        reason: "dispatch_failed"
       });
       return fallback();
     }
@@ -591,14 +607,18 @@ export class ArgueEngine {
       );
     } catch {
       await this.emit(args.normalized, args.sessionId, "ReportCompleted", {
-        reporterId, mode: "builtin", reason: "await_failed"
+        reporterId,
+        mode: "builtin",
+        reason: "await_failed"
       });
       return fallback();
     }
 
     if (!awaited.ok || !awaited.output) {
       await this.emit(args.normalized, args.sessionId, "ReportCompleted", {
-        reporterId, mode: "builtin", reason: "task_failed"
+        reporterId,
+        mode: "builtin",
+        reason: "task_failed"
       });
       return fallback();
     }
@@ -606,13 +626,16 @@ export class ArgueEngine {
     const parsed = ReportTaskResultSchema.safeParse(awaited.output);
     if (!parsed.success) {
       await this.emit(args.normalized, args.sessionId, "ReportCompleted", {
-        reporterId, mode: "builtin", reason: "parse_failed"
+        reporterId,
+        mode: "builtin",
+        reason: "parse_failed"
       });
       return fallback();
     }
 
     await this.emit(args.normalized, args.sessionId, "ReportCompleted", {
-      reporterId, mode: "representative"
+      reporterId,
+      mode: "representative"
     });
 
     return {
@@ -677,7 +700,8 @@ export class ArgueEngine {
       dispatched = await this.deps.taskDelegate.dispatch(task as AgentTaskInput);
     } catch (caught) {
       await this.emit(args.normalized, args.sessionId, "ActionFailed", {
-        actorId, reason: "dispatch_failed"
+        actorId,
+        reason: "dispatch_failed"
       });
       return { actorId, status: "failed", error: caught instanceof Error ? caught.message : String(caught) };
     }
@@ -690,14 +714,16 @@ export class ArgueEngine {
       );
     } catch (caught) {
       await this.emit(args.normalized, args.sessionId, "ActionFailed", {
-        actorId, reason: "await_failed"
+        actorId,
+        reason: "await_failed"
       });
       return { actorId, status: "failed", error: caught instanceof Error ? caught.message : String(caught) };
     }
 
     if (!awaited.ok || !awaited.output) {
       await this.emit(args.normalized, args.sessionId, "ActionFailed", {
-        actorId, reason: "task_failed"
+        actorId,
+        reason: "task_failed"
       });
       return { actorId, status: "failed", error: awaited.error ?? "Action task failed" };
     }
@@ -705,7 +731,8 @@ export class ArgueEngine {
     const parsed = ActionTaskResultSchema.safeParse(awaited.output);
     if (!parsed.success) {
       await this.emit(args.normalized, args.sessionId, "ActionFailed", {
-        actorId, reason: "parse_failed"
+        actorId,
+        reason: "parse_failed"
       });
       return { actorId, status: "failed", error: "Action result parse failed" };
     }
@@ -980,7 +1007,9 @@ function updateClaims(
   base: Claim[],
   outputs: ParticipantRoundOutput[]
 ): { claims: Claim[]; newClaimCount: number; mergeEvents: Array<{ sourceClaimId: string; mergedInto: string }> } {
-  const claimMap = new Map<string, Claim>(base.map((claim) => [claim.claimId, { ...claim, proposedBy: [...claim.proposedBy] }]));
+  const claimMap = new Map<string, Claim>(
+    base.map((claim) => [claim.claimId, { ...claim, proposedBy: [...claim.proposedBy] }])
+  );
   const order = new Map<string, number>([...claimMap.keys()].map((id, idx) => [id, idx]));
   let nextOrder = order.size;
   let newClaimCount = 0;

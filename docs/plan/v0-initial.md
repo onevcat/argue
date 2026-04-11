@@ -76,7 +76,7 @@ export type ArgueStartInput = {
   task: string;
 
   participants: Array<{
-    id: string;               // e.g. onevclaw
+    id: string; // e.g. onevclaw
     role?: string;
   }>;
 
@@ -85,8 +85,8 @@ export type ArgueStartInput = {
   };
 
   roundPolicy?: {
-    minRounds?: number;       // default: 2
-    maxRounds?: number;       // default: 3
+    minRounds?: number; // default: 2
+    maxRounds?: number; // default: 3
   };
 
   sessionPolicy?: {
@@ -97,7 +97,7 @@ export type ArgueStartInput = {
   peerContextPolicy?: {
     passMode: "full-response-preferred";
     maxCharsPerPeerResponse?: number; // default: 6000
-    maxPeersPerRound?: number;        // default: all-others
+    maxPeersPerRound?: number; // default: all-others
     overflowStrategy?: "truncate-tail" | "truncate-middle";
   };
 
@@ -114,25 +114,25 @@ export type ArgueStartInput = {
   };
 
   consensusPolicy?: {
-    threshold?: number;             // 0~1, default: 1.0 (unanimous)
+    threshold?: number; // 0~1, default: 1.0 (unanimous)
   };
 
   reportPolicy?: {
-    includeDeliberationTrace?: boolean;     // default: false
-    traceLevel?: "compact" | "full";       // default: compact
+    includeDeliberationTrace?: boolean; // default: false
+    traceLevel?: "compact" | "full"; // default: compact
     composer?: "builtin" | "representative"; // default: builtin
-    representativeId?: string;              // composer=representative 时可选，host 强制指定代表者
+    representativeId?: string; // composer=representative 时可选，host 强制指定代表者
   };
 
   promptPolicy?: {
-    debateTemplate?: string;        // host 可替换 debate 轮 prompt 模板
-    reportTemplate?: string;        // host 可替换 report 轮 prompt 模板
+    debateTemplate?: string; // host 可替换 debate 轮 prompt 模板
+    reportTemplate?: string; // host 可替换 report 轮 prompt 模板
   };
 
   waitingPolicy?: {
-    perTaskTimeoutMs?: number;      // default: 10m
-    perRoundTimeoutMs?: number;     // default: 20m
-    globalDeadlineMs?: number;      // 从 start() 计时，超时不开新 round，进入 unresolved
+    perTaskTimeoutMs?: number; // default: 10m
+    perRoundTimeoutMs?: number; // default: 20m
+    globalDeadlineMs?: number; // 从 start() 计时，超时不开新 round，进入 unresolved
   };
 
   constraints?: {
@@ -178,9 +178,9 @@ export type RoundTaskInput = {
 ```ts
 export type ReportTaskInput = {
   kind: "report";
-  sessionId: string;      // 独立 report session
+  sessionId: string; // 独立 report session
   requestId: string;
-  participantId: string;  // 可为活跃参与者，也可为 host 外部 reporter id
+  participantId: string; // 可为活跃参与者，也可为 host 外部 reporter id
   prompt: string;
   reportInput: {
     status: "consensus" | "partial_consensus" | "unresolved" | "failed";
@@ -214,9 +214,9 @@ export type Claim = {
   title: string;
   statement: string;
   category?: "pro" | "con" | "risk" | "tradeoff" | "todo";
-  proposedBy: string[];          // participant IDs of original proposers
-  status: ClaimStatus;           // default: "active"
-  mergedInto?: string;           // claimId of the surviving claim (when status=merged)
+  proposedBy: string[]; // participant IDs of original proposers
+  status: ClaimStatus; // default: "active"
+  mergedInto?: string; // claimId of the surviving claim (when status=merged)
 };
 
 export type ClaimJudgement = {
@@ -225,7 +225,7 @@ export type ClaimJudgement = {
   confidence: number; // 0~1
   rationale: string;
   revisedStatement?: string;
-  mergesWith?: string;           // claimId — declare this claim is the same as another
+  mergesWith?: string; // claimId — declare this claim is the same as another
 };
 
 export type ClaimVote = {
@@ -244,7 +244,7 @@ export type ParticipantRoundOutput = {
   extractedClaims?: Claim[];
   judgements: ClaimJudgement[];
 
-  claimVotes?: ClaimVote[];      // final_vote phase: per-claim accept/reject
+  claimVotes?: ClaimVote[]; // final_vote phase: per-claim accept/reject
 
   selfScore?: number;
   summary: string;
@@ -302,7 +302,7 @@ export type EliminationRecord = {
   participantId: string;
   round: number;
   reason: "timeout" | "error";
-  at: string;                    // ISO timestamp
+  at: string; // ISO timestamp
 };
 
 export type ArgueResult = {
@@ -311,7 +311,7 @@ export type ArgueResult = {
   status: "consensus" | "partial_consensus" | "unresolved" | "failed";
 
   finalClaims: Claim[];
-  claimResolutions: ClaimResolution[];  // per-claim voting results
+  claimResolutions: ClaimResolution[]; // per-claim voting results
 
   representative: {
     participantId: string;
@@ -321,7 +321,7 @@ export type ArgueResult = {
   };
 
   scoreboard: ParticipantScore[];
-  eliminations: EliminationRecord[];    // participants removed during session
+  eliminations: EliminationRecord[]; // participants removed during session
 
   report: FinalReport;
 
@@ -338,7 +338,7 @@ export type ArgueResult = {
 
   metrics: {
     elapsedMs: number;
-    totalRounds: number;            // actual rounds run (may be < maxRounds due to early-stop)
+    totalRounds: number; // actual rounds run (may be < maxRounds due to early-stop)
     totalTurns: number;
     retries: number;
     waitTimeouts: number;
@@ -364,7 +364,10 @@ export interface AgentTaskDelegate {
     kind: AgentTaskInput["kind"];
   }>;
 
-  awaitResult(taskId: string, timeoutMs?: number): Promise<{
+  awaitResult(
+    taskId: string,
+    timeoutMs?: number
+  ): Promise<{
     ok: boolean;
     output?: AgentTaskResult;
     error?: string;

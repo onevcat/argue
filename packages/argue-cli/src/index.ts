@@ -1,11 +1,6 @@
 import { access, mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import {
-  ActionTaskResultSchema,
-  ArgueResultSchema,
-  type ActionTaskInput,
-  type AgentTaskInput
-} from "argue";
+import { ActionTaskResultSchema, ArgueResultSchema, type ActionTaskInput, type AgentTaskInput } from "argue";
 import {
   AgentSchema,
   CliConfigSchema,
@@ -86,10 +81,7 @@ export type CliResult = {
   code: number;
 };
 
-export async function runCli(
-  argv: string[],
-  io: Pick<typeof console, "log" | "error"> = console
-): Promise<CliResult> {
+export async function runCli(argv: string[], io: Pick<typeof console, "log" | "error"> = console): Promise<CliResult> {
   const [command, ...rest] = argv;
 
   if (!command) {
@@ -329,7 +321,9 @@ async function runConfigCommand(args: string[], io: Pick<typeof console, "log" |
     }
   }
 
-  io.error("Unknown config subcommand. Use 'argue config init', 'argue config add-provider ...', or 'argue config add-agent ...'.");
+  io.error(
+    "Unknown config subcommand. Use 'argue config init', 'argue config add-provider ...', or 'argue config add-agent ...'."
+  );
   return { ok: false, code: 1 };
 }
 
@@ -397,10 +391,10 @@ async function runAction(args: string[], io: Pick<typeof console, "log" | "error
   }
 
   const actionSessionId = `argue:${argueResult.sessionId}:action:${actorId}`;
-    const actionTask: ActionTaskInput = {
-      kind: "action",
-      sessionId: actionSessionId,
-      requestId: argueResult.requestId,
+  const actionTask: ActionTaskInput = {
+    kind: "action",
+    sessionId: actionSessionId,
+    requestId: argueResult.requestId,
     participantId: actorId,
     prompt: options.value.task,
     argueResult: {
@@ -412,8 +406,8 @@ async function runAction(args: string[], io: Pick<typeof console, "log" | "error
       scoreboard: argueResult.scoreboard,
       disagreements: argueResult.disagreements
     },
-      fullResult: options.value.includeFullResult ? JSON.parse(JSON.stringify(argueResult)) : undefined
-    };
+    fullResult: options.value.includeFullResult ? JSON.parse(JSON.stringify(argueResult)) : undefined
+  };
 
   try {
     const dispatched = await taskDelegate.dispatch(actionTask as AgentTaskInput);
@@ -439,7 +433,10 @@ async function runAction(args: string[], io: Pick<typeof console, "log" | "error
 }
 
 function parseActOptions(args: string[]):
-  | { ok: true; value: { resultPath: string; task: string; agent?: string; configPath?: string; includeFullResult: boolean } }
+  | {
+      ok: true;
+      value: { resultPath: string; task: string; agent?: string; configPath?: string; includeFullResult: boolean };
+    }
   | { ok: false; error: string } {
   const out: { resultPath?: string; task?: string; agent?: string; configPath?: string; includeFullResult: boolean } = {
     includeFullResult: true
@@ -488,7 +485,8 @@ function parseActOptions(args: string[]):
     return { ok: false, error: `Unknown option for act: ${arg}` };
   }
 
-  if (!out.resultPath) return { ok: false, error: "Missing --result. Usage: argue act --result <path> --task <prompt>" };
+  if (!out.resultPath)
+    return { ok: false, error: "Missing --result. Usage: argue act --result <path> --task <prompt>" };
   if (!out.task) return { ok: false, error: "Missing --task. Usage: argue act --result <path> --task <prompt>" };
 
   return {
@@ -550,10 +548,7 @@ function parseConfigInitPath(args: string[]): { ok: true; value: string } | { ok
   return { ok: true, value: createExampleConfigPath() };
 }
 
-
-function parseRunOptions(args: string[]):
-  | { ok: true; value: CliRunOptions }
-  | { ok: false; error: string } {
+function parseRunOptions(args: string[]): { ok: true; value: CliRunOptions } | { ok: false; error: string } {
   const out: CliRunOptions = {};
 
   for (let i = 0; i < args.length; i += 1) {
@@ -757,9 +752,9 @@ function parseRunOptions(args: string[]):
   return { ok: true, value: out };
 }
 
-function parseConfigAddProviderOptions(args: string[]):
-  | { ok: true; value: ConfigAddProviderOptions }
-  | { ok: false; error: string } {
+function parseConfigAddProviderOptions(
+  args: string[]
+): { ok: true; value: ConfigAddProviderOptions } | { ok: false; error: string } {
   const out: Partial<ConfigAddProviderOptions> = {};
 
   for (let i = 0; i < args.length; i += 1) {
@@ -846,11 +841,21 @@ function parseConfigAddProviderOptions(args: string[]):
 
     if (arg === "--cli-type") {
       const value = args[i + 1];
-      const validCliTypes = ["codex", "claude", "copilot", "gemini", "pi", "opencode", "droid", "amp", "generic"] as const;
-      if (!value || !validCliTypes.includes(value as typeof validCliTypes[number])) {
+      const validCliTypes = [
+        "codex",
+        "claude",
+        "copilot",
+        "gemini",
+        "pi",
+        "opencode",
+        "droid",
+        "amp",
+        "generic"
+      ] as const;
+      if (!value || !validCliTypes.includes(value as (typeof validCliTypes)[number])) {
         return { ok: false, error: `--cli-type must be one of: ${validCliTypes.join(", ")}` };
       }
-      out.cliType = value as typeof validCliTypes[number];
+      out.cliType = value as (typeof validCliTypes)[number];
       i += 1;
       continue;
     }
@@ -912,7 +917,10 @@ function parseConfigAddProviderOptions(args: string[]):
 
   if (out.type === "cli") {
     if (!out.cliType) {
-      return { ok: false, error: "CLI provider requires --cli-type <codex|claude|copilot|gemini|pi|opencode|droid|amp|generic>." };
+      return {
+        ok: false,
+        error: "CLI provider requires --cli-type <codex|claude|copilot|gemini|pi|opencode|droid|amp|generic>."
+      };
     }
     if (!out.command) {
       return { ok: false, error: "CLI provider requires --command <binary>." };
@@ -926,9 +934,9 @@ function parseConfigAddProviderOptions(args: string[]):
   return { ok: true, value: out as ConfigAddProviderOptions };
 }
 
-function parseConfigAddAgentOptions(args: string[]):
-  | { ok: true; value: ConfigAddAgentOptions }
-  | { ok: false; error: string } {
+function parseConfigAddAgentOptions(
+  args: string[]
+): { ok: true; value: ConfigAddAgentOptions } | { ok: false; error: string } {
   const out: Partial<ConfigAddAgentOptions> = {};
 
   for (let i = 0; i < args.length; i += 1) {
@@ -1010,9 +1018,7 @@ function parseConfigAddAgentOptions(args: string[]):
 
 function buildProviderFromOptions(options: ConfigAddProviderOptions): unknown {
   const modelConfig: Record<string, unknown> = {};
-  modelConfig[options.modelId] = options.providerModel
-    ? { providerModel: options.providerModel }
-    : {};
+  modelConfig[options.modelId] = options.providerModel ? { providerModel: options.providerModel } : {};
 
   if (options.type === "api") {
     return ProviderSchema.parse({
@@ -1049,7 +1055,6 @@ function buildProviderFromOptions(options: ConfigAddProviderOptions): unknown {
   });
 }
 
-
 async function fileExists(path: string): Promise<boolean> {
   try {
     await access(path);
@@ -1065,7 +1070,10 @@ async function writeConfigFile(path: string, nextConfig: unknown): Promise<void>
 }
 
 function parseCsvList(raw: string): string[] {
-  return raw.split(",").map((item) => item.trim()).filter(Boolean);
+  return raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function parseAgentList(raw: string): string[] {
@@ -1123,11 +1131,19 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("");
   io.log("Config commands:");
   io.log("  argue config init [-c <path>] [--local|--project|--global]");
-  io.log("  argue config add-provider --id <provider-id> --type <api|cli|sdk|mock> --model-id <model-id> [type options]");
-  io.log(`    api options: --vendor <${getVendorNames().join("|")}> | --protocol <openai-compatible|anthropic-compatible> [--base-url <url>] [--api-key-env <ENV_VAR>]`);
-  io.log("    cli options: --cli-type <codex|claude|copilot|gemini|pi|opencode|droid|amp|generic> --command <binary> [--args a,b,c (extra)]");
+  io.log(
+    "  argue config add-provider --id <provider-id> --type <api|cli|sdk|mock> --model-id <model-id> [type options]"
+  );
+  io.log(
+    `    api options: --vendor <${getVendorNames().join("|")}> | --protocol <openai-compatible|anthropic-compatible> [--base-url <url>] [--api-key-env <ENV_VAR>]`
+  );
+  io.log(
+    "    cli options: --cli-type <codex|claude|copilot|gemini|pi|opencode|droid|amp|generic> --command <binary> [--args a,b,c (extra)]"
+  );
   io.log("    sdk options: --adapter <module> [--export-name <name>]");
-  io.log("  argue config add-agent --id <agent-id> --provider <provider-id> --model <model-id> [--role <text>] [--system-prompt <text>]");
+  io.log(
+    "  argue config add-agent --id <agent-id> --provider <provider-id> --model <model-id> [--role <text>] [--system-prompt <text>]"
+  );
   io.log("                         [--timeout-ms <n>] [--temperature <0..2>]");
   io.log("");
   io.log("Config init default path:");

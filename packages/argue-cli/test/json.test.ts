@@ -3,16 +3,12 @@ import { extractJsonObject, parseJsonObject, repairJsonText, stripCodeFences } f
 
 describe("runtime/json", () => {
   it("strips fenced json content", () => {
-    const text = "```json\n{\"a\":1}\n```";
+    const text = '```json\n{"a":1}\n```';
     expect(stripCodeFences(text)).toBe('{"a":1}');
   });
 
   it("extracts first complete json object from noisy text", () => {
-    const text = [
-      "preface",
-      "{\"a\":1,\"nested\":{\"msg\":\"hello } world\"}}",
-      "suffix"
-    ].join("\n");
+    const text = ["preface", '{"a":1,"nested":{"msg":"hello } world"}}', "suffix"].join("\n");
 
     expect(extractJsonObject(text)).toBe('{"a":1,"nested":{"msg":"hello } world"}}');
   });
@@ -22,6 +18,6 @@ describe("runtime/json", () => {
   });
 
   it("repairJsonText reuses extractor behavior", () => {
-    expect(repairJsonText("```\n{\"ok\":true}\n```")).toBe('{"ok":true}');
+    expect(repairJsonText('```\n{"ok":true}\n```')).toBe('{"ok":true}');
   });
 });

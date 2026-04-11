@@ -195,15 +195,21 @@ export const RoundTaskInputSchema = z.object({
   phase: PhaseSchema,
   round: z.number().int().min(0),
   prompt: z.string().min(1),
-  selfHistoryRef: z.object({
-    stickySession: z.literal(true)
-  }).optional(),
-  peerRoundInputs: z.array(z.object({
-    participantId: z.string().min(1),
-    round: z.number().int().min(0),
-    fullResponse: z.string().min(1),
-    truncated: z.boolean().optional()
-  })).optional(),
+  selfHistoryRef: z
+    .object({
+      stickySession: z.literal(true)
+    })
+    .optional(),
+  peerRoundInputs: z
+    .array(
+      z.object({
+        participantId: z.string().min(1),
+        round: z.number().int().min(0),
+        fullResponse: z.string().min(1),
+        truncated: z.boolean().optional()
+      })
+    )
+    .optional(),
   claimCatalog: z.array(ClaimDraftSchema).optional(),
   metadata: z.record(z.unknown()).optional()
 });
@@ -226,10 +232,12 @@ export const ReportTaskInputSchema = z.object({
     finalClaims: z.array(ClaimSchema),
     claimResolutions: z.array(ClaimResolutionSchema),
     scoreboard: z.array(ParticipantScoreSchema),
-    rounds: z.array(z.object({
-      round: z.number().int().min(0),
-      outputs: z.array(ParticipantRoundOutputSchema)
-    }))
+    rounds: z.array(
+      z.object({
+        round: z.number().int().min(0),
+        outputs: z.array(ParticipantRoundOutputSchema)
+      })
+    )
   }),
   metadata: z.record(z.unknown()).optional()
 });
@@ -249,11 +257,15 @@ export const ActionTaskInputSchema = z.object({
     claims: z.array(ClaimSchema),
     claimResolutions: z.array(ClaimResolutionSchema),
     scoreboard: z.array(ParticipantScoreSchema),
-    disagreements: z.array(z.object({
-      claimId: z.string().min(1),
-      participantId: z.string().min(1),
-      reason: z.string().min(1)
-    })).optional()
+    disagreements: z
+      .array(
+        z.object({
+          claimId: z.string().min(1),
+          participantId: z.string().min(1),
+          reason: z.string().min(1)
+        })
+      )
+      .optional()
   }),
   fullResult: z.record(z.unknown()).optional(),
   metadata: z.record(z.unknown()).optional()

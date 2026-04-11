@@ -25,7 +25,9 @@ export class StubAgentTaskDelegate implements AgentTaskDelegate {
 
   constructor(private readonly scenarioByKey: Record<string, Scenario>) {}
 
-  async dispatch(task: AgentTaskInput): Promise<{ taskId: string; participantId: string; kind: AgentTaskInput["kind"] }> {
+  async dispatch(
+    task: AgentTaskInput
+  ): Promise<{ taskId: string; participantId: string; kind: AgentTaskInput["kind"] }> {
     this.dispatchCalls.push(task);
     const key = keyOf(task);
     const scenario = this.scenarioByKey[key];

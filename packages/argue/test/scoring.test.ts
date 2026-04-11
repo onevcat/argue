@@ -4,37 +4,43 @@ import type { Claim, ParticipantRoundOutput, ParticipantScore } from "../src/con
 
 describe("computeParticipantScores", () => {
   it("uses peer-review as correctness core signal", () => {
-    const rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }> = [{
-      round: 1,
-      outputs: [
-        {
-          participantId: "p1",
-          phase: "debate",
-          round: 1,
-          fullResponse: "p1 response",
-          summary: "p1 summary",
-          judgements: [{
-            claimId: "c2",
-            stance: "agree",
-            confidence: 0.9,
-            rationale: "agree p2"
-          }]
-        },
-        {
-          participantId: "p2",
-          phase: "debate",
-          round: 1,
-          fullResponse: "p2 response",
-          summary: "p2 summary",
-          judgements: [{
-            claimId: "c1",
-            stance: "disagree",
-            confidence: 0.9,
-            rationale: "disagree p1"
-          }]
-        }
-      ]
-    }];
+    const rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }> = [
+      {
+        round: 1,
+        outputs: [
+          {
+            participantId: "p1",
+            phase: "debate",
+            round: 1,
+            fullResponse: "p1 response",
+            summary: "p1 summary",
+            judgements: [
+              {
+                claimId: "c2",
+                stance: "agree",
+                confidence: 0.9,
+                rationale: "agree p2"
+              }
+            ]
+          },
+          {
+            participantId: "p2",
+            phase: "debate",
+            round: 1,
+            fullResponse: "p2 response",
+            summary: "p2 summary",
+            judgements: [
+              {
+                claimId: "c1",
+                stance: "disagree",
+                confidence: 0.9,
+                rationale: "disagree p1"
+              }
+            ]
+          }
+        ]
+      }
+    ];
 
     const finalClaims: Claim[] = [
       {
@@ -75,30 +81,38 @@ describe("computeParticipantScores", () => {
   });
 
   it("falls back to default rubric weights when all weights are zero", () => {
-    const rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }> = [{
-      round: 1,
-      outputs: [{
-        participantId: "p1",
-        phase: "debate",
+    const rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }> = [
+      {
         round: 1,
-        fullResponse: "response",
-        summary: "summary",
-        judgements: [{
-          claimId: "c1",
-          stance: "agree",
-          confidence: 0.9,
-          rationale: "ok"
-        }]
-      }]
-    }];
+        outputs: [
+          {
+            participantId: "p1",
+            phase: "debate",
+            round: 1,
+            fullResponse: "response",
+            summary: "summary",
+            judgements: [
+              {
+                claimId: "c1",
+                stance: "agree",
+                confidence: 0.9,
+                rationale: "ok"
+              }
+            ]
+          }
+        ]
+      }
+    ];
 
-    const finalClaims: Claim[] = [{
-      claimId: "c1",
-      title: "c1",
-      statement: "c1",
-      proposedBy: ["p1"],
-      status: "active"
-    }];
+    const finalClaims: Claim[] = [
+      {
+        claimId: "c1",
+        title: "c1",
+        statement: "c1",
+        proposedBy: ["p1"],
+        status: "active"
+      }
+    ];
 
     const scores = computeParticipantScores({
       participants: ["p1"],
@@ -127,12 +141,18 @@ describe("chooseRepresentative", () => {
     {
       participantId: "p1",
       total: 90,
-      byRound: [{ round: 1, score: 80 }, { round: 2, score: 88 }]
+      byRound: [
+        { round: 1, score: 80 },
+        { round: 2, score: 88 }
+      ]
     },
     {
       participantId: "p2",
       total: 90,
-      byRound: [{ round: 1, score: 85 }, { round: 2, score: 89 }]
+      byRound: [
+        { round: 1, score: 85 },
+        { round: 2, score: 89 }
+      ]
     }
   ];
 
@@ -148,30 +168,32 @@ describe("chooseRepresentative", () => {
   });
 
   it("breaks ties by least objection", () => {
-    const rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }> = [{
-      round: 1,
-      outputs: [
-        {
-          participantId: "p1",
-          phase: "debate",
-          round: 1,
-          fullResponse: "p1",
-          summary: "p1",
-          judgements: [
-            { claimId: "c1", stance: "disagree", confidence: 0.8, rationale: "no" },
-            { claimId: "c2", stance: "disagree", confidence: 0.8, rationale: "no" }
-          ]
-        },
-        {
-          participantId: "p2",
-          phase: "debate",
-          round: 1,
-          fullResponse: "p2",
-          summary: "p2",
-          judgements: [{ claimId: "c1", stance: "agree", confidence: 0.9, rationale: "yes" }]
-        }
-      ]
-    }];
+    const rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }> = [
+      {
+        round: 1,
+        outputs: [
+          {
+            participantId: "p1",
+            phase: "debate",
+            round: 1,
+            fullResponse: "p1",
+            summary: "p1",
+            judgements: [
+              { claimId: "c1", stance: "disagree", confidence: 0.8, rationale: "no" },
+              { claimId: "c2", stance: "disagree", confidence: 0.8, rationale: "no" }
+            ]
+          },
+          {
+            participantId: "p2",
+            phase: "debate",
+            round: 1,
+            fullResponse: "p2",
+            summary: "p2",
+            judgements: [{ claimId: "c1", stance: "agree", confidence: 0.9, rationale: "yes" }]
+          }
+        ]
+      }
+    ];
 
     const chosen = chooseRepresentative({
       scores: tiedScores,

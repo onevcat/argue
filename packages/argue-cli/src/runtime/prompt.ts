@@ -26,24 +26,12 @@ export function buildTaskPrompt(args: {
     sections.push("", "System instructions:", agent.systemPrompt);
   }
 
-  sections.push(
-    "",
-    "Task prompt:",
-    task.prompt
-  );
+  sections.push("", "Task prompt:", task.prompt);
 
-  sections.push(
-    "",
-    "Task context JSON:",
-    JSON.stringify(task, null, 2)
-  );
+  sections.push("", "Task context JSON:", JSON.stringify(task, null, 2));
 
   if (includeJsonSchema) {
-    sections.push(
-      "",
-      "Expected output JSON schema:",
-      JSON.stringify(getTaskOutputJsonSchema(task), null, 2)
-    );
+    sections.push("", "Expected output JSON schema:", JSON.stringify(getTaskOutputJsonSchema(task), null, 2));
   }
 
   return sections.join("\n");
@@ -66,10 +54,15 @@ function buildActionPrompt(task: ActionTaskInput, agent: ResolvedAgentRuntime): 
   sections.push("", "Action instructions:", task.prompt);
 
   sections.push(
-    "", "Debate result:",
+    "",
+    "Debate result:",
     `Status: ${task.argueResult.status}`,
-    "", "Summary:", task.argueResult.finalSummary,
-    "", "Representative statement:", task.argueResult.representativeSpeech
+    "",
+    "Summary:",
+    task.argueResult.finalSummary,
+    "",
+    "Representative statement:",
+    task.argueResult.representativeSpeech
   );
 
   if (task.argueResult.claims.length > 0) {

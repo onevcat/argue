@@ -18,14 +18,16 @@ describe("buildBuiltinReport", () => {
       rounds: [
         {
           round: 0,
-          outputs: [{
-            participantId: "a1",
-            phase: "initial",
-            round: 0,
-            fullResponse: "full",
-            summary: "sum",
-            judgements: []
-          }]
+          outputs: [
+            {
+              participantId: "a1",
+              phase: "initial",
+              round: 0,
+              fullResponse: "full",
+              summary: "sum",
+              judgements: []
+            }
+          ]
         }
       ]
     });
@@ -107,8 +109,22 @@ describe("buildBuiltinReport", () => {
         {
           round: 0,
           outputs: [
-            { participantId: "a1", phase: "initial", round: 0, fullResponse: "f", summary: "Agent A's view", judgements: [] },
-            { participantId: "a2", phase: "initial", round: 0, fullResponse: "f", summary: "Agent B's view", judgements: [] }
+            {
+              participantId: "a1",
+              phase: "initial",
+              round: 0,
+              fullResponse: "f",
+              summary: "Agent A's view",
+              judgements: []
+            },
+            {
+              participantId: "a2",
+              phase: "initial",
+              round: 0,
+              fullResponse: "f",
+              summary: "Agent B's view",
+              judgements: []
+            }
           ]
         }
       ]
@@ -150,15 +166,42 @@ describe("buildBuiltinReport", () => {
       rounds: [
         {
           round: 0,
-          outputs: [{ participantId: "a1", phase: "initial", round: 0, fullResponse: "f", summary: "Early thoughts", judgements: [] }]
+          outputs: [
+            {
+              participantId: "a1",
+              phase: "initial",
+              round: 0,
+              fullResponse: "f",
+              summary: "Early thoughts",
+              judgements: []
+            }
+          ]
         },
         {
           round: 2,
-          outputs: [{ participantId: "a1", phase: "debate", round: 2, fullResponse: "f", summary: "Final thoughts", judgements: [] }]
+          outputs: [
+            {
+              participantId: "a1",
+              phase: "debate",
+              round: 2,
+              fullResponse: "f",
+              summary: "Final thoughts",
+              judgements: []
+            }
+          ]
         },
         {
           round: 1,
-          outputs: [{ participantId: "a1", phase: "debate", round: 1, fullResponse: "f", summary: "Middle thoughts", judgements: [] }]
+          outputs: [
+            {
+              participantId: "a1",
+              phase: "debate",
+              round: 1,
+              fullResponse: "f",
+              summary: "Middle thoughts",
+              judgements: []
+            }
+          ]
         }
       ]
     });

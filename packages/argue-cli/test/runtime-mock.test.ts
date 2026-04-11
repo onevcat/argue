@@ -27,13 +27,15 @@ function makeRoundTask(phase: "initial" | "debate" | "final_vote", participantId
     phase,
     round: 0,
     prompt: "p",
-    claimCatalog: [{
-      claimId: "c1",
-      title: "C1",
-      statement: "claim",
-      proposedBy: ["a1"],
-      status: "active"
-    }]
+    claimCatalog: [
+      {
+        claimId: "c1",
+        title: "C1",
+        statement: "claim",
+        proposedBy: ["a1"],
+        status: "active"
+      }
+    ]
   };
 }
 
@@ -91,9 +93,11 @@ describe("createMockRunner", () => {
       agent
     });
 
-    expect(output).toEqual(expect.objectContaining({
-      summary: expect.stringContaining("a1")
-    }));
+    expect(output).toEqual(
+      expect.objectContaining({
+        summary: expect.stringContaining("a1")
+      })
+    );
   });
 
   it("supports malformed behavior override", async () => {
@@ -134,10 +138,12 @@ describe("createMockRunner", () => {
       }
     });
 
-    await expect(runner.runTask({
-      task: makeRoundTask("final_vote"),
-      agent
-    })).rejects.toThrow("Mock error from a1");
+    await expect(
+      runner.runTask({
+        task: makeRoundTask("final_vote"),
+        agent
+      })
+    ).rejects.toThrow("Mock error from a1");
   });
 
   it("uses task.participantId scenario when agent.id does not match", async () => {
@@ -179,11 +185,13 @@ describe("createMockRunner", () => {
       agent
     });
 
-    expect(output).toEqual(expect.objectContaining({
-      mode: "representative",
-      traceIncluded: false,
-      finalSummary: expect.stringContaining("r-report")
-    }));
+    expect(output).toEqual(
+      expect.objectContaining({
+        mode: "representative",
+        traceIncluded: false,
+        finalSummary: expect.stringContaining("r-report")
+      })
+    );
   });
 
   it("returns deterministic action output", async () => {

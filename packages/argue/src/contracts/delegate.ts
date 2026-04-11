@@ -10,7 +10,10 @@ export interface AgentTaskDelegate {
     kind: AgentTaskInput["kind"];
   }>;
 
-  awaitResult(taskId: string, timeoutMs?: number): Promise<{
+  awaitResult(
+    taskId: string,
+    timeoutMs?: number
+  ): Promise<{
     ok: boolean;
     output?: AgentTaskResult;
     error?: string;
