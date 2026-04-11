@@ -15,17 +15,24 @@
     "test:watch": "npm run -ws --if-present test:watch",
     "ci": "npm run check && npm run test && npm run build",
     "smoke:pack": "node ./scripts/smoke-packages.mjs",
-    "release:check": "npm run ci && npm run smoke:pack"
+    "release:check": "npm run ci && npm run smoke:pack",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,js,mjs,json,md}": "prettier --write",
+    "*.{ts,js,mjs}": "eslint --fix"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
+    "@types/node": "^22.13.10",
     "@typescript-eslint/eslint-plugin": "^8.44.0",
     "@typescript-eslint/parser": "^8.44.0",
-    "@types/node": "^22.13.10",
     "@vitest/coverage-v8": "^3.2.4",
     "concurrently": "^9.2.1",
     "eslint": "^9.36.0",
     "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.6.2",
     "typescript": "^5.8.2",
     "vitest": "^3.0.9"

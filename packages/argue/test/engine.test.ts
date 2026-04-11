@@ -944,9 +944,7 @@ describe("ArgueEngine M2", () => {
             extractedClaims: [
               { title: "Missing test coverage", statement: "No integration tests for the new path", category: "risk" }
             ],
-            judgements: [
-              { claimId: "onevclaw:0:0", stance: "agree" as const, confidence: 0.9, rationale: "agree" }
-            ]
+            judgements: [{ claimId: "onevclaw:0:0", stance: "agree" as const, confidence: 0.9, rationale: "agree" }]
           }
         }
       },
