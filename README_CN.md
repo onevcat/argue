@@ -102,7 +102,7 @@ argue run \
 
 ## 作为库使用
 
-CLI 构建在 `@onevcat/argue` 之上，这是一个独立的引擎，可以嵌入到任何系统中。只需实现一个接口——`AgentTaskDelegate`——引擎负责所有编排工作。
+argue-cli 的背后是 `@onevcat/argue`，一个独立的辩论引擎，可以嵌入到任何系统中。你只需实现一个接口——`AgentTaskDelegate`，argue 引擎负责所有编排工作。
 
 ### 安装
 

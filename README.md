@@ -102,7 +102,7 @@ After each run, argue writes three output files to `~/.argue/output/<requestId>/
 
 ## Using as a Library
 
-The CLI is built on `@onevcat/argue`, a standalone engine you can embed anywhere. Implement one interface — `AgentTaskDelegate` — and the engine handles all orchestration.
+Behind argue-cli is `@onevcat/argue`, a standalone debate engine you can embed in any system. Implement one interface — `AgentTaskDelegate` — and the engine handles all orchestration.
 
 ### Install
 
