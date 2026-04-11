@@ -76,6 +76,27 @@ codex-agent は issue にアクセスし ESLint/Prettier の主張を提出。cl
 
 [この実行の完全な出力を確認する。](https://gist.github.com/onevcat/bbf42778888180c443bea78f395f255b)
 
+### よく使うオプション
+
+複雑なタスクや繰り返し実行する場合は、インラインフラグの代わりに [input JSON ファイル](https://github.com/onevcat/argue/blob/master/packages/argue-cli/examples/task.example.json)を使用できます：
+
+```bash
+argue run --input task.json
+```
+
+便利なフラグ：
+
+```bash
+--agents a1,a2          # 設定から特定のエージェントを選択
+--min-rounds 2          # 早期終了前に最低 2 ラウンドの討論
+--max-rounds 5          # 討論ラウンドの上限
+--threshold 0.67        # 合意閾値（デフォルト: 1.0 = 全会一致）
+--action "修正して"      # 討論後に代表が実行するアクション
+--verbose               # 各エージェントの推論をリアルタイム表示
+```
+
+`argue --help` で全オプションを確認できます。
+
 ## ライブラリとして使用
 
 argue-cli の裏側にあるのは `@onevcat/argue`、任意のシステムに組み込める独立した討論エンジンです。`AgentTaskDelegate` という 1 つのインターフェースを実装するだけで、argue エンジンがすべてのオーケストレーションを処理します。

@@ -76,6 +76,27 @@ After each run, argue writes three output files to `~/.argue/output/<requestId>/
 
 [See the full unabridged output of this run.](https://gist.github.com/onevcat/bbf42778888180c443bea78f395f255b)
 
+### Common Options
+
+For complex or repeated tasks, use an [input JSON file](https://github.com/onevcat/argue/blob/master/packages/argue-cli/examples/task.example.json) instead of inline flags:
+
+```bash
+argue run --input task.json
+```
+
+Useful flags:
+
+```bash
+--agents a1,a2          # pick specific agents from config
+--min-rounds 2          # at least 2 debate rounds before early-stop
+--max-rounds 5          # cap total debate rounds
+--threshold 0.67        # consensus threshold (default: 1.0 = unanimous)
+--action "Fix it"       # post-debate action for the representative
+--verbose               # show each agent's reasoning in real time
+```
+
+Run `argue --help` for the full list.
+
 ## Using as a Library
 
 Behind argue-cli is `@onevcat/argue`, a standalone debate engine you can embed in any system. Implement one interface — `AgentTaskDelegate` — and the engine handles all orchestration.

@@ -76,6 +76,27 @@ codex-agent 访问了 issue 并提出 ESLint/Prettier 相关主张。claude-agen
 
 [查看这次运行的完整输出。](https://gist.github.com/onevcat/bbf42778888180c443bea78f395f255b)
 
+### 常用选项
+
+对于复杂或重复的任务，可以使用 [input JSON 文件](https://github.com/onevcat/argue/blob/master/packages/argue-cli/examples/task.example.json)代替内联参数：
+
+```bash
+argue run --input task.json
+```
+
+常用参数：
+
+```bash
+--agents a1,a2          # 从配置中选择特定 agent
+--min-rounds 2          # 至少 2 轮辩论才能提前停止
+--max-rounds 5          # 辩论轮数上限
+--threshold 0.67        # 共识阈值（默认 1.0 = 全票通过）
+--action "修复它"        # 辩论后由代表执行的操作
+--verbose               # 实时显示每个 agent 的推理过程
+```
+
+运行 `argue --help` 查看完整参数列表。
+
 ## 作为库使用
 
 argue-cli 的背后是 `@onevcat/argue`，一个独立的辩论引擎，可以嵌入到任何系统中。你只需实现一个接口——`AgentTaskDelegate`，argue 引擎负责所有编排工作。
