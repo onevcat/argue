@@ -103,4 +103,132 @@ export function createArgueSdkAdapter(args) {
       )
     ).rejects.toThrow(/missing export/);
   });
+
+  it("throws when adapter module cannot be resolved", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-sdk-resolve-"));
+
+    await expect(
+      createSdkRunner(
+        "sdk-provider",
+        {
+          type: "sdk",
+          adapter: "./nonexistent.mjs",
+          models: { fake: {} }
+        },
+        root
+      )
+    ).rejects.toThrow();
+  });
+
+  it("throws when custom exportName is missing", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-sdk-export-"));
+    const adapterPath = join(root, "adapter.mjs");
+    await writeFile(
+      adapterPath,
+      "export function createArgueSdkAdapter() { return { runTask: async () => ({}) }; }",
+      "utf8"
+    );
+
+    await expect(
+      createSdkRunner(
+        "sdk-provider",
+        {
+          type: "sdk",
+          adapter: "./adapter.mjs",
+          exportName: "nonExistentFactory",
+          models: { fake: {} }
+        },
+        root
+      )
+    ).rejects.toThrow(/missing export 'nonExistentFactory'/);
+  });
+
+  it("throws when factory function throws during initialization", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-sdk-factory-"));
+    const adapterPath = join(root, "adapter.mjs");
+    await writeFile(
+      adapterPath,
+      `export function createArgueSdkAdapter() { throw new Error("init boom"); }`,
+      "utf8"
+    );
+
+    await expect(
+      createSdkRunner(
+        "sdk-provider",
+        {
+          type: "sdk",
+          adapter: "./adapter.mjs",
+          models: { fake: {} }
+        },
+        root
+      )
+    ).rejects.toThrow(/init boom/);
+  });
+
+  it("propagates adapter runTask rejection", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-sdk-reject-"));
+    const adapterPath = join(root, "adapter.mjs");
+    await writeFile(
+      adapterPath,
+      `
+export function createArgueSdkAdapter() {
+  return {
+    async runTask() { throw new Error("task failed"); }
+  };
+}
+`,
+      "utf8"
+    );
+
+    const runner = await createSdkRunner(
+      "sdk-provider",
+      {
+        type: "sdk",
+        adapter: "./adapter.mjs",
+        models: { fake: {} }
+      },
+      root
+    );
+
+    await expect(
+      runner.runTask({
+        task: makeRoundTask(),
+        agent: {
+          id: "a1",
+          provider: "sdk-provider",
+          model: "fake",
+          providerName: "sdk-provider",
+          providerConfig: {
+            type: "sdk",
+            adapter: "./adapter.mjs",
+            models: { fake: {} }
+          },
+          modelConfig: {},
+          providerModel: "fake"
+        }
+      })
+    ).rejects.toThrow(/task failed/);
+  });
+
+  it("throws when export is not a function", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-sdk-nonfunc-"));
+    const adapterPath = join(root, "adapter.mjs");
+    await writeFile(
+      adapterPath,
+      `export const createArgueSdkAdapter = { notAFunction: true };`,
+      "utf8"
+    );
+
+    await expect(
+      createSdkRunner(
+        "sdk-provider",
+        {
+          type: "sdk",
+          adapter: "./adapter.mjs",
+          models: { fake: {} }
+        },
+        root
+      )
+    ).rejects.toThrow(/missing export/);
+  });
 });
