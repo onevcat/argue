@@ -35,7 +35,7 @@ export const ArgueStartInputSchema = z
       .object({
         passMode: z.literal("full-response-preferred").default("full-response-preferred"),
         maxCharsPerPeerResponse: z.number().int().min(200).default(6000),
-        maxPeersPerRound: z.number().int().min(1).optional(),
+        maxPeersPerRound: z.number().int().min(1).default(10),
         overflowStrategy: z.enum(["truncate-tail", "truncate-middle"]).default("truncate-tail")
       })
       .default({
