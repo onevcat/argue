@@ -169,7 +169,9 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
           const summary = readString(payload.summary);
           io.log(`${tag} ${c.green(`action completed by ${actorId}`)}`);
           if (summary) {
-            io.log(c.dim(`  ${singleLine(summary)}`));
+            for (const line of summary.split("\n")) {
+              io.log(c.dim(`  ${line}`));
+            }
           }
           return;
         }
