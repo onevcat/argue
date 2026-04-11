@@ -358,7 +358,7 @@ export class ArgueEngine {
 
         const peerRoundInputs = args.previousOutputs
           .filter((output) => output.participantId !== participantId)
-          .slice(0, args.normalized.peerContextPolicy.maxPeersPerRound ?? Number.MAX_SAFE_INTEGER)
+          .slice(0, args.normalized.peerContextPolicy.maxPeersPerRound)
           .map((output) => {
             const { text, truncated } = applyTextBudget(
               output.fullResponse,
