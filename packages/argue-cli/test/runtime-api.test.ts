@@ -78,7 +78,7 @@ describe("createApiRunner", () => {
 
     await runner.runTask({
       task: makeInitialRoundTask("task-1"),
-      agent: makeAgent()
+      agent: makeAgent("openai-provider")
     });
 
     expect(mockCreateOpenAICompatible).toHaveBeenCalledWith({
@@ -121,6 +121,55 @@ describe("createApiRunner", () => {
       'API key environment variable "ANTHROPIC_TEST_KEY" is not set for provider "anthropic-provider"'
     );
   });
+
+  it("adds provider/model context and retryability for rate-limit errors", async () => {
+    mockOpenAILanguageModel.mockReturnValue("openai-model-instance");
+    const rateLimitError = new Error("Rate limit exceeded");
+    mockGenerateText.mockRejectedValue(rateLimitError);
+
+    const runner = createApiRunner("api-provider", {
+      type: "api",
+      protocol: "openai-compatible",
+      models: { m: {} }
+    });
+
+    await expect(
+      runner.runTask({
+        task: makeInitialRoundTask("task-1"),
+        agent: makeAgent("api-provider")
+      })
+    ).rejects.toThrow(
+      "[argue-cli] API call failed for provider 'api-provider' (protocol: openai-compatible, model: gpt-test, retryable). Cause: Rate limit exceeded"
+    );
+  });
+
+  it("marks auth/model style failures as non-retryable", async () => {
+    mockOpenAILanguageModel.mockReturnValue("openai-model-instance");
+    const authError = Object.assign(new Error("Unauthorized: invalid api key"), {
+      statusCode: 401
+    });
+    mockGenerateText.mockRejectedValue(authError);
+
+    const runner = createApiRunner("api-provider", {
+      type: "api",
+      protocol: "openai-compatible",
+      models: { m: {} }
+    });
+
+    try {
+      await runner.runTask({
+        task: makeInitialRoundTask("task-1"),
+        agent: makeAgent("api-provider")
+      });
+      throw new Error("expected rejection");
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      const wrapped = error as Error;
+      expect(wrapped.message).toContain("non-retryable");
+      expect(wrapped.message).toContain("model: gpt-test");
+      expect(wrapped.cause).toBe(authError);
+    }
+  });
 });
 
 function makeInitialRoundTask(prompt: string): AgentTaskInput {
@@ -136,12 +185,12 @@ function makeInitialRoundTask(prompt: string): AgentTaskInput {
   };
 }
 
-function makeAgent() {
+function makeAgent(providerName: string) {
   return {
     id: "agent-1",
-    provider: "openai-provider",
+    provider: providerName,
     model: "m",
-    providerName: "openai-provider",
+    providerName,
     providerConfig: {
       type: "api" as const,
       protocol: "openai-compatible" as const,
