@@ -43,8 +43,4 @@ export type ProviderFactoryContext = {
   providerName: string;
 };
 
-export type RuntimeProviderConfig =
-  | ApiProviderConfig
-  | CliProviderConfig
-  | MockProviderConfig
-  | SdkProviderConfig;
+export type RuntimeProviderConfig = ApiProviderConfig | CliProviderConfig | MockProviderConfig | SdkProviderConfig;

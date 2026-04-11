@@ -13,14 +13,21 @@ export function createCliRunner(provider: CliProviderConfig): ProviderTaskRunner
 
   return {
     async runTask({ task, agent, abortSignal }) {
-      const prompt = provider.cliType === "generic"
-        ? JSON.stringify(buildGenericEnvelope(task, agent), null, 2)
-        : buildTaskPrompt({ task, agent, includeJsonSchema: true });
+      const prompt =
+        provider.cliType === "generic"
+          ? JSON.stringify(buildGenericEnvelope(task, agent), null, 2)
+          : buildTaskPrompt({ task, agent, includeJsonSchema: true });
 
       const hasSession = !!task.metadata?.participantSessionKey;
       const isResume = hasSession && callCount > 0;
       callCount++;
-      const baseArgs = buildBaseArgs(provider.cliType, agent.providerModel, prompt, hasSession ? sessionUUID : undefined, isResume);
+      const baseArgs = buildBaseArgs(
+        provider.cliType,
+        agent.providerModel,
+        prompt,
+        hasSession ? sessionUUID : undefined,
+        isResume
+      );
       const extraArgs = provider.args.map((arg) => renderTemplate(arg, task, agent));
 
       const result = await runCommand({
@@ -36,9 +43,9 @@ export function createCliRunner(provider: CliProviderConfig): ProviderTaskRunner
           ARGUE_PROVIDER_MODEL: agent.providerModel,
           ...(task.kind === "round"
             ? {
-              ARGUE_TASK_PHASE: task.phase,
-              ARGUE_TASK_ROUND: String(task.round)
-            }
+                ARGUE_TASK_PHASE: task.phase,
+                ARGUE_TASK_ROUND: String(task.round)
+              }
             : {})
         },
         stdin: usesStdinPrompt(provider.cliType) ? prompt : "",
@@ -90,47 +97,36 @@ function buildBaseArgs(
         return ["--print", "--model", providerModel, "--resume", sessionUUID];
       }
       return [
-        "--print", "--model", providerModel,
+        "--print",
+        "--model",
+        providerModel,
         ...(sessionUUID ? ["--session-id", sessionUUID] : ["--no-session-persistence"])
       ];
     case "codex":
-      return [
-        "exec", "-m", providerModel, "--full-auto", "--color", "never"
-      ];
+      return ["exec", "-m", providerModel, "--full-auto", "--color", "never"];
     case "copilot":
-      return [
-        "-p", prompt, "--yolo", "--model", providerModel
-      ];
+      return ["-p", prompt, "--yolo", "--model", providerModel];
     case "gemini":
-      return [
-        "--approval-mode", "yolo", "-m", providerModel
-      ];
+      return ["--approval-mode", "yolo", "-m", providerModel];
     case "pi": {
-      const sessionArgs = sessionUUID
-        ? ["--session", join(tmpdir(), `argue-pi-${sessionUUID}`)]
-        : [];
-      return [
-        "--model", providerModel, ...sessionArgs
-      ];
+      const sessionArgs = sessionUUID ? ["--session", join(tmpdir(), `argue-pi-${sessionUUID}`)] : [];
+      return ["--model", providerModel, ...sessionArgs];
     }
     case "opencode":
-      return [
-        "run", prompt, "--dangerously-skip-permissions", "-m", providerModel
-      ];
+      return ["run", prompt, "--dangerously-skip-permissions", "-m", providerModel];
     case "droid":
-      return [
-        "exec", "--auto", "high", "-m", providerModel
-      ];
+      return ["exec", "--auto", "high", "-m", providerModel];
     case "amp":
-      return [
-        "-x", prompt, "--dangerously-allow-all"
-      ];
+      return ["-x", prompt, "--dangerously-allow-all"];
     default:
       return [];
   }
 }
 
-function buildGenericEnvelope(task: Parameters<typeof buildTaskPrompt>[0]["task"], agent: Parameters<typeof buildTaskPrompt>[0]["agent"]): Record<string, unknown> {
+function buildGenericEnvelope(
+  task: Parameters<typeof buildTaskPrompt>[0]["task"],
+  agent: Parameters<typeof buildTaskPrompt>[0]["agent"]
+): Record<string, unknown> {
   return {
     version: 1,
     agent: {
@@ -153,9 +149,7 @@ function renderEnv(
 ): Record<string, string> {
   if (!env) return {};
 
-  return Object.fromEntries(
-    Object.entries(env).map(([key, value]) => [key, renderTemplate(value, task, agent)])
-  );
+  return Object.fromEntries(Object.entries(env).map(([key, value]) => [key, renderTemplate(value, task, agent)]));
 }
 
 function renderTemplate(
@@ -212,7 +206,9 @@ async function runCommand(args: {
         return;
       }
 
-      reject(new Error(`CLI provider exited with code=${code ?? "null"} signal=${signal ?? "null"} stderr=${stderr.trim()}`));
+      reject(
+        new Error(`CLI provider exited with code=${code ?? "null"} signal=${signal ?? "null"} stderr=${stderr.trim()}`)
+      );
     });
 
     child.stdin.end(args.stdin);

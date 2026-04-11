@@ -103,46 +103,37 @@ export function resolveRunPlan(args: {
     overrides.perTaskTimeoutMs ?? runInput.perTaskTimeoutMs ?? config.defaults?.perTaskTimeoutMs ?? 10 * 60 * 1_000;
   const perRoundTimeoutMs =
     overrides.perRoundTimeoutMs ?? runInput.perRoundTimeoutMs ?? config.defaults?.perRoundTimeoutMs ?? 20 * 60 * 1_000;
-  const globalDeadlineMs =
-    overrides.globalDeadlineMs ?? runInput.globalDeadlineMs ?? config.defaults?.globalDeadlineMs;
+  const globalDeadlineMs = overrides.globalDeadlineMs ?? runInput.globalDeadlineMs ?? config.defaults?.globalDeadlineMs;
 
-  const threshold = overrides.consensusThreshold
-    ?? runInput.consensusThreshold
-    ?? config.defaults?.consensusThreshold
-    ?? 1;
+  const threshold =
+    overrides.consensusThreshold ?? runInput.consensusThreshold ?? config.defaults?.consensusThreshold ?? 1;
 
   const composer = overrides.composer ?? runInput.composer ?? config.defaults?.composer ?? "builtin";
-  const representativeId =
-    overrides.representativeId ?? runInput.representativeId ?? config.defaults?.representativeId;
+  const representativeId = overrides.representativeId ?? runInput.representativeId ?? config.defaults?.representativeId;
   const includeDeliberationTrace =
-    overrides.includeDeliberationTrace
-    ?? runInput.includeDeliberationTrace
-    ?? config.defaults?.includeDeliberationTrace
-    ?? false;
-  const traceLevel =
-    overrides.traceLevel ?? runInput.traceLevel ?? config.defaults?.traceLevel ?? "compact";
+    overrides.includeDeliberationTrace ??
+    runInput.includeDeliberationTrace ??
+    config.defaults?.includeDeliberationTrace ??
+    false;
+  const traceLevel = overrides.traceLevel ?? runInput.traceLevel ?? config.defaults?.traceLevel ?? "compact";
 
   const language = overrides.language ?? runInput.language ?? config.defaults?.language;
-  const tokenBudgetHint =
-    overrides.tokenBudgetHint ?? runInput.tokenBudgetHint ?? config.defaults?.tokenBudgetHint;
+  const tokenBudgetHint = overrides.tokenBudgetHint ?? runInput.tokenBudgetHint ?? config.defaults?.tokenBudgetHint;
 
   const actionPrompt = overrides.action ?? runInput.action?.prompt;
   const actionActorId = overrides.actionAgent ?? runInput.action?.actorId;
-  const includeFullResult = overrides.noActionFullResult
-    ? false
-    : runInput.action?.includeFullResult ?? true;
+  const includeFullResult = overrides.noActionFullResult ? false : (runInput.action?.includeFullResult ?? true);
   const actionPolicy = actionPrompt
     ? { prompt: actionPrompt, ...(actionActorId ? { actorId: actionActorId } : {}), includeFullResult }
     : undefined;
 
   const globalConfigDir = join(homedir(), ".config", "argue");
   const isGlobalConfig = loadedConfig.configDir === globalConfigDir;
-  const defaultOutputDir = isGlobalConfig
-    ? join(homedir(), ".argue", "output", "{requestId}")
-    : "./out/{requestId}";
+  const defaultOutputDir = isGlobalConfig ? join(homedir(), ".argue", "output", "{requestId}") : "./out/{requestId}";
   const jsonlRaw = overrides.jsonlPath ?? loadedConfig.config.output?.jsonlPath ?? `${defaultOutputDir}/events.jsonl`;
   const resultRaw = overrides.resultPath ?? loadedConfig.config.output?.resultPath ?? `${defaultOutputDir}/result.json`;
-  const summaryRaw = overrides.summaryPath ?? loadedConfig.config.output?.summaryPath ?? `${defaultOutputDir}/summary.md`;
+  const summaryRaw =
+    overrides.summaryPath ?? loadedConfig.config.output?.summaryPath ?? `${defaultOutputDir}/summary.md`;
   const errorRaw = `${defaultOutputDir}/error.json`;
 
   return {
@@ -172,11 +163,11 @@ export function resolveRunPlan(args: {
       },
       ...(language || typeof tokenBudgetHint === "number"
         ? {
-          constraints: {
-            ...(language ? { language } : {}),
-            ...(typeof tokenBudgetHint === "number" ? { tokenBudgetHint } : {})
+            constraints: {
+              ...(language ? { language } : {}),
+              ...(typeof tokenBudgetHint === "number" ? { tokenBudgetHint } : {})
+            }
           }
-        }
         : {}),
       ...(runInput.context ? { context: runInput.context } : {}),
       ...(actionPolicy ? { actionPolicy } : {})
@@ -184,15 +175,9 @@ export function resolveRunPlan(args: {
   };
 }
 
-function resolveParticipants(
-  config: CliConfig,
-  runInput: RunInput,
-  overrides: RunOverrides
-): string[] {
-  const source = overrides.agents
-    ?? runInput.agents
-    ?? config.defaults?.defaultAgents
-    ?? config.agents.map((agent) => agent.id);
+function resolveParticipants(config: CliConfig, runInput: RunInput, overrides: RunOverrides): string[] {
+  const source =
+    overrides.agents ?? runInput.agents ?? config.defaults?.defaultAgents ?? config.agents.map((agent) => agent.id);
 
   const normalized = dedupe(source);
 

@@ -94,9 +94,15 @@ describe("runCli command branches", () => {
     for (const [args, message] of [
       [["config"], "Unknown config subcommand"],
       [["config", "add-provider", "--type", "mock", "--model-id", "m1"], "Missing provider id"],
-      [["config", "add-provider", "--id", "p3", "--type", "api", "--model-id", "m1"], "API provider requires --protocol"],
+      [
+        ["config", "add-provider", "--id", "p3", "--type", "api", "--model-id", "m1"],
+        "API provider requires --protocol"
+      ],
       [["config", "add-agent", "--id", "a4", "--provider", "p1"], "Missing model id"],
-      [["config", "add-agent", "--id", "a4", "--provider", "p1", "--model", "m1", "--unknown"], "Unknown option for config add-agent: --unknown"]
+      [
+        ["config", "add-agent", "--id", "a4", "--provider", "p1", "--model", "m1", "--unknown"],
+        "Unknown option for config add-agent: --unknown"
+      ]
     ] as const) {
       const io = createIO();
       const result = await runCli(args as string[], io);
@@ -109,39 +115,38 @@ describe("runCli command branches", () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-run-fail-exec-"));
     const configPath = join(root, "argue.config.json");
 
-    await writeFile(configPath, JSON.stringify({
-      schemaVersion: 1,
-      output: {
-        resultPath: "/dev/null/fail.result.json",
-        summaryPath: "/dev/null/fail.summary.md",
-        jsonlPath: "./out/{requestId}.events.jsonl"
-      },
-      defaults: {
-        defaultAgents: ["a1", "a2"],
-        minRounds: 1,
-        maxRounds: 1
-      },
-      providers: {
-        mock: {
-          type: "mock",
-          models: {
-            fake: {}
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        output: {
+          resultPath: "/dev/null/fail.result.json",
+          summaryPath: "/dev/null/fail.summary.md",
+          jsonlPath: "./out/{requestId}.events.jsonl"
+        },
+        defaults: {
+          defaultAgents: ["a1", "a2"],
+          minRounds: 1,
+          maxRounds: 1
+        },
+        providers: {
+          mock: {
+            type: "mock",
+            models: {
+              fake: {}
+            }
           }
-        }
-      },
-      agents: [
-        { id: "a1", provider: "mock", model: "fake" },
-        { id: "a2", provider: "mock", model: "fake" }
-      ]
-    }), "utf8");
+        },
+        agents: [
+          { id: "a1", provider: "mock", model: "fake" },
+          { id: "a2", provider: "mock", model: "fake" }
+        ]
+      }),
+      "utf8"
+    );
 
     const io = createIO();
-    const result = await runCli([
-      "run",
-      "--config", configPath,
-      "--task", "t",
-      "--request-id", "fail-run"
-    ], io);
+    const result = await runCli(["run", "--config", configPath, "--task", "t", "--request-id", "fail-run"], io);
 
     expect(result).toEqual({ ok: false, code: 1 });
     expect(io.errors.length).toBeGreaterThan(0);
@@ -151,43 +156,55 @@ describe("runCli command branches", () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-run-trace-"));
     const configPath = join(root, "argue.config.json");
 
-    await writeFile(configPath, JSON.stringify({
-      schemaVersion: 1,
-      output: {
-        resultPath: "./out/{requestId}.result.json",
-        jsonlPath: "./out/{requestId}.events.jsonl",
-        summaryPath: "./out/{requestId}.summary.md"
-      },
-      defaults: {
-        defaultAgents: ["a1", "a2"],
-        minRounds: 1,
-        maxRounds: 1,
-        composer: "builtin"
-      },
-      providers: {
-        mock: {
-          type: "mock",
-          models: {
-            fake: {}
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        output: {
+          resultPath: "./out/{requestId}.result.json",
+          jsonlPath: "./out/{requestId}.events.jsonl",
+          summaryPath: "./out/{requestId}.summary.md"
+        },
+        defaults: {
+          defaultAgents: ["a1", "a2"],
+          minRounds: 1,
+          maxRounds: 1,
+          composer: "builtin"
+        },
+        providers: {
+          mock: {
+            type: "mock",
+            models: {
+              fake: {}
+            }
           }
-        }
-      },
-      agents: [
-        { id: "a1", provider: "mock", model: "fake" },
-        { id: "a2", provider: "mock", model: "fake" }
-      ]
-    }), "utf8");
+        },
+        agents: [
+          { id: "a1", provider: "mock", model: "fake" },
+          { id: "a2", provider: "mock", model: "fake" }
+        ]
+      }),
+      "utf8"
+    );
 
     const io = createIO();
-    const result = await runCli([
-      "run",
-      "--config", configPath,
-      "--request-id", "trace-run",
-      "--task", "t",
-      "--agents", "a1,a2",
-      "--trace",
-      "--trace-level", "full"
-    ], io);
+    const result = await runCli(
+      [
+        "run",
+        "--config",
+        configPath,
+        "--request-id",
+        "trace-run",
+        "--task",
+        "t",
+        "--agents",
+        "a1,a2",
+        "--trace",
+        "--trace-level",
+        "full"
+      ],
+      io
+    );
 
     expect(result).toEqual({ ok: true, code: 0 });
     expect(io.logs.some((x) => x.includes("agents: a1, a2"))).toBe(true);
@@ -213,43 +230,55 @@ describe("runCli command branches", () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-run-action-flags-"));
     const configPath = join(root, "argue.config.json");
 
-    await writeFile(configPath, JSON.stringify({
-      schemaVersion: 1,
-      output: {
-        resultPath: "./out/{requestId}.result.json",
-        jsonlPath: "./out/{requestId}.events.jsonl",
-        summaryPath: "./out/{requestId}.summary.md"
-      },
-      defaults: {
-        defaultAgents: ["a1", "a2"],
-        minRounds: 1,
-        maxRounds: 1,
-        composer: "builtin"
-      },
-      providers: {
-        mock: {
-          type: "mock",
-          models: {
-            fake: {}
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        output: {
+          resultPath: "./out/{requestId}.result.json",
+          jsonlPath: "./out/{requestId}.events.jsonl",
+          summaryPath: "./out/{requestId}.summary.md"
+        },
+        defaults: {
+          defaultAgents: ["a1", "a2"],
+          minRounds: 1,
+          maxRounds: 1,
+          composer: "builtin"
+        },
+        providers: {
+          mock: {
+            type: "mock",
+            models: {
+              fake: {}
+            }
           }
-        }
-      },
-      agents: [
-        { id: "a1", provider: "mock", model: "fake" },
-        { id: "a2", provider: "mock", model: "fake" }
-      ]
-    }), "utf8");
+        },
+        agents: [
+          { id: "a1", provider: "mock", model: "fake" },
+          { id: "a2", provider: "mock", model: "fake" }
+        ]
+      }),
+      "utf8"
+    );
 
     const io = createIO();
-    const result = await runCli([
-      "run",
-      "--config", configPath,
-      "--request-id", "action-flags",
-      "--task", "t",
-      "--action", "ship it",
-      "--action-agent", "a2",
-      "--no-action-full-result"
-    ], io);
+    const result = await runCli(
+      [
+        "run",
+        "--config",
+        configPath,
+        "--request-id",
+        "action-flags",
+        "--task",
+        "t",
+        "--action",
+        "ship it",
+        "--action-agent",
+        "a2",
+        "--no-action-full-result"
+      ],
+      io
+    );
 
     expect(result).toEqual({ ok: true, code: 0 });
 
@@ -266,40 +295,39 @@ describe("runCli command branches", () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-run-progress-"));
     const configPath = join(root, "argue.config.json");
 
-    await writeFile(configPath, JSON.stringify({
-      schemaVersion: 1,
-      output: {
-        resultPath: "./out/{requestId}.result.json",
-        jsonlPath: "./out/{requestId}.events.jsonl",
-        summaryPath: "./out/{requestId}.summary.md"
-      },
-      defaults: {
-        defaultAgents: ["a1", "a2"],
-        minRounds: 1,
-        maxRounds: 1,
-        composer: "builtin"
-      },
-      providers: {
-        mock: {
-          type: "mock",
-          models: {
-            fake: {}
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        output: {
+          resultPath: "./out/{requestId}.result.json",
+          jsonlPath: "./out/{requestId}.events.jsonl",
+          summaryPath: "./out/{requestId}.summary.md"
+        },
+        defaults: {
+          defaultAgents: ["a1", "a2"],
+          minRounds: 1,
+          maxRounds: 1,
+          composer: "builtin"
+        },
+        providers: {
+          mock: {
+            type: "mock",
+            models: {
+              fake: {}
+            }
           }
-        }
-      },
-      agents: [
-        { id: "a1", provider: "mock", model: "fake" },
-        { id: "a2", provider: "mock", model: "fake" }
-      ]
-    }), "utf8");
+        },
+        agents: [
+          { id: "a1", provider: "mock", model: "fake" },
+          { id: "a2", provider: "mock", model: "fake" }
+        ]
+      }),
+      "utf8"
+    );
 
     const io = createIO();
-    const result = await runCli([
-      "run",
-      "--config", configPath,
-      "--request-id", "progress-run",
-      "--task", "t"
-    ], io);
+    const result = await runCli(["run", "--config", configPath, "--request-id", "progress-run", "--task", "t"], io);
 
     expect(result).toEqual({ ok: true, code: 0 });
     expect(io.logs.some((x) => x.includes("initial#0") && x.includes("dispatched"))).toBe(true);

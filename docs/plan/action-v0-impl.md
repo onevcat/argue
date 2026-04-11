@@ -14,45 +14,46 @@
 
 ### Core library (`packages/argue/src/`)
 
-| File | Action |
-|---|---|
-| `contracts/result.ts` | Modify — add `ActionOutputSchema` and `action?` field to `ArgueResultSchema` |
-| `contracts/request.ts` | Modify — add `actionPolicy` to `ArgueStartInputSchema` |
-| `contracts/task.ts` | Modify — add `ActionTaskInputSchema`, `ActionTaskResultSchema`, extend discriminated unions |
-| `contracts/events.ts` | Modify — add `ActionDispatched`, `ActionCompleted`, `ActionFailed` event types |
-| `core/engine.ts` | Modify — add `executeAction()` method, call it after `composeReport()` |
-| `index.ts` | Modify — export new types and schemas |
+| File                   | Action                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------- |
+| `contracts/result.ts`  | Modify — add `ActionOutputSchema` and `action?` field to `ArgueResultSchema`                |
+| `contracts/request.ts` | Modify — add `actionPolicy` to `ArgueStartInputSchema`                                      |
+| `contracts/task.ts`    | Modify — add `ActionTaskInputSchema`, `ActionTaskResultSchema`, extend discriminated unions |
+| `contracts/events.ts`  | Modify — add `ActionDispatched`, `ActionCompleted`, `ActionFailed` event types              |
+| `core/engine.ts`       | Modify — add `executeAction()` method, call it after `composeReport()`                      |
+| `index.ts`             | Modify — export new types and schemas                                                       |
 
 ### Core library tests (`packages/argue/test/`)
 
-| File | Action |
-|---|---|
+| File             | Action                         |
+| ---------------- | ------------------------------ |
 | `engine.test.ts` | Modify — add action flow tests |
 
 ### CLI (`packages/argue-cli/src/`)
 
-| File | Action |
-|---|---|
-| `artifacts.ts` | Modify — enrich `buildResultSummary()` |
-| `run-input.ts` | Modify — add `action` field to `RunInputSchema` |
-| `run-plan.ts` | Modify — add `actionPolicy` to `ResolvedRunPlan.startInput` |
-| `index.ts` | Modify — add `--action`, `--action-agent` flags, `argue act` sub-command |
-| `output.ts` | Modify — add event handlers for action events |
-| `runtime/task-output.ts` | Modify — handle `kind="action"` in normalization |
-| `runtime/prompt.ts` | Modify — handle action task prompt building |
+| File                     | Action                                                                   |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `artifacts.ts`           | Modify — enrich `buildResultSummary()`                                   |
+| `run-input.ts`           | Modify — add `action` field to `RunInputSchema`                          |
+| `run-plan.ts`            | Modify — add `actionPolicy` to `ResolvedRunPlan.startInput`              |
+| `index.ts`               | Modify — add `--action`, `--action-agent` flags, `argue act` sub-command |
+| `output.ts`              | Modify — add event handlers for action events                            |
+| `runtime/task-output.ts` | Modify — handle `kind="action"` in normalization                         |
+| `runtime/prompt.ts`      | Modify — handle action task prompt building                              |
 
 ### CLI tests (`packages/argue-cli/test/`)
 
-| File | Action |
-|---|---|
-| `artifacts.test.ts` | Create — test enriched summary output |
-| `output.test.ts` | Modify — add action event output tests |
+| File                | Action                                 |
+| ------------------- | -------------------------------------- |
+| `artifacts.test.ts` | Create — test enriched summary output  |
+| `output.test.ts`    | Modify — add action event output tests |
 
 ---
 
 ## Task 1: Enrich summary.md output
 
 **Files:**
+
 - Modify: `packages/argue-cli/src/artifacts.ts:16-37`
 - Create: `packages/argue-cli/test/artifacts.test.ts`
 
@@ -70,8 +71,22 @@ function makeResult(overrides: Partial<ArgueResult> = {}): ArgueResult {
     sessionId: "sess-1",
     status: "consensus",
     finalClaims: [
-      { claimId: "c1", title: "Main claim", statement: "The primary conclusion.", category: "pro", proposedBy: ["a1", "a2"], status: "active" },
-      { claimId: "c2", title: "Risk item", statement: "A potential risk.", category: "risk", proposedBy: ["a1"], status: "active" }
+      {
+        claimId: "c1",
+        title: "Main claim",
+        statement: "The primary conclusion.",
+        category: "pro",
+        proposedBy: ["a1", "a2"],
+        status: "active"
+      },
+      {
+        claimId: "c2",
+        title: "Risk item",
+        statement: "A potential risk.",
+        category: "risk",
+        proposedBy: ["a1"],
+        status: "active"
+      }
     ],
     claimResolutions: [
       { claimId: "c1", status: "resolved", acceptCount: 2, rejectCount: 0, totalVoters: 2, votes: [] },
@@ -79,32 +94,70 @@ function makeResult(overrides: Partial<ArgueResult> = {}): ArgueResult {
     ],
     representative: { participantId: "a1", reason: "top-score", score: 85.5, speech: "We reached consensus." },
     scoreboard: [
-      { participantId: "a1", total: 85.5, byRound: [], breakdown: { correctness: 90, completeness: 80, actionability: 85, consistency: 87 } },
-      { participantId: "a2", total: 72.3, byRound: [], breakdown: { correctness: 70, completeness: 75, actionability: 72, consistency: 72 } }
+      {
+        participantId: "a1",
+        total: 85.5,
+        byRound: [],
+        breakdown: { correctness: 90, completeness: 80, actionability: 85, consistency: 87 }
+      },
+      {
+        participantId: "a2",
+        total: 72.3,
+        byRound: [],
+        breakdown: { correctness: 70, completeness: 75, actionability: 72, consistency: 72 }
+      }
     ],
     eliminations: [],
-    report: { mode: "representative", traceIncluded: false, traceLevel: "compact", finalSummary: "Consensus reached on 2 claims.", representativeSpeech: "We reached consensus." },
+    report: {
+      mode: "representative",
+      traceIncluded: false,
+      traceLevel: "compact",
+      finalSummary: "Consensus reached on 2 claims.",
+      representativeSpeech: "We reached consensus."
+    },
     disagreements: [{ claimId: "c2", participantId: "a2", reason: "Insufficient evidence." }],
     rounds: [
       {
         round: 0,
         outputs: [
-          { participantId: "a1", phase: "initial", round: 0, fullResponse: "f", summary: "Agent A initial view.", judgements: [] },
-          { participantId: "a2", phase: "initial", round: 0, fullResponse: "f", summary: "Agent B initial view.", judgements: [] }
+          {
+            participantId: "a1",
+            phase: "initial",
+            round: 0,
+            fullResponse: "f",
+            summary: "Agent A initial view.",
+            judgements: []
+          },
+          {
+            participantId: "a2",
+            phase: "initial",
+            round: 0,
+            fullResponse: "f",
+            summary: "Agent B initial view.",
+            judgements: []
+          }
         ]
       },
       {
         round: 1,
         outputs: [
           {
-            participantId: "a1", phase: "debate", round: 1, fullResponse: "f", summary: "Agent A agrees.",
+            participantId: "a1",
+            phase: "debate",
+            round: 1,
+            fullResponse: "f",
+            summary: "Agent A agrees.",
             judgements: [
               { claimId: "c1", stance: "agree", confidence: 0.95, rationale: "Strong." },
               { claimId: "c2", stance: "agree", confidence: 0.6, rationale: "Weak but accept." }
             ]
           },
           {
-            participantId: "a2", phase: "debate", round: 1, fullResponse: "f", summary: "Agent B disagrees on c2.",
+            participantId: "a2",
+            phase: "debate",
+            round: 1,
+            fullResponse: "f",
+            summary: "Agent B disagrees on c2.",
             judgements: [
               { claimId: "c1", stance: "agree", confidence: 0.9, rationale: "Confirmed." },
               { claimId: "c2", stance: "disagree", confidence: 0.8, rationale: "Not enough data." }
@@ -113,7 +166,15 @@ function makeResult(overrides: Partial<ArgueResult> = {}): ArgueResult {
         ]
       }
     ],
-    metrics: { elapsedMs: 15000, totalRounds: 2, totalTurns: 4, retries: 0, waitTimeouts: 0, earlyStopTriggered: false, globalDeadlineHit: false },
+    metrics: {
+      elapsedMs: 15000,
+      totalRounds: 2,
+      totalTurns: 4,
+      retries: 0,
+      waitTimeouts: 0,
+      earlyStopTriggered: false,
+      globalDeadlineHit: false
+    },
     ...overrides
   } as ArgueResult;
 }
@@ -171,9 +232,11 @@ describe("buildResultSummary", () => {
   });
 
   it("includes eliminations when present", () => {
-    const summary = buildResultSummary(makeResult({
-      eliminations: [{ participantId: "a3", round: 1, reason: "timeout", at: "2026-04-10T00:00:00Z" }]
-    }));
+    const summary = buildResultSummary(
+      makeResult({
+        eliminations: [{ participantId: "a3", round: 1, reason: "timeout", at: "2026-04-10T00:00:00Z" }]
+      })
+    );
     expect(summary).toContain("## Eliminations");
     expect(summary).toContain("a3: timeout at round 1");
   });
@@ -199,7 +262,9 @@ export function buildResultSummary(result: ArgueResult): string {
   // Metadata
   lines.push("## Metadata", "");
   lines.push(`- status: ${result.status}`);
-  lines.push(`- representative: ${result.representative.participantId} (${result.representative.reason}, score=${formatNumber(result.representative.score)})`);
+  lines.push(
+    `- representative: ${result.representative.participantId} (${result.representative.reason}, score=${formatNumber(result.representative.score)})`
+  );
   lines.push(`- elapsed: ${formatMs(result.metrics.elapsedMs)}`);
   lines.push(`- rounds: ${result.metrics.totalRounds}, turns: ${result.metrics.totalTurns}`);
   const activeClaims = result.finalClaims.filter((c) => c.status === "active");
@@ -219,9 +284,8 @@ export function buildResultSummary(result: ArgueResult): string {
 
   // Claims with per-agent stance
   if (activeClaims.length > 0) {
-    const lastRound = result.rounds.length > 0
-      ? result.rounds.reduce((a, b) => a.round > b.round ? a : b)
-      : undefined;
+    const lastRound =
+      result.rounds.length > 0 ? result.rounds.reduce((a, b) => (a.round > b.round ? a : b)) : undefined;
 
     lines.push("", "## Claims", "");
     for (const claim of activeClaims) {
@@ -250,10 +314,14 @@ export function buildResultSummary(result: ArgueResult): string {
     const sorted = [...result.scoreboard].sort((a, b) => b.total - a.total);
     for (const entry of sorted) {
       const parts: string[] = [];
-      if (entry.breakdown?.correctness !== undefined) parts.push(`correctness=${formatNumber(entry.breakdown.correctness)}`);
-      if (entry.breakdown?.completeness !== undefined) parts.push(`completeness=${formatNumber(entry.breakdown.completeness)}`);
-      if (entry.breakdown?.actionability !== undefined) parts.push(`actionability=${formatNumber(entry.breakdown.actionability)}`);
-      if (entry.breakdown?.consistency !== undefined) parts.push(`consistency=${formatNumber(entry.breakdown.consistency)}`);
+      if (entry.breakdown?.correctness !== undefined)
+        parts.push(`correctness=${formatNumber(entry.breakdown.correctness)}`);
+      if (entry.breakdown?.completeness !== undefined)
+        parts.push(`completeness=${formatNumber(entry.breakdown.completeness)}`);
+      if (entry.breakdown?.actionability !== undefined)
+        parts.push(`actionability=${formatNumber(entry.breakdown.actionability)}`);
+      if (entry.breakdown?.consistency !== undefined)
+        parts.push(`consistency=${formatNumber(entry.breakdown.consistency)}`);
       const breakdownStr = parts.length > 0 ? ` (${parts.join(", ")})` : "";
       lines.push(`- ${entry.participantId}: ${formatNumber(entry.total)}${breakdownStr}`);
     }
@@ -323,6 +391,7 @@ git commit -m "feat(argue-cli): enrich summary.md with claims, stances, scoreboa
 ## Task 2: Add action schemas to core library contracts
 
 **Files:**
+
 - Modify: `packages/argue/src/contracts/result.ts:149-186`
 - Modify: `packages/argue/src/contracts/request.ts:69-78`
 - Modify: `packages/argue/src/contracts/task.ts:239-265`
@@ -349,7 +418,7 @@ Then add `action` field to `ArgueResultSchema`:
 
 ```typescript
 // Inside ArgueResultSchema, after the `error` field:
-action: ActionOutputSchema.optional()
+action: ActionOutputSchema.optional();
 ```
 
 - [ ] **Step 2: Add actionPolicy to request.ts**
@@ -382,11 +451,15 @@ export const ActionTaskInputSchema = z.object({
     claims: z.array(ClaimSchema),
     claimResolutions: z.array(ClaimResolutionSchema),
     scoreboard: z.array(ParticipantScoreSchema),
-    disagreements: z.array(z.object({
-      claimId: z.string().min(1),
-      participantId: z.string().min(1),
-      reason: z.string().min(1)
-    })).optional()
+    disagreements: z
+      .array(
+        z.object({
+          claimId: z.string().min(1),
+          participantId: z.string().min(1),
+          reason: z.string().min(1)
+        })
+      )
+      .optional()
   }),
   fullResult: z.record(z.unknown()).optional(),
   metadata: z.record(z.unknown()).optional()
@@ -476,6 +549,7 @@ git commit -m "feat(argue): add action schemas to contracts (actionPolicy, Actio
 ## Task 3: Implement action execution in engine
 
 **Files:**
+
 - Modify: `packages/argue/src/core/engine.ts:245-310` (between report and finalize)
 - Modify: `packages/argue/test/engine.test.ts`
 
@@ -528,7 +602,11 @@ it("skips action when actionPolicy is not set", async () => {
   const scenarios = buildScenarios(["a1", "a2"]);
   const engine = new ArgueEngine({
     taskDelegate: new StubAgentTaskDelegate(scenarios),
-    observer: { onEvent(event) { timeline.push({ type: event.type }); } }
+    observer: {
+      onEvent(event) {
+        timeline.push({ type: event.type });
+      }
+    }
   });
 
   const result = await engine.start({
@@ -562,7 +640,11 @@ it("action failure does not invalidate debate result", async () => {
 
   const engine = new ArgueEngine({
     taskDelegate: failingDelegate,
-    observer: { onEvent(event) { timeline.push({ type: event.type }); } }
+    observer: {
+      onEvent(event) {
+        timeline.push({ type: event.type });
+      }
+    }
   });
 
   const result = await engine.start({
@@ -769,6 +851,7 @@ git commit -m "feat(argue): implement action execution in engine with dispatch/a
 ## Task 4: CLI — add action to run input, run plan, and flags
 
 **Files:**
+
 - Modify: `packages/argue-cli/src/run-input.ts:4-21`
 - Modify: `packages/argue-cli/src/run-plan.ts:28-59,139-165`
 - Modify: `packages/argue-cli/src/index.ts` (flag parsing and help text)
@@ -781,7 +864,9 @@ In `packages/argue-cli/src/run-input.ts`, add to `RunInputSchema`:
 action: z.object({
   prompt: z.string().min(1),
   actorId: z.string().min(1).optional()
-}).strict().optional()
+})
+  .strict()
+  .optional();
 ```
 
 - [ ] **Step 2: Add actionPolicy to ResolvedRunPlan.startInput**
@@ -870,6 +955,7 @@ git commit -m "feat(argue-cli): add --action and --action-agent flags with run i
 ## Task 5: CLI — handle action task in runtime and output
 
 **Files:**
+
 - Modify: `packages/argue-cli/src/runtime/task-output.ts`
 - Modify: `packages/argue-cli/src/runtime/prompt.ts`
 - Modify: `packages/argue-cli/src/output.ts`
@@ -956,10 +1042,15 @@ function buildActionPrompt(task: ActionTaskInput, agent: ResolvedAgentRuntime): 
   sections.push("", "Action instructions:", task.prompt);
 
   sections.push(
-    "", "Debate result:",
+    "",
+    "Debate result:",
     `Status: ${task.argueResult.status}`,
-    "", "Summary:", task.argueResult.finalSummary,
-    "", "Representative statement:", task.argueResult.representativeSpeech
+    "",
+    "Summary:",
+    task.argueResult.finalSummary,
+    "",
+    "Representative statement:",
+    task.argueResult.representativeSpeech
   );
 
   if (task.argueResult.claims.length > 0) {
@@ -1098,6 +1189,7 @@ git commit -m "feat(argue-cli): handle action tasks in runtime, prompt builder, 
 ## Task 6: CLI — `argue act` sub-command
 
 **Files:**
+
 - Modify: `packages/argue-cli/src/index.ts`
 - Modify: `packages/argue-cli/test/index-branches.test.ts`
 
@@ -1114,10 +1206,7 @@ if (command === "act") {
 - [ ] **Step 2: Implement runAction function**
 
 ```typescript
-async function runAction(
-  args: string[],
-  io: Pick<typeof console, "log" | "error">
-): Promise<CliResult> {
+async function runAction(args: string[], io: Pick<typeof console, "log" | "error">): Promise<CliResult> {
   const parsed = parseActOptions(args);
   if (!parsed.ok) {
     io.error(parsed.error);
@@ -1178,9 +1267,11 @@ async function runAction(
       return { ok: false, code: 1 };
     }
 
-    io.log(awaited.output?.kind === "action"
-      ? (awaited.output as ActionTaskResult).output.fullResponse
-      : JSON.stringify(awaited.output));
+    io.log(
+      awaited.output?.kind === "action"
+        ? (awaited.output as ActionTaskResult).output.fullResponse
+        : JSON.stringify(awaited.output)
+    );
 
     return { ok: true, code: 0 };
   } catch (error) {
@@ -1189,7 +1280,9 @@ async function runAction(
   }
 }
 
-function parseActOptions(args: string[]):
+function parseActOptions(
+  args: string[]
+):
   | { ok: true; value: { resultPath: string; task: string; agent?: string; configPath?: string } }
   | { ok: false; error: string } {
   let resultPath: string | undefined;

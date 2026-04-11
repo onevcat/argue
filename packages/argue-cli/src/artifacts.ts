@@ -49,14 +49,11 @@ export function buildResultSummary(result: ArgueResult): string {
 
   // --- Claims ---
   if (activeClaims.length > 0) {
-    const resolutionMap = new Map(
-      result.claimResolutions.map((r) => [r.claimId, r])
-    );
+    const resolutionMap = new Map(result.claimResolutions.map((r) => [r.claimId, r]));
 
     // Build a map of last-round judgements per participant per claim
-    const lastRound = result.rounds.length > 0
-      ? result.rounds.reduce((a, b) => a.round > b.round ? a : b)
-      : undefined;
+    const lastRound =
+      result.rounds.length > 0 ? result.rounds.reduce((a, b) => (a.round > b.round ? a : b)) : undefined;
 
     const stanceMap = new Map<string, Map<string, { stance: string; confidence: number }>>();
     if (lastRound) {
@@ -108,8 +105,10 @@ export function buildResultSummary(result: ArgueResult): string {
       if (entry.breakdown) {
         const parts: string[] = [];
         if (entry.breakdown.correctness != null) parts.push(`correctness=${formatNumber(entry.breakdown.correctness)}`);
-        if (entry.breakdown.completeness != null) parts.push(`completeness=${formatNumber(entry.breakdown.completeness)}`);
-        if (entry.breakdown.actionability != null) parts.push(`actionability=${formatNumber(entry.breakdown.actionability)}`);
+        if (entry.breakdown.completeness != null)
+          parts.push(`completeness=${formatNumber(entry.breakdown.completeness)}`);
+        if (entry.breakdown.actionability != null)
+          parts.push(`actionability=${formatNumber(entry.breakdown.actionability)}`);
         if (entry.breakdown.consistency != null) parts.push(`consistency=${formatNumber(entry.breakdown.consistency)}`);
         if (parts.length > 0) {
           line += ` (${parts.join(", ")})`;

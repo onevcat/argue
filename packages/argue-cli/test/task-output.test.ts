@@ -63,18 +63,20 @@ describe("runtime/task-output", () => {
   it("rejects wrapped round output when participant mismatches task", () => {
     const task = makeInitialTask();
 
-    expect(() => normalizeTaskOutput(task, {
-      kind: "round",
-      output: {
-        participantId: "a2",
-        phase: "initial",
-        round: 0,
-        fullResponse: "full",
-        summary: "sum",
-        extractedClaims: [],
-        judgements: []
-      }
-    })).toThrow(/participant mismatch/);
+    expect(() =>
+      normalizeTaskOutput(task, {
+        kind: "round",
+        output: {
+          participantId: "a2",
+          phase: "initial",
+          round: 0,
+          fullResponse: "full",
+          summary: "sum",
+          extractedClaims: [],
+          judgements: []
+        }
+      })
+    ).toThrow(/participant mismatch/);
   });
 
   it("parses fenced json text into normalized output", () => {
@@ -82,7 +84,7 @@ describe("runtime/task-output", () => {
 
     const output = normalizeTaskOutputFromText(
       task,
-      "```json\n{\"fullResponse\":\"full\",\"summary\":\"sum\",\"extractedClaims\":[],\"judgements\":[]}\n```"
+      '```json\n{"fullResponse":"full","summary":"sum","extractedClaims":[],"judgements":[]}\n```'
     );
 
     expect(output.kind).toBe("round");

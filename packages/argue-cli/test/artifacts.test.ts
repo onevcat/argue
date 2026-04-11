@@ -70,7 +70,10 @@ function makeResult(overrides?: Partial<ArgueResult>): ArgueResult {
       {
         participantId: "agent-a",
         total: 87.5,
-        byRound: [{ round: 0, score: 85 }, { round: 1, score: 90 }],
+        byRound: [
+          { round: 0, score: 85 },
+          { round: 1, score: 90 }
+        ],
         breakdown: {
           correctness: 90,
           completeness: 85,
@@ -107,9 +110,7 @@ function makeResult(overrides?: Partial<ArgueResult>): ArgueResult {
             round: 0,
             phase: "initial" as const,
             fullResponse: "resp",
-            judgements: [
-              { claimId: "c1", stance: "agree" as const, confidence: 0.9, rationale: "solid" }
-            ],
+            judgements: [{ claimId: "c1", stance: "agree" as const, confidence: 0.9, rationale: "solid" }],
             summary: "I agree"
           },
           {
@@ -117,9 +118,7 @@ function makeResult(overrides?: Partial<ArgueResult>): ArgueResult {
             round: 0,
             phase: "initial" as const,
             fullResponse: "resp",
-            judgements: [
-              { claimId: "c1", stance: "disagree" as const, confidence: 0.6, rationale: "hmm" }
-            ],
+            judgements: [{ claimId: "c1", stance: "disagree" as const, confidence: 0.6, rationale: "hmm" }],
             summary: "I disagree"
           }
         ]
@@ -268,11 +267,11 @@ describe("buildResultSummary", () => {
   });
 
   it("includes eliminations when present", () => {
-    const summary = buildResultSummary(makeResult({
-      eliminations: [
-        { participantId: "agent-c", round: 2, reason: "timeout", at: "2026-01-01T00:00:00Z" }
-      ]
-    }));
+    const summary = buildResultSummary(
+      makeResult({
+        eliminations: [{ participantId: "agent-c", round: 2, reason: "timeout", at: "2026-01-01T00:00:00Z" }]
+      })
+    );
 
     expect(summary).toContain("## Eliminations");
     expect(summary).toContain("agent-c: timeout (round 2)");
@@ -287,11 +286,11 @@ describe("buildResultSummary", () => {
   });
 
   it("includes disagreements when present", () => {
-    const summary = buildResultSummary(makeResult({
-      disagreements: [
-        { claimId: "c2", participantId: "agent-a", reason: "Not actionable enough" }
-      ]
-    }));
+    const summary = buildResultSummary(
+      makeResult({
+        disagreements: [{ claimId: "c2", participantId: "agent-a", reason: "Not actionable enough" }]
+      })
+    );
 
     expect(summary).toContain("## Disagreements");
     expect(summary).toContain("c2 — agent-a: Not actionable enough");
@@ -317,28 +316,30 @@ describe("buildResultSummary", () => {
   });
 
   it("handles claims with no category", () => {
-    const summary = buildResultSummary(makeResult({
-      finalClaims: [
-        {
-          claimId: "c1",
-          title: "Simple claim",
-          statement: "A claim without category.",
-          proposedBy: ["agent-a"],
-          status: "active"
-        }
-      ]
-    }));
+    const summary = buildResultSummary(
+      makeResult({
+        finalClaims: [
+          {
+            claimId: "c1",
+            title: "Simple claim",
+            statement: "A claim without category.",
+            proposedBy: ["agent-a"],
+            status: "active"
+          }
+        ]
+      })
+    );
 
     expect(summary).toContain("### Simple claim");
     expect(summary).not.toContain("category:");
   });
 
   it("handles scoreboard without breakdown", () => {
-    const summary = buildResultSummary(makeResult({
-      scoreboard: [
-        { participantId: "agent-a", total: 87.5, byRound: [{ round: 0, score: 87.5 }] }
-      ]
-    }));
+    const summary = buildResultSummary(
+      makeResult({
+        scoreboard: [{ participantId: "agent-a", total: 87.5, byRound: [{ round: 0, score: 87.5 }] }]
+      })
+    );
 
     expect(summary).toContain("## Scoreboard");
     expect(summary).toContain("agent-a | 87.50");

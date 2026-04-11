@@ -37,7 +37,7 @@ export function extractJsonObject(text: string): string | null {
       continue;
     }
 
-    if (char === "\"") {
+    if (char === '"') {
       inString = !inString;
       continue;
     }

@@ -16,16 +16,16 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
   const c = useColor
     ? pc
     : {
-      cyan: (s: string) => s,
-      dim: (s: string) => s,
-      green: (s: string) => s,
-      red: (s: string) => s,
-      yellow: (s: string) => s,
-      bold: (s: string) => s,
-      magenta: (s: string) => s,
-      white: (s: string) => s,
-      blue: (s: string) => s
-    };
+        cyan: (s: string) => s,
+        dim: (s: string) => s,
+        green: (s: string) => s,
+        red: (s: string) => s,
+        yellow: (s: string) => s,
+        bold: (s: string) => s,
+        magenta: (s: string) => s,
+        white: (s: string) => s,
+        blue: (s: string) => s
+      };
 
   const tag = c.cyan("[argue]");
   const verbose = options.verbose ?? false;
@@ -42,7 +42,10 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
   }
 
   function indent(text: string, prefix: string): string {
-    return text.split("\n").map((line) => `${prefix}${line}`).join("\n");
+    return text
+      .split("\n")
+      .map((line) => `${prefix}${line}`)
+      .join("\n");
   }
 
   return {
@@ -88,7 +91,9 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
             stanceAgree > 0 ? `${stanceAgree}✓` : null,
             stanceDisagree > 0 ? `${stanceDisagree}✗` : null,
             stanceRevise > 0 ? `${stanceRevise}↻` : null
-          ].filter(Boolean).join(" ");
+          ]
+            .filter(Boolean)
+            .join(" ");
           const judgementStr = judgementParts || "0";
           const stats = c.dim(`(claims+${extractedClaims}, judgements=${judgementStr}, votes=${claimVotes})`);
           io.log(`${tag} ${c.bold(roundTag)} ${c.blue(participantId)} responded ${stats}`);
@@ -126,7 +131,9 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
           const newClaims = readNumber(payload.newClaims) ?? 0;
           const mergeCount = readNumber(payload.mergeCount) ?? 0;
           io.log(
-            c.dim(`${tag} ${roundTag} completed: done=${completed} timeout=${timedOut} failed=${failed} claims=${claimCatalogSize} (+${newClaims}, -${mergeCount})`)
+            c.dim(
+              `${tag} ${roundTag} completed: done=${completed} timeout=${timedOut} failed=${failed} claims=${claimCatalogSize} (+${newClaims}, -${mergeCount})`
+            )
           );
           return;
         }
@@ -188,9 +195,12 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
       io.log(c.dim("─".repeat(60)));
       io.log("");
 
-      const statusColor = result.status === "consensus" ? c.green : result.status === "partial_consensus" ? c.yellow : c.red;
+      const statusColor =
+        result.status === "consensus" ? c.green : result.status === "partial_consensus" ? c.yellow : c.red;
       io.log(`${tag} ${c.bold("result:")} ${statusColor(result.status)}`);
-      io.log(`  representative: ${c.bold(result.representative.participantId)} ${c.dim(`(score: ${formatNumber(result.representative.score)})`)}`);
+      io.log(
+        `  representative: ${c.bold(result.representative.participantId)} ${c.dim(`(score: ${formatNumber(result.representative.score)})`)}`
+      );
 
       if (result.report.finalSummary) {
         io.log("");
@@ -323,7 +333,9 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
         const resolution = result.claimResolutions.find((r) => r.claimId === claim.claimId);
         if (resolution) {
           const resColor = resolution.status === "resolved" ? c.green : c.red;
-          io.log(`    ${resColor(resolution.status)}: ${resolution.acceptCount}/${resolution.totalVoters} accept, ${resolution.rejectCount}/${resolution.totalVoters} reject`);
+          io.log(
+            `    ${resColor(resolution.status)}: ${resolution.acceptCount}/${resolution.totalVoters} accept, ${resolution.rejectCount}/${resolution.totalVoters} reject`
+          );
         }
       }
     }
@@ -369,7 +381,11 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
     io.log("");
     io.log(c.bold("  Metrics:"));
     const m = result.metrics;
-    io.log(c.dim(`  elapsed=${formatMs(m.elapsedMs)} rounds=${m.totalRounds} turns=${m.totalTurns} retries=${m.retries} timeouts=${m.waitTimeouts}`));
+    io.log(
+      c.dim(
+        `  elapsed=${formatMs(m.elapsedMs)} rounds=${m.totalRounds} turns=${m.totalTurns} retries=${m.retries} timeouts=${m.waitTimeouts}`
+      )
+    );
     if (m.earlyStopTriggered) io.log(c.dim("  early stop: yes"));
     if (m.globalDeadlineHit) io.log(c.dim("  global deadline hit: yes"));
   }
@@ -406,4 +422,3 @@ function singleLine(value: string): string {
 function formatNumber(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
-

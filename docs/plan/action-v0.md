@@ -128,6 +128,7 @@ argue run ... --action "Fix bugs" --action-agent codex-agent
 ```
 
 Mapping:
+
 - `--action <prompt>` → `actionPolicy.prompt`
 - `--action-agent <id>` → `actionPolicy.actorId` (default: representative)
 
@@ -154,7 +155,7 @@ Schema addition to `RunInputSchema`:
 action: z.object({
   prompt: z.string().min(1),
   actorId: z.string().min(1).optional()
-}).optional()
+}).optional();
 ```
 
 Priority: `CLI flags > input JSON (--input) > config defaults`, consistent with existing
@@ -178,16 +179,19 @@ This reads `result.json`, constructs the action task input, and dispatches it to
 specified agent via the same provider/runner infrastructure.
 
 Required flags:
+
 - `--result <path>` — path to existing `result.json`
 - `--task <prompt>` — the action prompt
 
 Optional flags:
+
 - `--agent <id>` — actor agent ID (defaults to representative in the result)
 - `--config <path>` — config file (for provider/agent resolution)
 
 ### 4.3 Output
 
 Action output is appended to existing artifacts:
+
 - `result.json` is updated with the `action` field (integrated mode)
 - A new `action.md` is written with the action summary
 - Console output shows action progress via existing event handler
@@ -217,27 +221,35 @@ Current format is too sparse. Enrich `buildResultSummary` in `artifacts.ts` to i
 # argue run {requestId}
 
 ## Metadata
+
 - status / representative / rounds / turns / elapsed time
 
 ## Conclusion
+
 {finalSummary}
 
 ## Representative statement
+
 {representativeSpeech}
 
 ## Claims
+
 For each active claim:
+
 - title, statement, category
 - resolution: accept/reject counts
 - per-agent stance and confidence from last round
 
 ## Scoreboard
+
 Per agent: total score + breakdown (correctness/completeness/actionability/consistency)
 
 ## Disagreements
+
 Unresolved disputes with reasons
 
 ## Opinion shifts
+
 Notable stance changes across rounds (if trace enabled)
 ```
 
@@ -250,10 +262,12 @@ provides the narrative.
 ## 6. Scope and milestones
 
 ### M1: summary enrichment
+
 - Enrich `buildResultSummary` in `artifacts.ts`
 - No engine changes, CLI-only
 
 ### M2: core action support
+
 - Add `actionPolicy` to request schema
 - Add `kind="action"` task contract
 - Extend engine state machine with action step
@@ -261,6 +275,7 @@ provides the narrative.
 - Tests for engine action flow
 
 ### M3: CLI integration
+
 - `--action` and `--action-agent` flags on `argue run`
 - `argue act` sub-command
 - Action prompt builder in runtime

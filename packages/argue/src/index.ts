@@ -5,12 +5,7 @@ export { JsonlObserver } from "./observers/jsonl-observer.js";
 export type { JsonlObserverOptions } from "./observers/jsonl-observer.js";
 export { MemorySessionStore } from "./store/memory-store.js";
 
-export type {
-  AgentTaskDelegate,
-  ArgueObserver,
-  SessionStore,
-  WaitCoordinator
-} from "./contracts/delegate.js";
+export type { AgentTaskDelegate, ArgueObserver, SessionStore, WaitCoordinator } from "./contracts/delegate.js";
 
 export type { ArgueEvent, ArgueEventType } from "./contracts/events.js";
 export { ArgueEventSchema, ArgueEventTypeSchema } from "./contracts/events.js";

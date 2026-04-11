@@ -113,19 +113,28 @@ describe("cli config loader", () => {
     const logs: string[] = [];
     const errors: string[] = [];
 
-    const result = await runCli([
-      "config",
-      "add-provider",
-      "--config", configPath,
-      "--id", "p3",
-      "--type", "api",
-      "--protocol", "openai-compatible",
-      "--model-id", "m3",
-      "--provider-model", "gpt-5-mini"
-    ], {
-      log: (msg: string) => logs.push(msg),
-      error: (msg: string) => errors.push(msg)
-    });
+    const result = await runCli(
+      [
+        "config",
+        "add-provider",
+        "--config",
+        configPath,
+        "--id",
+        "p3",
+        "--type",
+        "api",
+        "--protocol",
+        "openai-compatible",
+        "--model-id",
+        "m3",
+        "--provider-model",
+        "gpt-5-mini"
+      ],
+      {
+        log: (msg: string) => logs.push(msg),
+        error: (msg: string) => errors.push(msg)
+      }
+    );
 
     expect(result.ok).toBe(true);
     expect(result.code).toBe(0);
@@ -146,19 +155,28 @@ describe("cli config loader", () => {
     const logs: string[] = [];
     const errors: string[] = [];
 
-    const result = await runCli([
-      "config",
-      "add-agent",
-      "--config", configPath,
-      "--id", "a4",
-      "--provider", "p1",
-      "--model", "m1",
-      "--role", "new-role",
-      "--timeout-ms", "30000"
-    ], {
-      log: (msg: string) => logs.push(msg),
-      error: (msg: string) => errors.push(msg)
-    });
+    const result = await runCli(
+      [
+        "config",
+        "add-agent",
+        "--config",
+        configPath,
+        "--id",
+        "a4",
+        "--provider",
+        "p1",
+        "--model",
+        "m1",
+        "--role",
+        "new-role",
+        "--timeout-ms",
+        "30000"
+      ],
+      {
+        log: (msg: string) => logs.push(msg),
+        error: (msg: string) => errors.push(msg)
+      }
+    );
 
     expect(result.ok).toBe(true);
     expect(result.code).toBe(0);
@@ -180,33 +198,25 @@ describe("cli config loader", () => {
     await writeJson(configPath, VALID_CONFIG);
 
     const duplicateErrors: string[] = [];
-    const duplicateResult = await runCli([
-      "config",
-      "add-provider",
-      "--config", configPath,
-      "--id", "p1",
-      "--type", "mock",
-      "--model-id", "m"
-    ], {
-      log: () => {},
-      error: (msg: string) => duplicateErrors.push(msg)
-    });
+    const duplicateResult = await runCli(
+      ["config", "add-provider", "--config", configPath, "--id", "p1", "--type", "mock", "--model-id", "m"],
+      {
+        log: () => {},
+        error: (msg: string) => duplicateErrors.push(msg)
+      }
+    );
 
     expect(duplicateResult.ok).toBe(false);
     expect(duplicateErrors.some((x) => x.includes("Provider id already exists: p1"))).toBe(true);
 
     const unknownErrors: string[] = [];
-    const unknownResult = await runCli([
-      "config",
-      "add-agent",
-      "--config", configPath,
-      "--id", "a4",
-      "--provider", "missing",
-      "--model", "m1"
-    ], {
-      log: () => {},
-      error: (msg: string) => unknownErrors.push(msg)
-    });
+    const unknownResult = await runCli(
+      ["config", "add-agent", "--config", configPath, "--id", "a4", "--provider", "missing", "--model", "m1"],
+      {
+        log: () => {},
+        error: (msg: string) => unknownErrors.push(msg)
+      }
+    );
 
     expect(unknownResult.ok).toBe(false);
     expect(unknownErrors.some((x) => x.includes("Unknown provider: missing"))).toBe(true);
@@ -222,15 +232,23 @@ describe("cli config loader", () => {
     const configPath = join(root, "argue.config.json");
     await writeJson(configPath, VALID_CONFIG);
 
-    const result = await runCli([
-      "config",
-      "add-provider",
-      "--config", configPath,
-      "--id", "anth",
-      "--type", "api",
-      "--vendor", "anthropic",
-      "--model-id", "claude-sonnet-4-5"
-    ], { log: () => {}, error: () => {} });
+    const result = await runCli(
+      [
+        "config",
+        "add-provider",
+        "--config",
+        configPath,
+        "--id",
+        "anth",
+        "--type",
+        "api",
+        "--vendor",
+        "anthropic",
+        "--model-id",
+        "claude-sonnet-4-5"
+      ],
+      { log: () => {}, error: () => {} }
+    );
 
     expect(result.ok).toBe(true);
     const loaded = await loadCliConfig({ explicitPath: configPath });
@@ -245,16 +263,25 @@ describe("cli config loader", () => {
     const configPath = join(root, "argue.config.json");
     await writeJson(configPath, VALID_CONFIG);
 
-    const result = await runCli([
-      "config",
-      "add-provider",
-      "--config", configPath,
-      "--id", "custom-groq",
-      "--type", "api",
-      "--vendor", "groq",
-      "--model-id", "llama-3",
-      "--api-key-env", "MY_KEY"
-    ], { log: () => {}, error: () => {} });
+    const result = await runCli(
+      [
+        "config",
+        "add-provider",
+        "--config",
+        configPath,
+        "--id",
+        "custom-groq",
+        "--type",
+        "api",
+        "--vendor",
+        "groq",
+        "--model-id",
+        "llama-3",
+        "--api-key-env",
+        "MY_KEY"
+      ],
+      { log: () => {}, error: () => {} }
+    );
 
     expect(result.ok).toBe(true);
     const loaded = await loadCliConfig({ explicitPath: configPath });
@@ -265,16 +292,25 @@ describe("cli config loader", () => {
 
   it("rejects --vendor on non-api type", async () => {
     const errors: string[] = [];
-    const result = await runCli([
-      "config",
-      "add-provider",
-      "--id", "bad",
-      "--type", "cli",
-      "--vendor", "anthropic",
-      "--cli-type", "claude",
-      "--command", "claude",
-      "--model-id", "m"
-    ], { log: () => {}, error: (msg: string) => errors.push(msg) });
+    const result = await runCli(
+      [
+        "config",
+        "add-provider",
+        "--id",
+        "bad",
+        "--type",
+        "cli",
+        "--vendor",
+        "anthropic",
+        "--cli-type",
+        "claude",
+        "--command",
+        "claude",
+        "--model-id",
+        "m"
+      ],
+      { log: () => {}, error: (msg: string) => errors.push(msg) }
+    );
 
     expect(result.ok).toBe(false);
     expect(errors.some((x) => x.includes("--vendor is only valid for --type api"))).toBe(true);
@@ -282,14 +318,10 @@ describe("cli config loader", () => {
 
   it("rejects unknown vendor name", async () => {
     const errors: string[] = [];
-    const result = await runCli([
-      "config",
-      "add-provider",
-      "--id", "bad",
-      "--type", "api",
-      "--vendor", "nonexistent",
-      "--model-id", "m"
-    ], { log: () => {}, error: (msg: string) => errors.push(msg) });
+    const result = await runCli(
+      ["config", "add-provider", "--id", "bad", "--type", "api", "--vendor", "nonexistent", "--model-id", "m"],
+      { log: () => {}, error: (msg: string) => errors.push(msg) }
+    );
 
     expect(result.ok).toBe(false);
     expect(errors.some((x) => x.includes("--vendor must be one of:"))).toBe(true);
@@ -314,11 +346,16 @@ describe("cli config loader", () => {
     const result = await runCli(
       [
         "run",
-        "--config", configPath,
-        "--input", inputPath,
-        "--task", "Flag topic",
-        "--agents", "a2,a3",
-        "--composer", "builtin"
+        "--config",
+        configPath,
+        "--input",
+        inputPath,
+        "--task",
+        "Flag topic",
+        "--agents",
+        "a2,a3",
+        "--composer",
+        "builtin"
       ],
       {
         log: (msg: string) => logs.push(msg),
@@ -343,13 +380,10 @@ describe("cli config loader", () => {
     const logs: string[] = [];
     const errors: string[] = [];
 
-    const result = await runCli(
-      ["exec", "--config", configPath, "--task", "Alias topic"],
-      {
-        log: (msg: string) => logs.push(msg),
-        error: (msg: string) => errors.push(msg)
-      }
-    );
+    const result = await runCli(["exec", "--config", configPath, "--task", "Alias topic"], {
+      log: (msg: string) => logs.push(msg),
+      error: (msg: string) => errors.push(msg)
+    });
 
     expect(result.ok).toBe(true);
     expect(result.code).toBe(0);
@@ -380,13 +414,10 @@ describe("cli config loader", () => {
     const logs: string[] = [];
     const errors: string[] = [];
 
-    const result = await runCli(
-      ["run", "--config", configPath, "--task", "t", "--max-rounds", "10abc"],
-      {
-        log: (msg: string) => logs.push(msg),
-        error: (msg: string) => errors.push(msg)
-      }
-    );
+    const result = await runCli(["run", "--config", configPath, "--task", "t", "--max-rounds", "10abc"], {
+      log: (msg: string) => logs.push(msg),
+      error: (msg: string) => errors.push(msg)
+    });
 
     expect(result.ok).toBe(false);
     expect(result.code).toBe(1);
@@ -401,13 +432,10 @@ describe("cli config loader", () => {
     const logs: string[] = [];
     const errors: string[] = [];
 
-    const result = await runCli(
-      ["run", "--config", configPath, "--task", "t", "--threshold", "0.8foo"],
-      {
-        log: (msg: string) => logs.push(msg),
-        error: (msg: string) => errors.push(msg)
-      }
-    );
+    const result = await runCli(["run", "--config", configPath, "--task", "t", "--threshold", "0.8foo"], {
+      log: (msg: string) => logs.push(msg),
+      error: (msg: string) => errors.push(msg)
+    });
 
     expect(result.ok).toBe(false);
     expect(result.code).toBe(1);
@@ -498,7 +526,6 @@ describe("cli config loader", () => {
       }
     }
   });
-
 
   it("config init is idempotent when existing config is valid", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-init-idempotent-"));

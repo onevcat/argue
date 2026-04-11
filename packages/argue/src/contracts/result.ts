@@ -47,12 +47,16 @@ const ParticipantRoundOutputBaseSchema = z.object({
   participantId: z.string().min(1),
   round: z.number().int().min(0),
   fullResponse: z.string().min(1),
-  extractedClaims: z.array(ClaimSchema.pick({
-    claimId: true,
-    title: true,
-    statement: true,
-    category: true
-  })).optional(),
+  extractedClaims: z
+    .array(
+      ClaimSchema.pick({
+        claimId: true,
+        title: true,
+        statement: true,
+        category: true
+      })
+    )
+    .optional(),
   judgements: z.array(ClaimJudgementSchema),
   selfScore: z.number().min(0).max(100).optional(),
   summary: z.string().min(1),
@@ -85,16 +89,20 @@ export type ParticipantRoundOutput = z.infer<typeof ParticipantRoundOutputSchema
 export const ParticipantScoreSchema = z.object({
   participantId: z.string().min(1),
   total: z.number(),
-  byRound: z.array(z.object({
-    round: z.number().int().min(0),
-    score: z.number()
-  })),
-  breakdown: z.object({
-    correctness: z.number().optional(),
-    completeness: z.number().optional(),
-    actionability: z.number().optional(),
-    consistency: z.number().optional()
-  }).optional()
+  byRound: z.array(
+    z.object({
+      round: z.number().int().min(0),
+      score: z.number()
+    })
+  ),
+  breakdown: z
+    .object({
+      correctness: z.number().optional(),
+      completeness: z.number().optional(),
+      actionability: z.number().optional(),
+      consistency: z.number().optional()
+    })
+    .optional()
 });
 
 export type ParticipantScore = z.infer<typeof ParticipantScoreSchema>;
@@ -128,11 +136,15 @@ export const FinalReportSchema = z.object({
   finalSummary: z.string().min(1),
   representativeSpeech: z.string().min(1),
   opinionShiftTimeline: z.array(OpinionShiftSchema).optional(),
-  roundHighlights: z.array(z.object({
-    round: z.number().int().min(0),
-    participantId: z.string().min(1),
-    summary: z.string().min(1)
-  })).optional()
+  roundHighlights: z
+    .array(
+      z.object({
+        round: z.number().int().min(0),
+        participantId: z.string().min(1),
+        summary: z.string().min(1)
+      })
+    )
+    .optional()
 });
 
 export type FinalReport = z.infer<typeof FinalReportSchema>;
@@ -170,15 +182,21 @@ export const ArgueResultSchema = z.object({
   scoreboard: z.array(ParticipantScoreSchema),
   eliminations: z.array(EliminationRecordSchema),
   report: FinalReportSchema,
-  disagreements: z.array(z.object({
-    claimId: z.string().min(1),
-    participantId: z.string().min(1),
-    reason: z.string().min(1)
-  })).optional(),
-  rounds: z.array(z.object({
-    round: z.number().int().min(0),
-    outputs: z.array(ParticipantRoundOutputSchema)
-  })),
+  disagreements: z
+    .array(
+      z.object({
+        claimId: z.string().min(1),
+        participantId: z.string().min(1),
+        reason: z.string().min(1)
+      })
+    )
+    .optional(),
+  rounds: z.array(
+    z.object({
+      round: z.number().int().min(0),
+      outputs: z.array(ParticipantRoundOutputSchema)
+    })
+  ),
   metrics: z.object({
     elapsedMs: z.number().int().nonnegative(),
     totalRounds: z.number().int().nonnegative(),
@@ -189,10 +207,12 @@ export const ArgueResultSchema = z.object({
     globalDeadlineHit: z.boolean()
   }),
   action: ActionOutputSchema.optional(),
-  error: z.object({
-    code: z.string().min(1),
-    message: z.string().min(1)
-  }).optional()
+  error: z
+    .object({
+      code: z.string().min(1),
+      message: z.string().min(1)
+    })
+    .optional()
 });
 
 export type ArgueResult = z.infer<typeof ArgueResultSchema>;

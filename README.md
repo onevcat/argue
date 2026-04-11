@@ -25,14 +25,14 @@ Quick workspace commands:
 
 ## Why argue
 
-| Problem | How argue solves it |
-| --- | --- |
-| Agents produce isolated partial answers | Parallel initial round + cross-round peer context |
-| Debate quality is ad-hoc | Claim-level judgements (`agree` / `disagree` / `revise`) |
-| Duplicate findings pollute results | Explicit claim merge with deterministic survivor rule |
-| Binary final vote loses nuance | Per-claim consensus with configurable threshold |
-| Hard to choose a final spokesperson | Peer-review weighted scoring + representative selection |
-| Host code gets orchestration-heavy | Engine owns state machine, wait, elimination, and consensus |
+| Problem                                 | How argue solves it                                         |
+| --------------------------------------- | ----------------------------------------------------------- |
+| Agents produce isolated partial answers | Parallel initial round + cross-round peer context           |
+| Debate quality is ad-hoc                | Claim-level judgements (`agree` / `disagree` / `revise`)    |
+| Duplicate findings pollute results      | Explicit claim merge with deterministic survivor rule       |
+| Binary final vote loses nuance          | Per-claim consensus with configurable threshold             |
+| Hard to choose a final spokesperson     | Peer-review weighted scoring + representative selection     |
+| Host code gets orchestration-heavy      | Engine owns state machine, wait, elimination, and consensus |
 
 ## Architecture at a glance
 

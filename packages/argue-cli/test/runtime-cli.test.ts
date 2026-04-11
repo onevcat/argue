@@ -41,7 +41,9 @@ describe("createCliRunner", () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-runner-generic-"));
     const script = join(root, "runner.mjs");
 
-    await writeFile(script, `
+    await writeFile(
+      script,
+      `
 import process from "node:process";
 let stdin = "";
 for await (const chunk of process.stdin) stdin += chunk;
@@ -53,7 +55,9 @@ const output = {
   judgements: []
 };
 process.stdout.write(JSON.stringify(output));
-`, "utf8");
+`,
+      "utf8"
+    );
 
     const runner = createCliRunner({
       type: "cli",
@@ -420,7 +424,9 @@ process.stdout.write(JSON.stringify(output));
     const root = await mkdtemp(join(tmpdir(), "argue-cli-runner-codex-"));
     const script = join(root, "runner.mjs");
 
-    await writeFile(script, `#!/usr/bin/env node
+    await writeFile(
+      script,
+      `#!/usr/bin/env node
 const fence = String.fromCharCode(96).repeat(3);
 process.stdout.write(fence + 'json\\n' + JSON.stringify({
   fullResponse: "fenced",
@@ -428,7 +434,9 @@ process.stdout.write(fence + 'json\\n' + JSON.stringify({
   extractedClaims: [],
   judgements: []
 }) + '\\n' + fence + '\\n');
-`, { mode: 0o755 });
+`,
+      { mode: 0o755 }
+    );
 
     const runner = createCliRunner({
       type: "cli",
@@ -469,7 +477,9 @@ async function createArgvEchoScript(prefix: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), prefix));
   const script = join(root, "runner.mjs");
 
-  await writeFile(script, `#!/usr/bin/env node
+  await writeFile(
+    script,
+    `#!/usr/bin/env node
 import process from "node:process";
 let stdin = "";
 for await (const chunk of process.stdin) stdin += chunk;
@@ -479,7 +489,9 @@ process.stdout.write(JSON.stringify({
   extractedClaims: [],
   judgements: []
 }));
-`, { mode: 0o755 });
+`,
+    { mode: 0o755 }
+  );
 
   return script;
 }
@@ -488,7 +500,9 @@ async function createArgvAndStdinEchoScript(prefix: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), prefix));
   const script = join(root, "runner.mjs");
 
-  await writeFile(script, `#!/usr/bin/env node
+  await writeFile(
+    script,
+    `#!/usr/bin/env node
 import process from "node:process";
 let stdin = "";
 for await (const chunk of process.stdin) stdin += chunk;
@@ -498,7 +512,9 @@ process.stdout.write(JSON.stringify({
   extractedClaims: [],
   judgements: []
 }));
-`, { mode: 0o755 });
+`,
+    { mode: 0o755 }
+  );
 
   return script;
 }
