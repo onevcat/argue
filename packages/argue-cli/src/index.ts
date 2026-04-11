@@ -750,6 +750,9 @@ function parseRunOptions(args: string[]): { ok: true; value: CliRunOptions } | {
     return { ok: false, error: `Unknown option for run: ${arg}` };
   }
 
+  const rangeError = validateRunOptionRanges(out);
+  if (rangeError) return { ok: false, error: rangeError };
+
   return { ok: true, value: out };
 }
 
@@ -1014,6 +1017,13 @@ function parseConfigAddAgentOptions(
   if (!out.provider) return { ok: false, error: "Missing provider id. Use --provider <provider-id>." };
   if (!out.model) return { ok: false, error: "Missing model id. Use --model <model-id>." };
 
+  if (out.timeoutMs != null && out.timeoutMs <= 0) {
+    return { ok: false, error: "--timeout-ms must be positive" };
+  }
+  if (out.temperature != null && (out.temperature < 0 || out.temperature > 2)) {
+    return { ok: false, error: "--temperature must be between 0 and 2" };
+  }
+
   return { ok: true, value: out as ConfigAddAgentOptions };
 }
 
@@ -1099,6 +1109,34 @@ function parseFloatArg(flag: string, raw: string | undefined): number | string {
   const n = Number(raw);
   if (!Number.isFinite(n)) return `${flag} must be a number`;
   return n;
+}
+
+function validateRunOptionRanges(opts: CliRunOptions): string | null {
+  if (opts.consensusThreshold != null && (opts.consensusThreshold < 0 || opts.consensusThreshold > 1)) {
+    return "--threshold must be between 0 and 1";
+  }
+  if (opts.minRounds != null && opts.minRounds < 0) {
+    return "--min-rounds must be >= 0";
+  }
+  if (opts.maxRounds != null && opts.maxRounds < 1) {
+    return "--max-rounds must be >= 1";
+  }
+  if (opts.minRounds != null && opts.maxRounds != null && opts.maxRounds < opts.minRounds) {
+    return "--max-rounds must be >= --min-rounds";
+  }
+  if (opts.perTaskTimeoutMs != null && opts.perTaskTimeoutMs <= 0) {
+    return "--per-task-timeout-ms must be positive";
+  }
+  if (opts.perRoundTimeoutMs != null && opts.perRoundTimeoutMs <= 0) {
+    return "--per-round-timeout-ms must be positive";
+  }
+  if (opts.globalDeadlineMs != null && opts.globalDeadlineMs <= 0) {
+    return "--global-deadline-ms must be positive";
+  }
+  if (opts.tokenBudgetHint != null && opts.tokenBudgetHint <= 0) {
+    return "--token-budget must be positive";
+  }
+  return null;
 }
 
 function printHelp(io: Pick<typeof console, "log">): void {
