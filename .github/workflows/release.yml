@@ -52,11 +52,7 @@ jobs:
       - name: Publish @onevcat/argue
         if: ${{ inputs.package == 'argue' && !inputs.dry_run }}
         run: npm publish --workspace packages/argue --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @onevcat/argue-cli
         if: ${{ inputs.package == 'argue-cli' && !inputs.dry_run }}
         run: npm publish --workspace packages/argue-cli --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
