@@ -373,7 +373,6 @@ describe("ArgueEngine M2", () => {
   });
 
   it("freezes claim catalog during final_vote", async () => {
-    const allClaimIds = PARTICIPANTS.map((p) => `${p}:0:0`);
     const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {
       "round:initial:0:onevclaw": {
         type: "success",
