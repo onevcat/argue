@@ -23,7 +23,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           registry-url: https://registry.npmjs.org
 
@@ -64,7 +64,7 @@ jobs:
 
             if [ "$local_version" != "$registry_version" ]; then
               echo "  -> Publishing ${pkg_name}@${local_version}"
-              npm publish --workspace "$workspace" --access public --provenance
+              npm publish --workspace "$workspace" --access public
             else
               echo "  -> Already published, skipping"
             fi
