@@ -146,11 +146,7 @@ export function createArgueSdkAdapter(args) {
   it("throws when factory function throws during initialization", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-sdk-factory-"));
     const adapterPath = join(root, "adapter.mjs");
-    await writeFile(
-      adapterPath,
-      `export function createArgueSdkAdapter() { throw new Error("init boom"); }`,
-      "utf8"
-    );
+    await writeFile(adapterPath, `export function createArgueSdkAdapter() { throw new Error("init boom"); }`, "utf8");
 
     await expect(
       createSdkRunner(
@@ -213,11 +209,7 @@ export function createArgueSdkAdapter() {
   it("throws when export is not a function", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-sdk-nonfunc-"));
     const adapterPath = join(root, "adapter.mjs");
-    await writeFile(
-      adapterPath,
-      `export const createArgueSdkAdapter = { notAFunction: true };`,
-      "utf8"
-    );
+    await writeFile(adapterPath, `export const createArgueSdkAdapter = { notAFunction: true };`, "utf8");
 
     await expect(
       createSdkRunner(
