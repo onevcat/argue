@@ -34,20 +34,20 @@ describe("validateArgueResult", () => {
     expect(validateArgueResult(undefined).ok).toBe(false);
   });
 
-  it("rejects missing resultVersion field", () => {
+  it("treats a missing resultVersion field as version 1", () => {
     const valid = createFixtureResult();
     const { resultVersion: _removed, ...rest } = valid;
     void _removed;
 
     const result = validateArgueResult(rest);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toContain("Unsupported resultVersion");
-      expect(result.error).toContain("undefined");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.resultVersion).toBe(ARGUE_RESULT_VERSION);
+      expect(result.data.requestId).toBe("req-1");
     }
   });
 
-  it("rejects unsupported result version", () => {
+  it("rejects an explicit unsupported resultVersion", () => {
     const valid = createFixtureResult();
     const invalid = { ...valid, resultVersion: ARGUE_RESULT_VERSION + 1 };
 
@@ -57,6 +57,18 @@ describe("validateArgueResult", () => {
     if (!result.ok) {
       expect(result.error).toContain("Unsupported resultVersion");
       expect(result.error).toContain(`expected ${ARGUE_RESULT_VERSION}`);
+    }
+  });
+
+  it("rejects an explicit null resultVersion as unsupported", () => {
+    const valid = createFixtureResult();
+    // Explicit null is different from missing: the caller tried to set it.
+    const invalid = { ...valid, resultVersion: null };
+
+    const result = validateArgueResult(invalid);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain("Unsupported resultVersion");
     }
   });
 
