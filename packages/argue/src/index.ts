@@ -52,7 +52,7 @@ export {
 } from "./contracts/task.js";
 
 export type { ActionOutput } from "./contracts/result.js";
-export { ActionOutputSchema } from "./contracts/result.js";
+export { ActionOutputSchema, ARGUE_RESULT_VERSION } from "./contracts/result.js";
 
 export type {
   ArgueResult,

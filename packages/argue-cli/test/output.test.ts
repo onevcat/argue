@@ -43,6 +43,7 @@ function makeParticipantRespondedEvent(overrides: Record<string, unknown> = {}):
 
 function makeMinimalResult(): ArgueResult {
   return {
+    resultVersion: 1,
     requestId: "req-1",
     sessionId: "sess-1",
     status: "consensus",

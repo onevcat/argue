@@ -168,7 +168,10 @@ export const ActionOutputSchema = z.object({
 });
 export type ActionOutput = z.infer<typeof ActionOutputSchema>;
 
+export const ARGUE_RESULT_VERSION = 1 as const;
+
 export const ArgueResultSchema = z.object({
+  resultVersion: z.literal(ARGUE_RESULT_VERSION),
   requestId: z.string().min(1),
   sessionId: z.string().min(1),
   status: z.enum(["consensus", "partial_consensus", "unresolved", "failed"]),

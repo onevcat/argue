@@ -7,6 +7,7 @@ import { buildResultSummary, formatMs, writeRunArtifacts } from "../src/artifact
 
 function makeResult(overrides?: Partial<ArgueResult>): ArgueResult {
   return {
+    resultVersion: 1,
     requestId: "req-1",
     sessionId: "s1",
     status: "partial_consensus",

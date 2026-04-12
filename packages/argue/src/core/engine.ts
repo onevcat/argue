@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AgentTaskDelegate, ArgueObserver, SessionStore, WaitCoordinator } from "../contracts/delegate.js";
 import { normalizeStartInput, type ArgueStartInput, type NormalizedArgueStartInput } from "../contracts/request.js";
 import {
+  ARGUE_RESULT_VERSION,
   ArgueResultSchema,
   type ActionOutput,
   type ArgueResult,
@@ -263,6 +264,7 @@ export class ArgueEngine {
       });
 
       const result: ArgueResult = ArgueResultSchema.parse({
+        resultVersion: ARGUE_RESULT_VERSION,
         requestId: normalized.requestId,
         sessionId,
         status,
