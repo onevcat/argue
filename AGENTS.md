@@ -6,12 +6,13 @@ This file applies to the whole `argue` repository.
 
 ## Repo Overview
 
-This repository is a monorepo with two independently released npm packages:
+This repository is a monorepo with three workspace packages under **unified versioning** — root `package.json` holds the canonical version and every package carries the same number:
 
-- `@onevcat/argue`: reusable library
-- `@onevcat/argue-cli`: CLI host
+- `@onevcat/argue`: reusable library (published)
+- `@onevcat/argue-cli`: CLI host (published)
+- `@onevcat/argue-viewer`: result viewer web app (private, `private: true`, never published)
 
-The CLI depends on the library through a real semver dependency in `packages/argue-cli/package.json`.
+The CLI depends on the library through a real semver dependency in `packages/argue-cli/package.json`. The viewer also consumes `@onevcat/argue` through a real semver range so its local build graph matches published reality.
 
 ## Local Development
 
@@ -43,33 +44,16 @@ Recommended daily loop:
 
 ## Package Development Rules
 
-Treat the repo as one workspace during implementation, but treat the packages as separate products during versioning and publishing.
+All workspace packages share one version. Do not bump packages individually — every release bumps root + every `packages/*/package.json` together and `@onevcat/argue-cli` / `@onevcat/argue-viewer` always depend on the exact same `@onevcat/argue` version.
 
-### Library-only changes
+Workflow for any change that will be released:
 
-If the change only affects `@onevcat/argue` and does not require CLI dependency updates:
+1. Update code under whichever packages are affected (`packages/argue`, `packages/argue-cli`, `packages/argue-viewer`)
+2. Run `node scripts/bump-version.mjs X.Y.Z` — bumps root and every package, and rewrites internal `@onevcat/argue` deps
+3. Run `npm install`
+4. Run `npm run release:check`
 
-- update code under `packages/argue`
-- bump only `packages/argue/package.json` when releasing
-
-### CLI-only changes
-
-If the change only affects `@onevcat/argue-cli`:
-
-- update code under `packages/argue-cli`
-- bump only `packages/argue-cli/package.json` when releasing
-
-### Coordinated library + CLI changes
-
-If CLI needs new library behavior:
-
-1. update library code
-2. bump `packages/argue/package.json`
-3. update CLI code
-4. bump `packages/argue-cli/package.json`
-5. update `packages/argue-cli/package.json` dependency on `@onevcat/argue`
-6. run `npm install`
-7. run `npm run release:check`
+Day-to-day edits that are not yet releasing do not need a version bump — just work on the code.
 
 ## Dependency Rule
 
@@ -89,16 +73,9 @@ Reference doc:
 Workflow:
 
 - GitHub Actions workflow: `.github/workflows/release.yml`
-- Manual trigger only
-- One package per run
-
-Release order:
-
-- if publishing only library: publish `argue`
-- if publishing only CLI: publish `argue-cli`
-- if both are needed and CLI depends on the new library release:
-  1. publish `argue`
-  2. publish `argue-cli`
+- Triggered on `v*` tag push (one tag = one unified release)
+- Publishes `@onevcat/argue` then `@onevcat/argue-cli` in a single run
+- `@onevcat/argue-viewer` stays private and is never published
 
 Pre-flight checklist:
 

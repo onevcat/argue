@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.2.0] - 2026-04-13
+
+First release under **unified versioning**: `@onevcat/argue`, `@onevcat/argue-cli`, and `@onevcat/argue-viewer` now share one version number driven by the root `package.json`. Headline change: `@onevcat/argue-viewer` is real — a Preact web app that renders an `ArgueResult` JSON file as a readable dossier.
+
+### Features
+
+- Introduce `@onevcat/argue-viewer` as a Preact web app that renders `ArgueResult` JSON into a readable dossier (1847ec9)
+- Split viewer into landing / report screens with round polish and a shared footer (e354d3c)
+- Viewer header now shows the debate date; judgements are aligned and confidence toned down (35f4c77)
+- Replace viewer vote pills with Lucide check / x icon badges (324e153)
+- Self-host viewer fonts and add component tests (32c3038)
+- Carry the debate task title through `ArgueResult` so the viewer can display it (52ebc18)
+- Add a `resultVersion` field to `ArgueResult` for forward-compatible schema evolution (58672e9)
+
+### Fixes
+
+- Use Web Crypto `randomUUID` in the engine so `@onevcat/argue` works in browser environments (12d40fd, #41)
+- Repair broken JSON and persist raw model output on parse failure in the CLI runner (cc31bf6)
+- Exclude `@onevcat/argue` from viewer `optimizeDeps` so the alias to `result.ts` actually wins (e53f361)
+- Treat a missing `resultVersion` as version 1 in the viewer (55094e0)
+- Center stance and vote-chip text in the viewer (7a0808b)
+- Viewer code review follow-ups and a new `formatTimestamp` helper (3cb4c2a)
+
+### Other
+
+- Adopt unified workspace versioning: root `package.json` is now the source of truth, `scripts/bump-version.mjs` propagates to every workspace package, and the release workflow publishes `@onevcat/argue` + `@onevcat/argue-cli` on one tag (#44)
+- Replace the CLI's hand-written JSON repair with the `jsonrepair` library (1d4969c)
+- Editorial dossier redesign + borderless parchment pass for the viewer (c8fffe8, 458e66d)
+
 ## [0.1.1] - 2026-04-12
 
 ### Fixes

@@ -44,32 +44,10 @@ jobs:
             }
           '
 
-      - name: Detect and publish changed packages
+      - name: Publish @onevcat/argue
         if: ${{ github.ref_type == 'tag' }}
-        run: |
-          publish_if_needed() {
-            local workspace="$1"
-            local pkg_name="$2"
+        run: npm publish --workspace packages/argue --access public
 
-            local local_version
-            local_version=$(node --input-type=module -e "
-              import pkg from './${workspace}/package.json' with { type: 'json' };
-              console.log(pkg.version);
-            ")
-
-            local registry_version
-            registry_version=$(npm view "$pkg_name" version 2>/dev/null || echo "0.0.0")
-
-            echo "  ${pkg_name}: local=${local_version} registry=${registry_version}"
-
-            if [ "$local_version" != "$registry_version" ]; then
-              echo "  -> Publishing ${pkg_name}@${local_version}"
-              npm publish --workspace "$workspace" --access public
-            else
-              echo "  -> Already published, skipping"
-            fi
-          }
-
-          echo "Checking packages..."
-          publish_if_needed "packages/argue" "@onevcat/argue"
-          publish_if_needed "packages/argue-cli" "@onevcat/argue-cli"
+      - name: Publish @onevcat/argue-cli
+        if: ${{ github.ref_type == 'tag' }}
+        run: npm publish --workspace packages/argue-cli --access public

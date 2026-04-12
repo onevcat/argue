@@ -1,6 +1,6 @@
 {
   "name": "@onevcat/argue-cli",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "CLI host for argue multi-agent orchestration.",
   "type": "module",
   "main": "dist/index.js",
@@ -41,7 +41,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.68",
     "@ai-sdk/openai-compatible": "^2.0.41",
-    "@onevcat/argue": "^0.1.1",
+    "@onevcat/argue": "^0.2.0",
     "ai": "^6.0.153",
     "jsonrepair": "^3.13.3",
     "picocolors": "^1.1.1",
