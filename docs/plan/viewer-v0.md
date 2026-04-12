@@ -37,7 +37,8 @@ The `resultVersion` field (added in this iteration) is the viewer's compatibilit
 
 - Viewer declares which versions it supports (initially just `1`).
 - On file load: `ArgueResultSchema.safeParse(json)` validates structure.
-- If `resultVersion` is missing or unsupported → clear error message with the version mismatch details.
+- **Missing `resultVersion` is tolerated** and treated as version `1`, so result artifacts generated before the version field existed still load cleanly. Any explicitly set version must still match the current one.
+- If `resultVersion` is explicitly set to an unsupported value → clear error message with the version mismatch details.
 - Future schema changes bump `ARGUE_RESULT_VERSION`; viewer adds migration or multi-version support as needed.
 
 ## 5. Features (v0)

@@ -1,0 +1,1171 @@
+/* ------------------------------------------------------------------
+ * Argue Viewer — editorial dossier aesthetic
+ *
+ * Concept: render an ArgueResult as if it were a printed adjudication
+ * document — rotated verdict stamp, chapter numbering, heavy serif
+ * display, a single hero pull-quote, and generous editorial rhythm.
+ * ------------------------------------------------------------------ */
+
+:root {
+  /* Paper & ink palette (tinted neutrals, no pure white/black) */
+  --paper-0: #f6f1e4;
+  --paper-1: #efe8d6;
+  --paper-2: #e6dcc3;
+  --paper-edge: #d2c6a6;
+
+  --ink-0: #1a241e;
+  --ink-1: #2b3630;
+  --ink-2: #566059;
+  --ink-3: #7a837c;
+
+  /* Accents */
+  --amber: #b87628;
+  --amber-soft: #d89a4a;
+  --teal: #236d68;
+  --teal-soft: #398a83;
+
+  /* Verdict stamp inks */
+  --stamp-pass: #2f6a43;
+  --stamp-warn: #a5651a;
+  --stamp-fail: #9a3429;
+
+  /* Semantic aliases */
+  --ok: var(--stamp-pass);
+  --warn: var(--stamp-warn);
+  --bad: var(--stamp-fail);
+
+  --rule: rgba(26, 36, 30, 0.16);
+  --rule-strong: rgba(26, 36, 30, 0.32);
+  --hairline: rgba(26, 36, 30, 0.08);
+
+  /* Shell width and viewport bleed offset. Exposed as variables so
+     full-bleed sections (e.g. §01 Conclusion) can escape the app
+     shell and reach the viewport edges while keeping their inner
+     content aligned to the shell grid. */
+  --shell-width: min(1120px, calc(100vw - 32px));
+  --shell-bleed: calc((100vw - var(--shell-width)) / 2);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: clip;
+}
+
+body {
+  min-height: 100vh;
+  font-family: "Manrope", sans-serif;
+  font-size: 16px;
+  color: var(--ink-0);
+  background-color: var(--paper-1);
+  background-image:
+    radial-gradient(1100px 560px at -10% -20%, rgba(184, 118, 40, 0.14), transparent 62%),
+    radial-gradient(900px 520px at 120% 8%, rgba(35, 109, 104, 0.1), transparent 60%),
+    linear-gradient(180deg, #fbf5e4 0%, #f4edd8 55%, #ebe3cc 100%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+  margin: 0;
+  font-family: "Fraunces", serif;
+  font-weight: 700;
+  color: var(--ink-0);
+}
+
+h1 {
+  font-size: clamp(2.25rem, 4vw + 1rem, 3.4rem);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+}
+
+h2 {
+  font-size: clamp(1.6rem, 1.8vw + 0.8rem, 2.2rem);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+}
+
+h3 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+}
+
+h4 {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+p,
+ul,
+ol,
+blockquote,
+dl,
+dd,
+dt,
+figure {
+  margin: 0;
+}
+
+button,
+textarea,
+input {
+  font: inherit;
+}
+
+.mono {
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* ------------------------------------------------------------------
+ * App shell
+ * ------------------------------------------------------------------ */
+
+.app-shell {
+  width: var(--shell-width);
+  margin: clamp(24px, 4vw, 60px) auto clamp(48px, 6vw, 96px);
+  display: grid;
+  gap: clamp(36px, 4vw, 60px);
+}
+
+/* ------------------------------------------------------------------
+ * Eyebrow label & editorial rhythm
+ * ------------------------------------------------------------------ */
+
+.eyebrow {
+  font-family: "Manrope", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
+.section-head {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.section-head .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-head .eyebrow::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--hairline);
+}
+
+/* ------------------------------------------------------------------
+ * Ingress panel
+ * ------------------------------------------------------------------ */
+
+.ingress {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 8px 4px;
+  display: grid;
+  gap: 16px;
+  outline: 2px dashed transparent;
+  outline-offset: 10px;
+  transition: outline-color 180ms ease;
+}
+
+.ingress.is-drag-over {
+  outline-color: var(--teal);
+}
+
+.ingress-meta h1 {
+  font-size: clamp(1.5rem, 2vw + 0.5rem, 2rem);
+  letter-spacing: -0.01em;
+  margin-bottom: 2px;
+}
+
+.ingress-meta p {
+  color: var(--ink-2);
+  font-size: 0.94rem;
+}
+
+.ingress-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+button {
+  font-family: "Manrope", sans-serif;
+  font-weight: 600;
+  font-size: 0.88rem;
+  letter-spacing: 0.01em;
+  color: var(--ink-0);
+  background: #fbf6e8;
+  border: 1px solid var(--paper-edge);
+  padding: 10px 16px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition:
+    transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--ink-2);
+  background: #fffcf1;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+button:focus-visible,
+textarea:focus-visible,
+.claim-row:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--teal-soft);
+  outline-offset: 3px;
+}
+
+.paste-box {
+  display: grid;
+  gap: 8px;
+  font-family: "Manrope", sans-serif;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-2);
+  font-weight: 700;
+}
+
+textarea {
+  width: 100%;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.85rem;
+  color: var(--ink-0);
+  background: #fffcf1;
+  border: 1px solid var(--paper-edge);
+  border-radius: 3px;
+  padding: 12px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.source-note {
+  color: var(--ink-3);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.78rem;
+  padding-inline: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.source-note .mono {
+  color: var(--amber);
+}
+
+/* ------------------------------------------------------------------
+ * State panels (idle / error)
+ * ------------------------------------------------------------------ */
+
+.state-panel {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 4px 0;
+  display: grid;
+  gap: 8px;
+}
+
+.state-panel h2 {
+  font-family: "Fraunces", serif;
+  font-size: 1.4rem;
+  color: var(--ink-1);
+}
+
+.state-panel p {
+  color: var(--ink-2);
+  font-size: 0.94rem;
+}
+
+.state-panel.error h2 {
+  color: var(--bad);
+}
+
+/* ------------------------------------------------------------------
+ * Report — panels & rhythm
+ * ------------------------------------------------------------------ */
+
+.report-root {
+  display: grid;
+  gap: clamp(36px, 4vw, 60px);
+}
+
+.panel {
+  position: relative;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+/* ------------------------------------------------------------------
+ * §00 Header — verdict + title + metadata
+ * ------------------------------------------------------------------ */
+
+.header-panel {
+  padding: 0;
+  display: grid;
+  gap: 24px;
+  overflow: visible;
+}
+
+.verdict-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: clamp(24px, 3vw, 48px);
+  align-items: flex-start;
+}
+
+.verdict-title {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.verdict-title h1 {
+  font-style: italic;
+  color: var(--ink-0);
+}
+
+.verdict-title h1 span {
+  display: block;
+  font-style: normal;
+  font-size: 0.58em;
+  color: var(--ink-2);
+  letter-spacing: 0.01em;
+}
+
+.verdict-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(20px, 2.4vw, 40px);
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+
+.verdict-meta > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.verdict-meta dt {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-3);
+  font-weight: 700;
+}
+
+.verdict-meta dd {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.92rem;
+  color: var(--ink-1);
+  word-break: break-all;
+}
+
+/* Verdict stamp — rotated ink imprint in the upper-left corner. */
+.verdict-stamp {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 26px 16px;
+  border: 4px double var(--stamp-color, var(--stamp-pass));
+  color: var(--stamp-color, var(--stamp-pass));
+  font-family: "Fraunces", serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  transform: rotate(-9deg);
+  transform-origin: center;
+  user-select: none;
+  pointer-events: none;
+  opacity: 0.92;
+  mix-blend-mode: multiply;
+  filter: contrast(1.06);
+  background: color-mix(in srgb, var(--stamp-color, var(--stamp-pass)) 5%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--stamp-color, var(--stamp-pass)) 30%, transparent);
+  margin-top: 6px;
+  /* Inked-ness: tiny text shadow gives the imprint a touch of bleed. */
+  text-shadow: 0 0 0.6px currentColor;
+}
+
+.verdict-stamp .stamp-label {
+  font-size: 2.4rem;
+  letter-spacing: 0.14em;
+  line-height: 0.88;
+}
+
+.verdict-stamp .stamp-kind {
+  font-family: "Manrope", sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  margin-bottom: 6px;
+  color: color-mix(in srgb, var(--stamp-color, var(--stamp-pass)) 78%, var(--ink-0));
+}
+
+.verdict-stamp.is-pass {
+  --stamp-color: var(--stamp-pass);
+}
+.verdict-stamp.is-warn {
+  --stamp-color: var(--stamp-warn);
+}
+.verdict-stamp.is-fail {
+  --stamp-color: var(--stamp-fail);
+}
+
+/* ------------------------------------------------------------------
+ * §01 Conclusion — hero pull-quote on a dark ink plate.
+ * The dark fill IS the form; no outline or card chrome.
+ * ------------------------------------------------------------------ */
+
+.conclusion-panel {
+  /* Full-bleed: push the panel box outward to the viewport edges so
+     the dark plate spans the entire page width, then pad the content
+     back inward so the eyebrow and quote still align with the
+     app-shell grid used by the other sections.
+
+     Vertical rhythm: eyebrow sits near the top, the oversized quote
+     glyph hangs decoratively below it, and the quote text clears
+     the glyph's visual mark. padding-block is asymmetric (smaller
+     top, larger bottom) to fit the stacked eyebrow → glyph → text
+     order. */
+  margin-inline: calc(-1 * var(--shell-bleed));
+  padding-block: clamp(52px, 5.5vw, 88px) clamp(88px, 9vw, 140px);
+  padding-inline: calc(var(--shell-bleed) + clamp(4px, 0.6vw, 12px));
+  overflow: hidden;
+  background: linear-gradient(160deg, #13201a 0%, #172420 60%, #101a16 100%);
+  color: var(--paper-0);
+  box-shadow:
+    inset 0 1px 0 rgba(246, 241, 228, 0.05),
+    0 18px 40px rgba(12, 20, 16, 0.32);
+}
+
+.conclusion-panel::before {
+  /* Oversized pull-quote glyph. Sits between the eyebrow and the
+     quote text as a decorative watermark. top is tuned so the visual
+     mark in Fraunces (which sits in the top ~30% of the tightened
+     line-box) appears just under the eyebrow label. left is computed
+     against --shell-bleed so the glyph hangs just inside the content
+     grid — clamped non-negative for narrow viewports where the bleed
+     collapses to almost nothing. */
+  content: "\201C";
+  position: absolute;
+  top: clamp(82px, 8.5vw, 138px);
+  left: max(4px, calc(var(--shell-bleed) - 10px));
+  font-family: "Fraunces", serif;
+  font-size: clamp(9rem, 16vw, 16rem);
+  line-height: 0.78;
+  color: var(--amber);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.conclusion-panel .eyebrow {
+  position: relative;
+  color: rgba(246, 241, 228, 0.7);
+}
+
+.conclusion-quote {
+  position: relative;
+  font-family: "Fraunces", serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: clamp(1.3rem, 1.6vw + 0.7rem, 2rem);
+  line-height: 1.35;
+  color: var(--paper-0);
+  max-width: 56ch;
+  margin-top: clamp(60px, 6.4vw, 108px);
+}
+
+/* ------------------------------------------------------------------
+ * §02 Representative
+ * ------------------------------------------------------------------ */
+
+.representative-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.rep-main {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.rep-main h2 {
+  font-size: clamp(1.8rem, 2vw + 0.6rem, 2.4rem);
+  font-style: italic;
+  color: var(--ink-0);
+}
+
+.rep-main .rep-reason {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-2);
+  padding: 4px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+
+.rep-main .rep-score {
+  font-family: "Fraunces", serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--amber);
+  margin-left: auto;
+}
+
+.rep-speech {
+  font-family: "Fraunces", serif;
+  font-style: italic;
+  font-size: 1.1rem;
+  line-height: 1.55;
+  color: var(--ink-1);
+  padding-left: 20px;
+  border-left: 3px solid var(--amber);
+  max-width: 72ch;
+}
+
+/* ------------------------------------------------------------------
+ * §03 Claims — full-width editorial cards
+ * ------------------------------------------------------------------ */
+
+.claims-list {
+  display: grid;
+  gap: 14px;
+}
+
+.claim-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(170px, 200px) 1fr;
+  background: var(--paper-0);
+  border: 1px solid var(--paper-edge);
+  border-radius: 3px;
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.claim-row:hover {
+  transform: translateY(-1px);
+  border-color: var(--ink-2);
+}
+
+.claim-row.is-active {
+  border-color: var(--amber);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--amber) 8%, var(--paper-0)) 0%, var(--paper-0) 80%);
+  box-shadow: inset 4px 0 0 var(--amber);
+}
+
+.claim-row.link-participant {
+  background: color-mix(in srgb, var(--teal) 10%, var(--paper-0));
+}
+
+.claim-rail {
+  background: var(--paper-2);
+  border-right: 1px solid var(--rule);
+  padding: 26px 20px;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.75rem;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.claim-index {
+  font-family: "Fraunces", serif;
+  font-size: 2rem;
+  font-weight: 700;
+  font-style: italic;
+  color: var(--ink-0);
+  text-transform: none;
+  letter-spacing: -0.01em;
+  line-height: 0.9;
+  margin-bottom: 6px;
+}
+
+.claim-cid {
+  font-size: 0.72rem;
+  color: var(--ink-2);
+  word-break: break-all;
+}
+
+.claim-category {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  color: var(--paper-0);
+  background: var(--ink-1);
+}
+
+.claim-category.cat-pro {
+  background: var(--teal);
+}
+.claim-category.cat-con {
+  background: var(--stamp-fail);
+}
+.claim-category.cat-risk {
+  background: var(--amber);
+}
+.claim-category.cat-tradeoff {
+  background: var(--ink-1);
+}
+.claim-category.cat-todo {
+  background: var(--ink-3);
+}
+
+.claim-proposer {
+  color: var(--ink-3);
+  font-size: 0.68rem;
+}
+
+.claim-body {
+  padding: 26px 32px;
+  display: grid;
+  gap: 14px;
+}
+
+.claim-body h3 {
+  font-size: 1.8rem;
+  line-height: 1.14;
+  letter-spacing: -0.012em;
+}
+
+.claim-statement {
+  font-size: 1.06rem;
+  line-height: 1.62;
+  color: var(--ink-1);
+  max-width: 66ch;
+}
+
+.claim-tally {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding-top: 12px;
+  margin-top: 4px;
+  border-top: 1px dashed var(--rule);
+}
+
+.claim-tally > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.claim-tally strong {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.9rem;
+  color: var(--ink-0);
+}
+
+.claim-votes-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 6px;
+  list-style: none;
+  padding-left: 0;
+}
+
+.claim-votes-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.78rem;
+  color: var(--ink-1);
+  padding: 3px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--paper-2) 50%, transparent);
+}
+
+.vote-pill {
+  font-family: "Manrope", sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 2px 6px;
+  border-radius: 2px;
+  color: var(--paper-0);
+}
+
+.vote-pill.vote-accept {
+  background: var(--ok);
+}
+.vote-pill.vote-reject {
+  background: var(--bad);
+}
+
+/* Linked item highlights (used by claim<->judgement/vote cross-highlight) */
+.link-claim {
+  background: color-mix(in srgb, var(--amber) 18%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--amber) 50%, transparent);
+}
+
+.link-participant {
+  background: color-mix(in srgb, var(--teal) 14%, transparent);
+}
+
+/* ------------------------------------------------------------------
+ * §04 Scoreboard — ranked list with drop-cap numerals
+ * ------------------------------------------------------------------ */
+
+.score-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: clamp(6px, 0.8vw, 12px);
+}
+
+.score-row {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: clamp(18px, 2vw, 30px);
+  align-items: start;
+  padding: clamp(16px, 1.8vw, 22px) clamp(18px, 2vw, 26px);
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 4px;
+  transition: background 180ms ease;
+}
+
+.score-row:last-child {
+  border-bottom: none;
+}
+
+.score-row.link-participant {
+  background: color-mix(in srgb, var(--teal) 10%, transparent);
+  border-bottom-color: var(--rule);
+}
+
+.score-rank {
+  font-family: "Fraunces", serif;
+  font-size: clamp(3rem, 5vw, 4.2rem);
+  font-weight: 700;
+  line-height: 0.82;
+  color: var(--amber);
+  letter-spacing: -0.04em;
+}
+
+.score-row:nth-child(n + 2) .score-rank {
+  color: var(--ink-2);
+}
+
+.score-row:nth-child(n + 4) .score-rank {
+  color: var(--ink-3);
+}
+
+.score-body {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.score-main {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.score-main h3 {
+  font-size: 1.5rem;
+  font-style: italic;
+  font-weight: 700;
+}
+
+.score-total {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.score-total .score-total-value {
+  font-family: "Fraunces", serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--ink-0);
+}
+
+.score-total .score-total-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-3);
+}
+
+.score-rounds {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.78rem;
+  color: var(--ink-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.score-rounds span {
+  padding: 2px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
+}
+
+.breakdown-bars {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+  max-width: 520px;
+}
+
+.breakdown-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 44px;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+}
+
+.breakdown-bar-track {
+  position: relative;
+  height: 5px;
+  background: var(--paper-2);
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.breakdown-bar-track::before,
+.breakdown-bar-track::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--hairline);
+}
+
+.breakdown-bar-track::before {
+  left: 50%;
+}
+
+.breakdown-bar-track::after {
+  left: 25%;
+}
+
+.breakdown-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--amber) 0%, var(--amber-soft) 100%);
+}
+
+.breakdown-value {
+  font-family: "JetBrains Mono", monospace;
+  color: var(--ink-1);
+  text-align: right;
+}
+
+/* ------------------------------------------------------------------
+ * §05 Rounds
+ * ------------------------------------------------------------------ */
+
+.rounds-list {
+  display: grid;
+  gap: 10px;
+}
+
+.round-block {
+  border: 1px solid var(--paper-edge);
+  border-radius: 3px;
+  padding: 16px 20px;
+  background: color-mix(in srgb, var(--paper-0) 92%, var(--paper-1) 8%);
+}
+
+.round-block[open] {
+  background: var(--paper-0);
+}
+
+.round-block summary {
+  list-style: none;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 16px;
+  align-items: baseline;
+}
+
+.round-block summary::-webkit-details-marker {
+  display: none;
+}
+
+.round-block summary .round-label {
+  font-family: "Fraunces", serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--ink-0);
+}
+
+.round-block summary .round-meta {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.78rem;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.round-block summary .round-caret {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.82rem;
+  color: var(--ink-2);
+  transition: transform 180ms ease;
+}
+
+.round-block[open] summary .round-caret {
+  transform: rotate(90deg);
+}
+
+.round-details {
+  margin-top: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.round-output {
+  border-left: 2px solid var(--hairline);
+  padding: 10px 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.round-output.link-participant {
+  border-left-color: var(--teal);
+  background: color-mix(in srgb, var(--teal) 5%, transparent);
+}
+
+.round-output header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.round-output header h4 {
+  font-family: "Fraunces", serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  font-style: italic;
+}
+
+.output-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.output-tags span {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  color: var(--ink-2);
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
+  padding: 2px 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.round-output h5 {
+  font-family: "Manrope", sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.round-output p {
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--ink-1);
+}
+
+.stack-list,
+.inline-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--ink-1);
+}
+
+.inline-list {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+/* ------------------------------------------------------------------
+ * §06 Disagreements / Eliminations / Action
+ * ------------------------------------------------------------------ */
+
+.diagnostics-panel .stack-list li {
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--amber) 7%, transparent);
+  border-left: 2px solid var(--amber);
+  font-size: 0.92rem;
+  color: var(--ink-1);
+}
+
+.error-line {
+  color: var(--bad);
+  font-size: 0.88rem;
+}
+
+/* ------------------------------------------------------------------
+ * §08 Metrics
+ * ------------------------------------------------------------------ */
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.metrics-grid > div {
+  display: grid;
+  gap: 2px;
+}
+
+.metrics-grid dt {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-3);
+  font-weight: 700;
+}
+
+.metrics-grid dd {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 1rem;
+  color: var(--ink-0);
+}
+
+/* ------------------------------------------------------------------
+ * Reduced motion
+ * ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    transition-duration: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ------------------------------------------------------------------
+ * Narrow viewports — collapse claim rail & tables
+ * ------------------------------------------------------------------ */
+
+@media (max-width: 760px) {
+  :root {
+    --shell-width: calc(100vw - 40px);
+  }
+
+  .app-shell {
+    margin-block: 16px 40px;
+  }
+
+  .verdict-row {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .verdict-stamp {
+    justify-self: start;
+  }
+
+  .claim-row {
+    grid-template-columns: 1fr;
+  }
+
+  .claim-rail {
+    border-right: none;
+    border-bottom: 1px solid var(--rule);
+    flex-direction: row;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+  }
+
+  .claim-index {
+    margin-bottom: 0;
+  }
+
+  .score-row {
+    grid-template-columns: 64px 1fr;
+    gap: 14px;
+  }
+
+  .score-rank {
+    font-size: 2.6rem;
+  }
+}
