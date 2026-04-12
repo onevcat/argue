@@ -57,6 +57,50 @@ function StanceChip({ stance }: { stance: "agree" | "disagree" | "revise" }) {
   return <span className={`stance-chip stance-${stance}`}>{stance}</span>;
 }
 
+// Icons copied from Lucide (https://lucide.dev) — MIT license.
+// Kept inline because we only need two glyphs; revisit if the viewer
+// grows more iconography.
+function CheckIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+function XIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
+function VoteBadge({ vote }: { vote: "accept" | "reject" }) {
+  return (
+    <span className={`vote-badge vote-${vote}`} title={vote} aria-label={vote}>
+      {vote === "accept" ? <CheckIcon /> : <XIcon />}
+    </span>
+  );
+}
+
 function votesView(
   claim: Claim,
   result: ArgueResult,
@@ -447,7 +491,7 @@ export function ReportView({ result }: ReportViewProps) {
                                     key={`${vote.claimId}-${voteIndex}`}
                                   >
                                     <ClaimRef claimId={vote.claimId} lookup={claimLookup} compact />
-                                    <span className={`vote-pill vote-${vote.vote}`}>{vote.vote}</span>
+                                    <VoteBadge vote={vote.vote} />
                                   </li>
                                 );
                               })}
