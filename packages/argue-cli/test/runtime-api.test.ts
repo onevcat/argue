@@ -57,6 +57,7 @@ describe("createApiRunner", () => {
       text: JSON.stringify({
         fullResponse: "full",
         summary: "summary",
+        taskTitle: "demo title",
         extractedClaims: [],
         judgements: []
       })
@@ -111,6 +112,7 @@ describe("createApiRunner", () => {
       text: JSON.stringify({
         fullResponse: "Detailed answer",
         summary: "Concise summary",
+        taskTitle: "demo title",
         extractedClaims: [
           {
             title: "Title 1",
@@ -150,6 +152,7 @@ describe("createApiRunner", () => {
         round: 0,
         fullResponse: "Detailed answer",
         summary: "Concise summary",
+        taskTitle: "demo title",
         extractedClaims: [
           {
             title: "Title 1",
@@ -176,6 +179,7 @@ describe("createApiRunner", () => {
         text: JSON.stringify({
           fullResponse: "first",
           summary: "first",
+          taskTitle: "demo title",
           extractedClaims: [],
           judgements: []
         })
@@ -184,6 +188,7 @@ describe("createApiRunner", () => {
         text: JSON.stringify({
           fullResponse: "second",
           summary: "second",
+          taskTitle: "demo title",
           extractedClaims: [],
           judgements: []
         })
@@ -215,6 +220,7 @@ describe("createApiRunner", () => {
       content: JSON.stringify({
         fullResponse: "first",
         summary: "first",
+        taskTitle: "demo title",
         extractedClaims: [],
         judgements: []
       })
@@ -235,6 +241,7 @@ describe("createApiRunner", () => {
         text: JSON.stringify({
           fullResponse: turn,
           summary: turn,
+          taskTitle: "demo title",
           extractedClaims: [],
           judgements: []
         })
@@ -274,6 +281,7 @@ describe("createApiRunner", () => {
       text: JSON.stringify({
         fullResponse: "ok",
         summary: "ok",
+        taskTitle: "demo title",
         extractedClaims: [],
         judgements: []
       })
@@ -331,6 +339,7 @@ describe("createApiRunner", () => {
       text: JSON.stringify({
         fullResponse: "groq",
         summary: "groq",
+        taskTitle: "demo title",
         extractedClaims: [],
         judgements: []
       })

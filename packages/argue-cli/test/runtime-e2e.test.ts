@@ -518,6 +518,7 @@ function contentForPhase(
     return {
       fullResponse: "Initial response",
       summary: "Initial summary",
+      taskTitle: "demo title",
       extractedClaims: [
         {
           title: "Shared claim",
@@ -592,6 +593,7 @@ if (phase === "initial") {
   payload = {
     fullResponse: "CLI initial response",
     summary: "CLI initial summary",
+    taskTitle: "demo title",
     extractedClaims: [
       { title: "Claim from " + pid, statement: "Statement from " + pid, category: "pro" }
     ],
@@ -649,6 +651,7 @@ export function createArgueSdkAdapter(args) {
           fullResponse:
             "SDK initial response env=" + mark,
           summary: "SDK initial summary",
+          taskTitle: "demo title",
           extractedClaims: [
             { title: "Claim from " + task.participantId, statement: "Statement from " + task.participantId, category: "pro" }
           ],

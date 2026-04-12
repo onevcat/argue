@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { ArgueEngine } from "../src/core/engine.js";
 import {
+  ARGUE_TASK_TITLE_MAX,
   DebateParticipantRoundOutputSchema,
   FinalVoteParticipantRoundOutputSchema,
   InitialParticipantRoundOutputSchema
 } from "../src/contracts/result.js";
 import type { ParticipantRoundOutput } from "../src/contracts/result.js";
 import type { AgentTaskResult } from "../src/contracts/task.js";
+import { InitialRoundOutputContentJsonSchema } from "../src/contracts/task.js";
 import { StubAgentTaskDelegate } from "./helpers/stub-agent.js";
 
 function mkRoundResult(output: ParticipantRoundOutput): AgentTaskResult {
@@ -24,6 +26,7 @@ describe("phase schemas", () => {
         phase: "initial",
         round: 0,
         fullResponse: "x",
+        taskTitle: "demo task",
         summary: "x",
         extractedClaims: [{ title: "t", statement: "s" }],
         judgements: []
@@ -36,12 +39,46 @@ describe("phase schemas", () => {
         phase: "initial",
         round: 0,
         fullResponse: "x",
+        taskTitle: "demo task",
         summary: "x",
         extractedClaims: [{ title: "t", statement: "s" }],
         judgements: [],
         claimVotes: [{ claimId: "c1", vote: "accept" }]
       })
     ).toThrow();
+
+    // Initial phase requires taskTitle.
+    expect(() =>
+      InitialParticipantRoundOutputSchema.parse({
+        participantId: "a",
+        phase: "initial",
+        round: 0,
+        fullResponse: "x",
+        summary: "x",
+        extractedClaims: [{ title: "t", statement: "s" }],
+        judgements: []
+      })
+    ).toThrow();
+
+    // Initial phase rejects overlong taskTitle.
+    expect(() =>
+      InitialParticipantRoundOutputSchema.parse({
+        participantId: "a",
+        phase: "initial",
+        round: 0,
+        fullResponse: "x",
+        taskTitle: "x".repeat(ARGUE_TASK_TITLE_MAX + 1),
+        summary: "x",
+        extractedClaims: [{ title: "t", statement: "s" }],
+        judgements: []
+      })
+    ).toThrow();
+
+    // Published JSON schema requires taskTitle alongside the rest.
+    expect(InitialRoundOutputContentJsonSchema.required).toContain("taskTitle");
+    const taskTitleProp = (InitialRoundOutputContentJsonSchema.properties as { taskTitle: { maxLength: number } })
+      .taskTitle;
+    expect(taskTitleProp.maxLength).toBe(ARGUE_TASK_TITLE_MAX);
 
     expect(() =>
       DebateParticipantRoundOutputSchema.parse({
@@ -92,6 +129,7 @@ describe("built-in prompt templates", () => {
           phase: "initial",
           round: 0,
           fullResponse: "init a",
+          taskTitle: "title from a",
           summary: "init a",
           extractedClaims: [{ title: "c1", statement: "s1" }],
           judgements: []
@@ -104,6 +142,7 @@ describe("built-in prompt templates", () => {
           phase: "initial",
           round: 0,
           fullResponse: "init b",
+          taskTitle: "title from b",
           summary: "init b",
           extractedClaims: [{ title: "c2", statement: "s2" }],
           judgements: []
@@ -182,6 +221,7 @@ describe("built-in prompt templates", () => {
           phase: "initial",
           round: 0,
           fullResponse: "init a",
+          taskTitle: "title from a",
           summary: "init a",
           extractedClaims: [{ title: "c1", statement: "s1" }],
           judgements: []
@@ -194,6 +234,7 @@ describe("built-in prompt templates", () => {
           phase: "initial",
           round: 0,
           fullResponse: "init b",
+          taskTitle: "title from b",
           summary: "init b",
           extractedClaims: [{ title: "c2", statement: "s2" }],
           judgements: []
@@ -315,6 +356,7 @@ describe("built-in prompt templates", () => {
 
     expect(initialPrompt).toContain("Schema requirements (initial)");
     expect(initialPrompt).toContain("Initial phase JSON template");
+    expect(initialPrompt).toContain("taskTitle");
 
     expect(debatePrompt).toContain("Schema requirements (debate)");
     expect(debatePrompt).toContain("mergesWith");

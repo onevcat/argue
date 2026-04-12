@@ -354,17 +354,79 @@ textarea {
   min-width: 0;
 }
 
-.verdict-title h1 {
+.verdict-title h1.task-headline {
   font-style: italic;
   color: var(--ink-0);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  /* Title is agent-generated with a 60-char hard cap; no explicit
+     max-width here so it wraps naturally to the available column
+     width within the header row. */
 }
 
-.verdict-title h1 span {
-  display: block;
-  font-style: normal;
-  font-size: 0.58em;
+.verdict-title .verdict-subtitle {
+  font-family: "Manrope", sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
   color: var(--ink-2);
-  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-top: -2px;
+}
+
+/* "Full task prompt" collapsible reveal. Starts as a subtle
+   amber-coloured link-like summary so it does not compete with the
+   headline, and expands to an inset blockquote containing the
+   original task prompt. */
+.task-prompt {
+  margin-top: 8px;
+  font-family: "Manrope", sans-serif;
+  font-size: 0.82rem;
+}
+
+.task-prompt summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  cursor: pointer;
+  color: var(--amber);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 4px 0;
+}
+
+.task-prompt summary::-webkit-details-marker {
+  display: none;
+}
+
+.task-prompt summary::before {
+  content: "+";
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: var(--amber);
+  transition: transform 180ms ease;
+  display: inline-block;
+}
+
+.task-prompt[open] summary::before {
+  content: "−";
+}
+
+.task-prompt p {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-left: 2px solid var(--rule);
+  font-family: "Fraunces", serif;
+  font-style: italic;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: var(--ink-1);
+  max-width: 68ch;
+  white-space: pre-wrap;
 }
 
 .verdict-meta {

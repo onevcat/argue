@@ -5,6 +5,11 @@ export function createFixtureResult(): ArgueResult {
     resultVersion: ARGUE_RESULT_VERSION,
     requestId: "req-1",
     sessionId: "session-1",
+    task: {
+      prompt:
+        "Should the result viewer enforce strict schema validation before rendering, or render loosely with best-effort fallbacks?",
+      title: "Strict schema validation in the viewer"
+    },
     status: "consensus",
     finalClaims: [
       {
@@ -122,6 +127,7 @@ export function createFixtureResult(): ArgueResult {
             round: 0,
             phase: "initial",
             fullResponse: "...",
+            taskTitle: "Strict schema validation in the viewer",
             extractedClaims: [
               {
                 claimId: "c1",
@@ -145,6 +151,7 @@ export function createFixtureResult(): ArgueResult {
             round: 0,
             phase: "initial",
             fullResponse: "...",
+            taskTitle: "Viewer validation trade-offs",
             extractedClaims: [
               {
                 claimId: "c2",

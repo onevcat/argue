@@ -50,7 +50,8 @@ describe("App", () => {
     const valid = JSON.stringify(createFixtureResult());
     pasteAndLoad(valid);
     await waitFor(() => {
-      expect(screen.getByText("Result Report")).toBeTruthy();
+      // §00 headline is the task.title from the fixture.
+      expect(screen.getByText("Strict schema validation in the viewer")).toBeTruthy();
       // status chip — fixture fixture has status "consensus".
       expect(screen.getByText("consensus")).toBeTruthy();
       // representative reason
@@ -66,7 +67,8 @@ describe("App", () => {
     const valid = JSON.stringify(createFixtureResult());
     pasteAndLoad(valid);
     await waitFor(() => {
-      expect(screen.getByText("Result Report")).toBeTruthy();
+      // §00 headline is the task.title from the fixture.
+      expect(screen.getByText("Strict schema validation in the viewer")).toBeTruthy();
       expect(screen.queryByText("Validation Error")).toBeNull();
     });
   });

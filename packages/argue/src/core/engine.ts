@@ -3,6 +3,7 @@ import type { AgentTaskDelegate, ArgueObserver, SessionStore, WaitCoordinator } 
 import { normalizeStartInput, type ArgueStartInput, type NormalizedArgueStartInput } from "../contracts/request.js";
 import {
   ARGUE_RESULT_VERSION,
+  ARGUE_TASK_TITLE_MAX,
   ArgueResultSchema,
   type ActionOutput,
   type ArgueResult,
@@ -13,7 +14,8 @@ import {
   type FinalReport,
   type ParticipantRoundOutput,
   type ParticipantScore,
-  type Phase
+  type Phase,
+  type Task
 } from "../contracts/result.js";
 import { buildBuiltinReport } from "./report-compose.js";
 import { computeParticipantScores, chooseRepresentative } from "./scoring.js";
@@ -263,10 +265,21 @@ export class ArgueEngine {
         finalizingAt: new Date(this.now()).toISOString()
       });
 
+      const task: Task = {
+        prompt: normalized.task,
+        title: selectTaskTitle({
+          rounds,
+          representativeId: selected.participantId,
+          scoreboard,
+          fallbackPrompt: normalized.task
+        })
+      };
+
       const result: ArgueResult = ArgueResultSchema.parse({
         resultVersion: ARGUE_RESULT_VERSION,
         requestId: normalized.requestId,
         sessionId,
+        task,
         status,
         finalClaims: claimCatalog,
         claimResolutions,
@@ -852,12 +865,13 @@ export class ArgueEngine {
         "Schema requirements (initial):",
         "- fullResponse: string",
         "- summary: string",
+        "- taskTitle: concise one-sentence headline of the debate task. Aim for ~30 characters in CJK scripts (Chinese/Japanese/Korean) or ~60 characters in Latin scripts; hard cap 60. Single line, no markdown, no surrounding quotes.",
         "- extractedClaims: array of { title, statement, category? } — do NOT include claimId; the engine assigns IDs",
         "- judgements: array of { claimId, stance, confidence, rationale, revisedStatement?, mergesWith? }",
         "- claimVotes MUST NOT appear in initial phase",
         "",
         "Initial phase JSON template:",
-        '{"fullResponse":"...","summary":"...","extractedClaims":[{"title":"...","statement":"...","category":"pro"}],"judgements":[]}'
+        '{"fullResponse":"...","summary":"...","taskTitle":"...","extractedClaims":[{"title":"...","statement":"...","category":"pro"}],"judgements":[]}'
       ].join("\n");
     }
 
@@ -988,6 +1002,64 @@ export class ArgueEngine {
       payload
     });
   }
+}
+
+/**
+ * Pick the title that will represent the debate task in the final
+ * result. Strategy:
+ *
+ *   1. Take the representative participant's own initial round
+ *      taskTitle — the representative already carries the debate's
+ *      voice in the report, and reusing their headline keeps the UI
+ *      internally consistent.
+ *   2. Otherwise walk the scoreboard (already sorted highest-first)
+ *      and return the first participant whose initial output carries
+ *      a taskTitle. This handles edge cases where the representative
+ *      is host-designated but skipped the initial round.
+ *   3. If no initial output surfaces a title at all (only possible
+ *      in catastrophic failure paths), fall back to a truncation of
+ *      the original task prompt so the schema's required title
+ *      constraint is always satisfied.
+ */
+function selectTaskTitle(args: {
+  rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }>;
+  representativeId: string;
+  scoreboard: ParticipantScore[];
+  fallbackPrompt: string;
+}): string {
+  const initRound = args.rounds.find((r) => r.round === 0);
+
+  if (initRound) {
+    const ownTitle = findInitialTaskTitle(initRound.outputs, args.representativeId);
+    if (ownTitle) return ownTitle;
+
+    for (const score of args.scoreboard) {
+      if (score.participantId === args.representativeId) continue;
+      const candidate = findInitialTaskTitle(initRound.outputs, score.participantId);
+      if (candidate) return candidate;
+    }
+  }
+
+  const trimmed = args.fallbackPrompt.trim();
+  if (trimmed.length === 0) {
+    return "Untitled argue session";
+  }
+  if (trimmed.length <= ARGUE_TASK_TITLE_MAX) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, ARGUE_TASK_TITLE_MAX - 1)}…`;
+}
+
+function findInitialTaskTitle(outputs: ParticipantRoundOutput[], participantId: string): string | undefined {
+  for (const output of outputs) {
+    if (output.phase !== "initial") continue;
+    if (output.participantId !== participantId) continue;
+    const candidate = (output as ParticipantRoundOutput & { taskTitle?: unknown }).taskTitle;
+    if (typeof candidate === "string" && candidate.length > 0) {
+      return candidate;
+    }
+  }
+  return undefined;
 }
 
 function shouldEarlyStop(outputs: ParticipantRoundOutput[], newClaimCount: number): boolean {

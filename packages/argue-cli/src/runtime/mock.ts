@@ -58,6 +58,7 @@ function buildDeterministicOutput(task: AgentTaskInput, agent: ResolvedAgentRunt
     return {
       fullResponse: `Initial analysis from ${agent.id}${roleSuffix}.`,
       summary: `Initial position from ${agent.id}.`,
+      taskTitle: `Mock debate topic from ${agent.id}`,
       extractedClaims: [
         {
           title: `Proposal from ${agent.id}`,

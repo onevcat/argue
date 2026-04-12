@@ -93,6 +93,7 @@ describe("DefaultWaitCoordinator", () => {
               phase: "initial",
               round: 0,
               fullResponse: "ok",
+              taskTitle: "demo task",
               summary: "ok",
               extractedClaims: [],
               judgements: []

@@ -27,6 +27,7 @@ function mkRoundOutput(input: {
     mergesWith?: string;
   }>;
   summary?: string;
+  taskTitle?: string;
 }): ParticipantRoundOutput {
   const catalogIds = input.catalogClaimIds ?? [];
   const defaultJudgements: typeof input.judgements = catalogIds.map((id) => ({
@@ -56,6 +57,7 @@ function mkRoundOutput(input: {
       phase: "initial",
       round: input.round,
       fullResponse: `${input.participantId}:${input.phase}:${input.round}`,
+      taskTitle: input.taskTitle ?? `title from ${input.participantId}`,
       extractedClaims,
       judgements,
       summary
@@ -1537,5 +1539,137 @@ describe("ArgueEngine M2", () => {
         }
       })
     ).rejects.toThrow();
+  });
+});
+
+describe("task title selection", () => {
+  it("promotes the representative's initial taskTitle into result.task", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {};
+    const allClaimIds = PARTICIPANTS.map((p) => `${p}:0:0`);
+
+    for (const participant of PARTICIPANTS) {
+      scenarios[`round:initial:0:${participant}`] = {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: participant,
+            phase: "initial",
+            round: 0,
+            taskTitle: `headline from ${participant}`
+          })
+        )
+      };
+      scenarios[`round:debate:1:${participant}`] = {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: participant,
+            phase: "debate",
+            round: 1,
+            catalogClaimIds: allClaimIds
+          })
+        )
+      };
+      scenarios[`round:final_vote:2:${participant}`] = {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: participant,
+            phase: "final_vote",
+            round: 2,
+            catalogClaimIds: allClaimIds
+          })
+        )
+      };
+    }
+
+    const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) });
+
+    const result = await engine.start({
+      requestId: "req-task-title",
+      task: "Should we ship the cache rewrite now?",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      roundPolicy: { minRounds: 1, maxRounds: 1 }
+    });
+
+    expect(result.task.prompt).toBe("Should we ship the cache rewrite now?");
+    expect(result.task.title).toBe(`headline from ${result.representative.participantId}`);
+  });
+
+  it("falls back to another participant when the representative has no initial output", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {};
+    const allClaimIds = PARTICIPANTS.map((p) => `${p}:0:0`);
+
+    // The host-designated reporter "external-reporter" is NOT one of the
+    // participants, so it contributes no initial round output. The engine
+    // should walk the scoreboard and pick the next best title.
+    for (const participant of PARTICIPANTS) {
+      scenarios[`round:initial:0:${participant}`] = {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: participant,
+            phase: "initial",
+            round: 0,
+            taskTitle: `headline from ${participant}`
+          })
+        )
+      };
+      scenarios[`round:debate:1:${participant}`] = {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: participant,
+            phase: "debate",
+            round: 1,
+            catalogClaimIds: allClaimIds
+          })
+        )
+      };
+      scenarios[`round:final_vote:2:${participant}`] = {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: participant,
+            phase: "final_vote",
+            round: 2,
+            catalogClaimIds: allClaimIds
+          })
+        )
+      };
+    }
+
+    scenarios["report:external-reporter"] = {
+      type: "success",
+      output: {
+        kind: "report",
+        output: {
+          mode: "representative",
+          traceIncluded: false,
+          traceLevel: "compact",
+          finalSummary: "composed by external reporter",
+          representativeSpeech: "speech from external reporter"
+        }
+      }
+    };
+
+    const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) });
+
+    const result = await engine.start({
+      requestId: "req-task-title-fallback",
+      task: "Fallback coverage",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      roundPolicy: { minRounds: 1, maxRounds: 1 },
+      reportPolicy: {
+        composer: "representative",
+        representativeId: "external-reporter"
+      }
+    });
+
+    // The representative slot stays with the top-scored real participant
+    // because external-reporter is only used for the report composition,
+    // not the scoreboard. The title should come from that participant.
+    expect(result.representative.participantId).not.toBe("external-reporter");
+    expect(result.task.title).toBe(`headline from ${result.representative.participantId}`);
   });
 });

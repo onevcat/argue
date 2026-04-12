@@ -82,11 +82,13 @@ export function ReportView({ result }: ReportViewProps) {
             <span className="stamp-label">{verdict.label}</span>
           </div>
           <div className="verdict-title">
-            <p className="eyebrow">§00 · Argue Adjudication</p>
-            <h1>
-              Result Report
-              <span>{verdict.subtitle}</span>
-            </h1>
+            <p className="eyebrow">§00 · Argue Adjudication · Result Report</p>
+            <h1 className="task-headline">{result.task.title}</h1>
+            <p className="verdict-subtitle">{verdict.subtitle}</p>
+            <details className="task-prompt">
+              <summary>Full task prompt</summary>
+              <p>{result.task.prompt}</p>
+            </details>
           </div>
         </div>
         <dl className="verdict-meta">

@@ -68,6 +68,7 @@ describe("JsonlObserver", () => {
           phase: "initial",
           round: 0,
           fullResponse: "init-a",
+          taskTitle: "demo task",
           summary: "init-a",
           extractedClaims: [{ title: "c1", statement: "s1" }],
           judgements: []
@@ -80,6 +81,7 @@ describe("JsonlObserver", () => {
           phase: "initial",
           round: 0,
           fullResponse: "init-b",
+          taskTitle: "demo task",
           summary: "init-b",
           extractedClaims: [{ title: "c1", statement: "s1" }],
           judgements: []

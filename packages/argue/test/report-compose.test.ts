@@ -24,6 +24,7 @@ describe("buildBuiltinReport", () => {
               phase: "initial",
               round: 0,
               fullResponse: "full",
+              taskTitle: "demo task",
               summary: "sum",
               judgements: []
             }
@@ -114,6 +115,7 @@ describe("buildBuiltinReport", () => {
               phase: "initial",
               round: 0,
               fullResponse: "f",
+              taskTitle: "demo task",
               summary: "Agent A's view",
               judgements: []
             },
@@ -122,6 +124,7 @@ describe("buildBuiltinReport", () => {
               phase: "initial",
               round: 0,
               fullResponse: "f",
+              taskTitle: "demo task",
               summary: "Agent B's view",
               judgements: []
             }
@@ -172,6 +175,7 @@ describe("buildBuiltinReport", () => {
               phase: "initial",
               round: 0,
               fullResponse: "f",
+              taskTitle: "demo task",
               summary: "Early thoughts",
               judgements: []
             }
