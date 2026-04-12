@@ -6,7 +6,6 @@ import { validateArgueResult } from "./lib/validate.js";
 
 type ViewState =
   | { kind: "idle" }
-  | { kind: "loading"; source: string }
   | { kind: "loaded"; source: string; result: ArgueResult }
   | { kind: "error"; source: string; error: string };
 
@@ -19,43 +18,36 @@ export function App() {
       return;
     }
 
-    setState({ kind: "loading", source });
+    let raw: unknown;
+    try {
+      raw = JSON.parse(text);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Invalid JSON syntax.";
+      setState({ kind: "error", source, error: `Cannot parse JSON: ${message}` });
+      return;
+    }
 
-    queueMicrotask(() => {
-      let raw: unknown;
-      try {
-        raw = JSON.parse(text);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Invalid JSON syntax.";
-        setState({ kind: "error", source, error: `Cannot parse JSON: ${message}` });
-        return;
-      }
+    const validation = validateArgueResult(raw);
+    if (!validation.ok) {
+      setState({ kind: "error", source, error: validation.error });
+      return;
+    }
 
-      const validation = validateArgueResult(raw);
-      if (!validation.ok) {
-        setState({ kind: "error", source, error: validation.error });
-        return;
-      }
+    setState({ kind: "loaded", source, result: validation.data });
+  };
 
-      setState({ kind: "loaded", source, result: validation.data });
-    });
+  const handleReadError = (source: string, error: string) => {
+    setState({ kind: "error", source, error });
   };
 
   return (
     <div className="app-shell">
-      <FileIngress loading={state.kind === "loading"} onLoadText={loadText} />
+      <FileIngress onLoadText={loadText} onReadError={handleReadError} />
 
       {state.kind === "idle" ? (
         <section className="state-panel">
           <h2>No Result Loaded</h2>
           <p>Load an argue result JSON file to render a stable report page.</p>
-        </section>
-      ) : null}
-
-      {state.kind === "loading" ? (
-        <section className="state-panel loading">
-          <h2>Loading</h2>
-          <p>Reading {state.source} and validating schema...</p>
         </section>
       ) : null}
 

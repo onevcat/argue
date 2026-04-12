@@ -1,6 +1,12 @@
 import { useMemo, useState } from "preact/hooks";
 import type { ArgueResult, Claim } from "@onevcat/argue";
-import { buildClaimInsights, buildContributionIndex, formatElapsed, rankScoreboard } from "../lib/view-model.js";
+import {
+  buildClaimInsights,
+  buildContributionIndex,
+  formatElapsed,
+  formatTimestamp,
+  rankScoreboard
+} from "../lib/view-model.js";
 
 type ReportViewProps = {
   result: ArgueResult;
@@ -193,7 +199,10 @@ export function ReportView({ result }: ReportViewProps) {
                             <div className="breakdown-row" key={label}>
                               <span>{label}</span>
                               <div className="breakdown-bar-track">
-                                <div className="breakdown-bar-fill" style={{ width: `${Math.min(value, 25) * 4}%` }} />
+                                <div
+                                  className="breakdown-bar-fill"
+                                  style={{ width: `${Math.max(0, Math.min(value, 100))}%` }}
+                                />
                               </div>
                               <span>{value.toFixed(1)}</span>
                             </div>
@@ -234,6 +243,9 @@ export function ReportView({ result }: ReportViewProps) {
                           <span>{output.phase}</span>
                           {output.selfScore != null ? <span>self {output.selfScore.toFixed(1)}</span> : null}
                           <span>r{round.round}</span>
+                          {output.respondedAt ? (
+                            <span title={output.respondedAt}>{formatTimestamp(output.respondedAt)}</span>
+                          ) : null}
                         </div>
                       </header>
 

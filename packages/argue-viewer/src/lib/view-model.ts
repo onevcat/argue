@@ -1,4 +1,4 @@
-import type { ArgueResult, ClaimJudgement, ClaimVote, ParticipantScore } from "@onevcat/argue";
+import type { ArgueResult, ClaimJudgement, ParticipantScore } from "@onevcat/argue";
 
 export type ClaimStanceCounts = {
   agree: number;
@@ -20,7 +20,6 @@ export type ClaimInsight = {
       round: number;
     }
   >;
-  voteDetails: ClaimVote[];
 };
 
 export type ContributionIndex = Record<
@@ -50,6 +49,26 @@ export function formatElapsed(elapsedMs: number): string {
   return `${minutes}:${remainSeconds}`;
 }
 
+/**
+ * Format an ISO timestamp for display next to round outputs.
+ * Returns UTC `HH:MM:SS` so results render identically regardless of the
+ * viewer's locale. Falls back to the raw string for unparseable input so
+ * that malformed timestamps remain visible instead of silently disappearing.
+ */
+export function formatTimestamp(iso: string | undefined | null): string {
+  if (!iso) {
+    return "—";
+  }
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return iso;
+  }
+  const hh = date.getUTCHours().toString().padStart(2, "0");
+  const mm = date.getUTCMinutes().toString().padStart(2, "0");
+  const ss = date.getUTCSeconds().toString().padStart(2, "0");
+  return `${hh}:${mm}:${ss}Z`;
+}
+
 export function rankScoreboard(scoreboard: ParticipantScore[]): ParticipantScore[] {
   return [...scoreboard].sort(
     (left, right) => right.total - left.total || left.participantId.localeCompare(right.participantId)
@@ -68,8 +87,7 @@ export function buildClaimInsights(result: ArgueResult): Record<string, ClaimIns
         total: resolution.totalVoters
       },
       stances: { agree: 0, disagree: 0, revise: 0 },
-      judgements: [],
-      voteDetails: resolution.votes
+      judgements: []
     };
   }
 
@@ -82,8 +100,7 @@ export function buildClaimInsights(result: ArgueResult): Record<string, ClaimIns
             claimId: judgement.claimId,
             votes: { accept: 0, reject: 0, total: 0 },
             stances: { agree: 0, disagree: 0, revise: 0 },
-            judgements: [],
-            voteDetails: []
+            judgements: []
           });
         slot.stances[judgement.stance] += 1;
         slot.judgements.push({ ...judgement, participantId: output.participantId, round: round.round });

@@ -1,23 +1,19 @@
-import { useMemo, useRef, useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 
 type FileIngressProps = {
-  loading: boolean;
   onLoadText: (text: string, source: string) => void;
+  onReadError: (source: string, error: string) => void;
 };
 
-export function FileIngress({ loading, onLoadText }: FileIngressProps) {
+export function FileIngress({ onLoadText, onReadError }: FileIngressProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const dragDepthRef = useRef(0);
   const [pastedText, setPastedText] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [reading, setReading] = useState(false);
   const [clipboardError, setClipboardError] = useState<string | null>(null);
 
-  const hint = useMemo(() => {
-    if (loading) {
-      return "Parsing and validating...";
-    }
-
-    return "Drop result.json, pick a file, or paste JSON.";
-  }, [loading]);
+  const hint = reading ? "Reading file..." : "Drop result.json, pick a file, or paste JSON.";
 
   const openPicker = () => {
     inputRef.current?.click();
@@ -34,6 +30,19 @@ export function FileIngress({ loading, onLoadText }: FileIngressProps) {
     }
   };
 
+  const readAsText = async (file: File, source: string) => {
+    setReading(true);
+    try {
+      const text = await file.text();
+      onLoadText(text, source);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown read error.";
+      onReadError(source, `Failed to read ${file.name}: ${message}`);
+    } finally {
+      setReading(false);
+    }
+  };
+
   const onFileChange = async (event: Event) => {
     const element = event.currentTarget as HTMLInputElement;
     const file = element.files?.[0];
@@ -41,13 +50,13 @@ export function FileIngress({ loading, onLoadText }: FileIngressProps) {
       return;
     }
 
-    const text = await file.text();
-    onLoadText(text, `file:${file.name}`);
+    await readAsText(file, `file:${file.name}`);
     element.value = "";
   };
 
   const onDrop = async (event: DragEvent) => {
     event.preventDefault();
+    dragDepthRef.current = 0;
     setDragOver(false);
 
     const file = event.dataTransfer?.files?.[0];
@@ -55,18 +64,26 @@ export function FileIngress({ loading, onLoadText }: FileIngressProps) {
       return;
     }
 
-    const text = await file.text();
-    onLoadText(text, `drop:${file.name}`);
+    await readAsText(file, `drop:${file.name}`);
   };
 
   return (
     <section
       className={`ingress ${dragOver ? "is-drag-over" : ""}`}
-      onDragOver={(event) => {
+      onDragEnter={(event) => {
         event.preventDefault();
+        dragDepthRef.current += 1;
         setDragOver(true);
       }}
-      onDragLeave={() => setDragOver(false)}
+      onDragOver={(event) => {
+        event.preventDefault();
+      }}
+      onDragLeave={() => {
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+        if (dragDepthRef.current === 0) {
+          setDragOver(false);
+        }
+      }}
       onDrop={onDrop}
     >
       <div className="ingress-meta">
@@ -76,13 +93,13 @@ export function FileIngress({ loading, onLoadText }: FileIngressProps) {
 
       <div className="ingress-actions">
         <input ref={inputRef} type="file" accept="application/json,.json" onChange={onFileChange} hidden />
-        <button type="button" onClick={openPicker} disabled={loading}>
+        <button type="button" onClick={openPicker} disabled={reading}>
           Select result.json
         </button>
-        <button type="button" onClick={loadFromClipboard} disabled={loading}>
+        <button type="button" onClick={loadFromClipboard} disabled={reading}>
           Read Clipboard
         </button>
-        <button type="button" onClick={() => onLoadText(pastedText, "paste")} disabled={loading || !pastedText.trim()}>
+        <button type="button" onClick={() => onLoadText(pastedText, "paste")} disabled={reading || !pastedText.trim()}>
           Load Pasted JSON
         </button>
       </div>
@@ -95,7 +112,7 @@ export function FileIngress({ loading, onLoadText }: FileIngressProps) {
           onInput={(event) => setPastedText((event.currentTarget as HTMLTextAreaElement).value)}
           rows={5}
           placeholder='{"resultVersion":1,...}'
-          disabled={loading}
+          disabled={reading}
         />
       </label>
     </section>

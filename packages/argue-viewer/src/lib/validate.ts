@@ -10,7 +10,7 @@ function describePath(path: (string | number)[]): string {
   return path
     .map((segment) => (typeof segment === "number" ? `[${segment}]` : segment))
     .join(".")
-    .replace(".[", "[");
+    .replace(/\.\[/g, "[");
 }
 
 export function validateArgueResult(input: unknown): ValidationResult {
@@ -28,14 +28,15 @@ export function validateArgueResult(input: unknown): ValidationResult {
 
   const parsed = ArgueResultSchema.safeParse(input);
   if (!parsed.success) {
-    const issue = parsed.error.issues[0];
-    if (!issue) {
+    const issues = parsed.error.issues;
+    const first = issues[0];
+    if (!first) {
       return { ok: false, error: "Validation failed due to an unknown schema error." };
     }
-    return {
-      ok: false,
-      error: `Schema mismatch at ${describePath(issue.path)}: ${issue.message}`
-    };
+    const head = `Schema mismatch at ${describePath(first.path)}: ${first.message}`;
+    const suffix =
+      issues.length > 1 ? ` (and ${issues.length - 1} more issue${issues.length - 1 === 1 ? "" : "s"})` : "";
+    return { ok: false, error: `${head}${suffix}` };
   }
 
   return { ok: true, data: parsed.data };
