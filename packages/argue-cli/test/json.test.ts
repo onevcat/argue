@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   extractJsonObject,
@@ -7,6 +10,8 @@ import {
   stripCodeFences,
   tryRepairJson
 } from "../src/runtime/json.js";
+
+const FIXTURE_DIR = join(fileURLToPath(new URL(".", import.meta.url)), "fixtures");
 
 describe("runtime/json", () => {
   it("strips fenced json content", () => {
@@ -85,23 +90,49 @@ describe("runtime/json", () => {
       expect(parsed.summary).toBe("ok");
     });
 
-    it("returns null for structurally hopeless input", () => {
-      // No repair pass can make this grammatical.
-      expect(tryRepairJson('{"a":[1,2,{')).toBeNull();
+    it("returns null for truly ungrammatical input that even jsonrepair cannot salvage", () => {
+      // jsonrepair is quite forgiving — even dangling structures like
+      // '{"a":[1,2,{' get closed as '{"a":[1,2,{}]}'. To force a hard
+      // failure we need something that has no recoverable structure at
+      // all, e.g. an empty brace balanced fragment with only a key and
+      // no colon/value and tokens that cannot be coerced.
+      expect(tryRepairJson("}{][")).toBeNull();
     });
 
-    it("returns the input unchanged when the strict parser already accepts it", () => {
+    it("returns parseable text for input the strict parser already accepts", () => {
       const valid = '{"a":1,"b":"c"}';
-      expect(tryRepairJson(valid)).toBe(valid);
+      const repaired = tryRepairJson(valid);
+      expect(repaired).not.toBeNull();
+      expect(JSON.parse(repaired ?? "")).toEqual({ a: 1, b: "c" });
     });
 
-    it("parseJsonObject transparently succeeds after lenient repair", () => {
-      // Classic failure mode: unescaped quote caused by a Chinese date
-      // wrapped in ASCII quotes in the agent's free-form explanation.
-      const broken = '{"fullResponse":"今天是"2026-04-12"星期日","summary":"ok","extractedClaims":[],"judgements":[]}';
+    it("recovers a real claude debate-round output with 4 unescaped quote pairs spread across fullResponse and rationale fields", () => {
+      // This fixture is the raw stdout captured from a real argue run
+      // (argue_1775979354178) where claude-agent emitted a long Chinese
+      // response containing multiple unescaped ASCII-quoted sub-phrases
+      // in both the fullResponse string and two separate rationale
+      // strings. Previously crashed the run; must now parse cleanly.
+      const broken = readFileSync(join(FIXTURE_DIR, "claude-debate-2-unescaped-quotes.txt"), "utf8").trim();
       const parsed = parseJsonObject(broken) as Record<string, unknown>;
-      expect(parsed.fullResponse).toBe('今天是"2026-04-12"星期日');
-      expect(parsed.summary).toBe("ok");
+
+      // Top-level structure survives.
+      expect(parsed.fullResponse).toBeTruthy();
+      expect(parsed.summary).toBeTruthy();
+      expect(Array.isArray(parsed.judgements)).toBe(true);
+
+      // The embedded quoted phrases are now part of the string values
+      // verbatim, with their ASCII quotes preserved.
+      expect(parsed.fullResponse).toContain('"该主张与更早条目重复，保留早先主张即可"');
+      expect(parsed.fullResponse).toContain('"在时区已明确时直接按会话时区回答"');
+
+      const judgements = parsed.judgements as Array<Record<string, unknown>>;
+      expect(judgements).toHaveLength(3);
+      expect(judgements[0]?.claimId).toBe("claude-agent:0:0");
+      expect(judgements[0]?.stance).toBe("revise");
+      expect(String(judgements[0]?.rationale)).toContain('"重复，保留早先主张即可"');
+      expect(judgements[1]?.claimId).toBe("codex-agent:0:1");
+      expect(String(judgements[1]?.rationale)).toContain('"本会话时区已明确"');
+      expect(judgements[2]?.claimId).toBe("codex-agent:0:2");
     });
   });
 });
