@@ -12,20 +12,20 @@ type ReportViewProps = {
   result: ArgueResult;
 };
 
-const statusClassMap: Record<ArgueResult["status"], string> = {
-  consensus: "status-ok",
-  partial_consensus: "status-warn",
-  unresolved: "status-warn",
-  failed: "status-bad"
+type StampKind = "pass" | "warn" | "fail";
+
+const verdictByStatus: Record<ArgueResult["status"], { label: string; kind: StampKind; subtitle: string }> = {
+  consensus: { label: "PASS", kind: "pass", subtitle: "Consensus reached" },
+  partial_consensus: { label: "PARTIAL", kind: "warn", subtitle: "Partial consensus" },
+  unresolved: { label: "OPEN", kind: "warn", subtitle: "Unresolved" },
+  failed: { label: "FAIL", kind: "fail", subtitle: "Run failed" }
 };
 
 const breakdownOrder = ["correctness", "completeness", "actionability", "consistency"] as const;
 
-function percentage(value: number, total: number): string {
-  if (total === 0) {
-    return "0%";
-  }
-  return `${Math.round((value / total) * 100)}%`;
+function formatRomanish(index: number): string {
+  // simple decimal padding so §03.02 reads editorially without depending on roman numerals.
+  return index.toString().padStart(2, "0");
 }
 
 function votesView(
@@ -36,20 +36,20 @@ function votesView(
 ) {
   const resolution = result.claimResolutions.find((item) => item.claimId === claim.claimId);
   if (!resolution) {
-    return <p className="subtle">No final votes.</p>;
+    return null;
   }
 
   return (
-    <ul className="inline-list compact-list">
+    <ul className="claim-votes-list">
       {resolution.votes.map((vote, index) => {
         const isClaimActive = activeClaimId === vote.claimId;
         const isParticipantActive = hoveredParticipantId === vote.participantId;
+        const classes = [isClaimActive ? "link-claim" : "", isParticipantActive ? "link-participant" : ""]
+          .filter(Boolean)
+          .join(" ");
         return (
-          <li
-            key={`${vote.participantId}-${vote.claimId}-${index}`}
-            className={`${isClaimActive ? "link-claim" : ""} ${isParticipantActive ? "link-participant" : ""}`}
-          >
-            <span className={`vote-pill ${vote.vote === "accept" ? "vote-accept" : "vote-reject"}`}>{vote.vote}</span>
+          <li key={`${vote.participantId}-${vote.claimId}-${index}`} className={classes}>
+            <span className={`vote-pill vote-${vote.vote}`}>{vote.vote}</span>
             <span>{vote.participantId}</span>
           </li>
         );
@@ -70,20 +70,36 @@ export function ReportView({ result }: ReportViewProps) {
     setActiveClaimId((current) => (current === claimId ? null : claimId));
   };
 
+  const verdict = verdictByStatus[result.status];
+
   return (
     <main className="report-root">
+      {/* §00 — Verdict header */}
       <section className="panel header-panel">
-        <div className="title-row">
-          <h2>Result Report</h2>
-          <span className={`status-chip ${statusClassMap[result.status]}`}>{result.status}</span>
+        <div className="verdict-row">
+          <div className={`verdict-stamp is-${verdict.kind}`} aria-hidden="true">
+            <span className="stamp-kind">Verdict</span>
+            <span className="stamp-label">{verdict.label}</span>
+          </div>
+          <div className="verdict-title">
+            <p className="eyebrow">§00 · Argue Adjudication</p>
+            <h1>
+              Result Report
+              <span>{verdict.subtitle}</span>
+            </h1>
+          </div>
         </div>
-        <dl className="meta-grid">
+        <dl className="verdict-meta">
           <div>
-            <dt>requestId</dt>
+            <dt>status</dt>
+            <dd>{result.status}</dd>
+          </div>
+          <div>
+            <dt>request id</dt>
             <dd>{result.requestId}</dd>
           </div>
           <div>
-            <dt>sessionId</dt>
+            <dt>session id</dt>
             <dd>{result.sessionId}</dd>
           </div>
           <div>
@@ -93,27 +109,35 @@ export function ReportView({ result }: ReportViewProps) {
         </dl>
       </section>
 
-      <section className="panel">
-        <h3>Conclusion</h3>
-        <p>{result.report.finalSummary}</p>
+      {/* §01 — Conclusion hero */}
+      <section className="panel on-dark conclusion-panel">
+        <p className="eyebrow on-dark">§01 · The Verdict</p>
+        <p className="conclusion-quote">{result.report.finalSummary}</p>
       </section>
 
+      {/* §02 — Representative */}
       <section className="panel representative-panel">
-        <h3>Representative</h3>
-        <p className="rep-main">
-          <strong>{result.representative.participantId}</strong> ({result.representative.reason})
-        </p>
-        <p className="subtle">Score: {result.representative.score.toFixed(2)}</p>
-        <blockquote>{result.representative.speech}</blockquote>
+        <header className="section-head">
+          <p className="eyebrow">§02 · Representative</p>
+        </header>
+        <div className="rep-main">
+          <h2>{result.representative.participantId}</h2>
+          <span className="rep-reason">{result.representative.reason}</span>
+          <span className="rep-score">{result.representative.score.toFixed(2)}</span>
+        </div>
+        <blockquote className="rep-speech">{result.representative.speech}</blockquote>
       </section>
 
-      <section className="panel">
-        <div className="title-row">
-          <h3>Claims</h3>
-          <span className="subtle">Click a claim to highlight related judgements and votes</span>
-        </div>
-        <div className="claims-grid">
-          {result.finalClaims.map((claim) => {
+      {/* §03 — Claims */}
+      <section className="panel claims-panel">
+        <header className="section-head">
+          <p className="eyebrow">§03 · Claims</p>
+          <p className="subtle">
+            {result.finalClaims.length} total · click a row to highlight related judgements and votes
+          </p>
+        </header>
+        <div className="claims-list">
+          {result.finalClaims.map((claim, index) => {
             const insight = claimInsights[claim.claimId];
             const isActive = activeClaimId === claim.claimId;
             const participantLinked =
@@ -123,7 +147,7 @@ export function ReportView({ result }: ReportViewProps) {
 
             return (
               <article
-                className={`claim-card ${isActive ? "is-active" : ""} ${participantLinked ? "link-participant" : ""}`}
+                className={`claim-row ${isActive ? "is-active" : ""} ${participantLinked ? "link-participant" : ""}`}
                 onClick={() => toggleClaim(claim.claimId)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
@@ -136,27 +160,40 @@ export function ReportView({ result }: ReportViewProps) {
                 aria-pressed={isActive}
                 key={claim.claimId}
               >
-                <header>
-                  <h4>{claim.title}</h4>
-                  <span className="mono">{claim.claimId}</span>
-                </header>
-                <p>{claim.statement}</p>
-                <p className="subtle">category: {claim.category ?? "uncategorized"}</p>
-                <p className="subtle">proposed by: {claim.proposedBy.join(", ")}</p>
-                <div className="split-grid">
-                  <div>
-                    <h5>Votes</h5>
-                    <p>
-                      accept {insight?.votes.accept ?? 0} / reject {insight?.votes.reject ?? 0}
-                    </p>
-                    {votesView(claim, result, activeClaimId, hoveredParticipantId)}
+                <aside className="claim-rail">
+                  <span className="claim-index">§03.{formatRomanish(index + 1)}</span>
+                  <span className="claim-cid">{claim.claimId}</span>
+                  {claim.category ? (
+                    <span className={`claim-category cat-${claim.category}`}>{claim.category}</span>
+                  ) : null}
+                  <span className="claim-proposer">by {claim.proposedBy.join(", ")}</span>
+                </aside>
+                <div className="claim-body">
+                  <h3>{claim.title}</h3>
+                  <p className="claim-statement">{claim.statement}</p>
+                  <div className="claim-tally">
+                    <div>
+                      <span>accept</span>
+                      <strong>{insight?.votes.accept ?? 0}</strong>
+                    </div>
+                    <div>
+                      <span>reject</span>
+                      <strong>{insight?.votes.reject ?? 0}</strong>
+                    </div>
+                    <div>
+                      <span>agree</span>
+                      <strong>{insight?.stances.agree ?? 0}</strong>
+                    </div>
+                    <div>
+                      <span>disagree</span>
+                      <strong>{insight?.stances.disagree ?? 0}</strong>
+                    </div>
+                    <div>
+                      <span>revise</span>
+                      <strong>{insight?.stances.revise ?? 0}</strong>
+                    </div>
                   </div>
-                  <div>
-                    <h5>Stances</h5>
-                    <p>agree {insight?.stances.agree ?? 0}</p>
-                    <p>disagree {insight?.stances.disagree ?? 0}</p>
-                    <p>revise {insight?.stances.revise ?? 0}</p>
-                  </div>
+                  {votesView(claim, result, activeClaimId, hoveredParticipantId)}
                 </div>
               </article>
             );
@@ -164,70 +201,77 @@ export function ReportView({ result }: ReportViewProps) {
         </div>
       </section>
 
+      {/* §04 — Scoreboard */}
       <section className="panel">
-        <h3>Scoreboard</h3>
-        <table className="score-table">
-          <thead>
-            <tr>
-              <th>Rank</th>
-              <th>Participant</th>
-              <th>Total</th>
-              <th>Rounds</th>
-              <th>Breakdown</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ranked.map((participant, index) => {
-              const hovered = participant.participantId === hoveredParticipantId;
-              return (
-                <tr
-                  className={hovered ? "link-participant" : ""}
-                  key={participant.participantId}
-                  onMouseEnter={() => setHoveredParticipantId(participant.participantId)}
-                  onMouseLeave={() => setHoveredParticipantId(null)}
-                >
-                  <td className="rank-cell">#{index + 1}</td>
-                  <td>{participant.participantId}</td>
-                  <td>{participant.total.toFixed(2)}</td>
-                  <td>{participant.byRound.map((item) => `r${item.round}:${item.score.toFixed(1)}`).join(" · ")}</td>
-                  <td>
-                    {participant.breakdown ? (
-                      <div className="breakdown-bars">
-                        {breakdownOrder.map((label) => {
-                          const value = participant.breakdown?.[label] ?? 0;
-                          return (
-                            <div className="breakdown-row" key={label}>
-                              <span>{label}</span>
-                              <div className="breakdown-bar-track">
-                                <div
-                                  className="breakdown-bar-fill"
-                                  style={{ width: `${Math.max(0, Math.min(value, 100))}%` }}
-                                />
-                              </div>
-                              <span>{value.toFixed(1)}</span>
+        <header className="section-head">
+          <p className="eyebrow">§04 · Scoreboard</p>
+        </header>
+        <ol className="score-list">
+          {ranked.map((participant, index) => {
+            const hovered = participant.participantId === hoveredParticipantId;
+            return (
+              <li
+                className={`score-row ${hovered ? "link-participant" : ""}`}
+                key={participant.participantId}
+                onMouseEnter={() => setHoveredParticipantId(participant.participantId)}
+                onMouseLeave={() => setHoveredParticipantId(null)}
+              >
+                <span className="score-rank">{index + 1}</span>
+                <div className="score-body">
+                  <div className="score-main">
+                    <h3>{participant.participantId}</h3>
+                    <span className="score-total">
+                      <span className="score-total-value">{participant.total.toFixed(2)}</span>
+                      <span className="score-total-label">total</span>
+                    </span>
+                  </div>
+                  {participant.byRound.length > 0 ? (
+                    <div className="score-rounds">
+                      {participant.byRound.map((entry) => (
+                        <span key={entry.round}>
+                          r{entry.round} · {entry.score.toFixed(1)}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                  {participant.breakdown ? (
+                    <div className="breakdown-bars">
+                      {breakdownOrder.map((label) => {
+                        const value = participant.breakdown?.[label] ?? 0;
+                        return (
+                          <div className="breakdown-row" key={label}>
+                            <span>{label}</span>
+                            <div className="breakdown-bar-track">
+                              <div
+                                className="breakdown-bar-fill"
+                                style={{ width: `${Math.max(0, Math.min(value, 100))}%` }}
+                              />
                             </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <span className="subtle">-</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                            <span className="breakdown-value">{value.toFixed(1)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
       </section>
 
+      {/* §05 — Rounds */}
       <section className="panel">
-        <h3>Rounds</h3>
+        <header className="section-head">
+          <p className="eyebrow">§05 · Rounds</p>
+        </header>
         <div className="rounds-list">
           {result.rounds.map((round) => (
-            <details key={round.round}>
+            <details className="round-block" key={round.round}>
               <summary>
-                <span>Round {round.round}</span>
-                <span className="subtle">{round.outputs.length} outputs</span>
+                <span className="round-label">Round {round.round}</span>
+                <span className="round-meta">{round.outputs.length} outputs</span>
+                <span className="round-caret">›</span>
               </summary>
               <div className="round-details">
                 {round.outputs.map((output, outputIndex) => {
@@ -238,7 +282,7 @@ export function ReportView({ result }: ReportViewProps) {
                       key={`${output.participantId}-${round.round}-${outputIndex}`}
                     >
                       <header>
-                        <h5>{output.participantId}</h5>
+                        <h4>{output.participantId}</h4>
                         <div className="output-tags">
                           <span>{output.phase}</span>
                           {output.selfScore != null ? <span>self {output.selfScore.toFixed(1)}</span> : null}
@@ -254,7 +298,7 @@ export function ReportView({ result }: ReportViewProps) {
                       {output.extractedClaims?.length ? (
                         <div>
                           <h5>Extracted claims</h5>
-                          <ul className="stack-list compact-list">
+                          <ul className="stack-list">
                             {output.extractedClaims.map((item, claimIndex) => (
                               <li key={`${item.title}-${claimIndex}`}>
                                 <strong>{item.claimId ?? "(new)"}</strong> · {item.title}
@@ -266,7 +310,7 @@ export function ReportView({ result }: ReportViewProps) {
 
                       <div>
                         <h5>Judgements</h5>
-                        <ul className="stack-list compact-list">
+                        <ul className="stack-list">
                           {output.judgements.map((item, judgementIndex) => {
                             const claimLinked = activeClaimId === item.claimId;
                             return (
@@ -281,7 +325,7 @@ export function ReportView({ result }: ReportViewProps) {
                       {output.phase === "final_vote" ? (
                         <div>
                           <h5>Votes</h5>
-                          <ul className="inline-list compact-list">
+                          <ul className="inline-list">
                             {output.claimVotes.map((vote, voteIndex) => {
                               const claimLinked = activeClaimId === vote.claimId;
                               return (
@@ -302,9 +346,12 @@ export function ReportView({ result }: ReportViewProps) {
         </div>
       </section>
 
+      {/* §06 — Disagreements (conditional) */}
       {result.disagreements?.length ? (
-        <section className="panel">
-          <h3>Disagreements</h3>
+        <section className="panel diagnostics-panel">
+          <header className="section-head">
+            <p className="eyebrow">§06 · Disagreements</p>
+          </header>
           <ul className="stack-list">
             {result.disagreements.map((item, index) => {
               const claimLinked = activeClaimId === item.claimId;
@@ -322,22 +369,28 @@ export function ReportView({ result }: ReportViewProps) {
         </section>
       ) : null}
 
+      {/* §07 — Eliminations (conditional) */}
       {result.eliminations.length ? (
-        <section className="panel">
-          <h3>Eliminations</h3>
+        <section className="panel diagnostics-panel">
+          <header className="section-head">
+            <p className="eyebrow">§07 · Eliminations</p>
+          </header>
           <ul className="stack-list">
             {result.eliminations.map((item, index) => (
               <li key={`${item.participantId}-${item.round}-${index}`}>
-                {item.participantId} · round {item.round} · {item.reason}
+                <strong>{item.participantId}</strong> · round {item.round} · {item.reason}
               </li>
             ))}
           </ul>
         </section>
       ) : null}
 
+      {/* Action (conditional) */}
       {result.action ? (
-        <section className="panel">
-          <h3>Action</h3>
+        <section className="panel action-panel">
+          <header className="section-head">
+            <p className="eyebrow">Action</p>
+          </header>
           <p>
             <strong>{result.action.actorId}</strong> · {result.action.status}
           </p>
@@ -346,24 +399,49 @@ export function ReportView({ result }: ReportViewProps) {
         </section>
       ) : null}
 
+      {/* §08 — Metrics */}
       <section className="panel metrics-panel">
-        <h3>Metrics</h3>
-        <div className="metrics-grid">
-          <p>elapsed: {formatElapsed(result.metrics.elapsedMs)}</p>
-          <p>total rounds: {result.metrics.totalRounds}</p>
-          <p>total turns: {result.metrics.totalTurns}</p>
-          <p>retries: {result.metrics.retries}</p>
-          <p>timeouts: {result.metrics.waitTimeouts}</p>
-          <p>early stop: {result.metrics.earlyStopTriggered ? "yes" : "no"}</p>
-          <p>deadline hit: {result.metrics.globalDeadlineHit ? "yes" : "no"}</p>
-          <p>
-            consensus ratio:{" "}
-            {percentage(
-              result.claimResolutions.filter((item) => item.status === "resolved").length,
-              result.claimResolutions.length
-            )}
-          </p>
-        </div>
+        <header className="section-head">
+          <p className="eyebrow">§08 · Metrics</p>
+        </header>
+        <dl className="metrics-grid">
+          <div>
+            <dt>elapsed</dt>
+            <dd>{formatElapsed(result.metrics.elapsedMs)}</dd>
+          </div>
+          <div>
+            <dt>rounds</dt>
+            <dd>{result.metrics.totalRounds}</dd>
+          </div>
+          <div>
+            <dt>turns</dt>
+            <dd>{result.metrics.totalTurns}</dd>
+          </div>
+          <div>
+            <dt>retries</dt>
+            <dd>{result.metrics.retries}</dd>
+          </div>
+          <div>
+            <dt>timeouts</dt>
+            <dd>{result.metrics.waitTimeouts}</dd>
+          </div>
+          <div>
+            <dt>early stop</dt>
+            <dd>{result.metrics.earlyStopTriggered ? "yes" : "no"}</dd>
+          </div>
+          <div>
+            <dt>deadline hit</dt>
+            <dd>{result.metrics.globalDeadlineHit ? "yes" : "no"}</dd>
+          </div>
+          <div>
+            <dt>consensus ratio</dt>
+            <dd>
+              {result.claimResolutions.length === 0
+                ? "0%"
+                : `${Math.round((result.claimResolutions.filter((item) => item.status === "resolved").length / result.claimResolutions.length) * 100)}%`}
+            </dd>
+          </div>
+        </dl>
       </section>
     </main>
   );
