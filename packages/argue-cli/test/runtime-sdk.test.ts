@@ -76,6 +76,9 @@ export function createArgueSdkAdapter(args) {
       }
     });
 
+    // Raw adapter output. The SDK runner forwards it verbatim; schema
+    // normalisation (which is where required fields like taskTitle come
+    // into play) happens later in the pipeline via normalizeTaskOutput.
     expect(result).toEqual({
       fullResponse: "sdk:ok",
       summary: "p",

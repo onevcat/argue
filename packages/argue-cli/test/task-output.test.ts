@@ -40,6 +40,7 @@ describe("runtime/task-output", () => {
     const output = normalizeTaskOutput(task, {
       fullResponse: "full",
       summary: "sum",
+      taskTitle: "demo title",
       extractedClaims: [
         {
           title: "C1",
@@ -71,6 +72,7 @@ describe("runtime/task-output", () => {
           round: 0,
           fullResponse: "full",
           summary: "sum",
+          taskTitle: "demo title",
           extractedClaims: [],
           judgements: []
         }
@@ -83,7 +85,7 @@ describe("runtime/task-output", () => {
 
     const output = normalizeTaskOutputFromText(
       task,
-      '```json\n{"fullResponse":"full","summary":"sum","extractedClaims":[],"judgements":[]}\n```'
+      '```json\n{"fullResponse":"full","summary":"sum","taskTitle":"demo title","extractedClaims":[],"judgements":[]}\n```'
     );
 
     expect(output.kind).toBe("round");

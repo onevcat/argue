@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  ARGUE_TASK_TITLE_MAX,
   ClaimJudgementSchema,
   ClaimResolutionSchema,
   ClaimSchema,
@@ -31,6 +32,7 @@ const ExtractedClaimOutputSchema = ClaimSchema.pick({
 export const InitialRoundTaskOutputContentSchema = z.object({
   fullResponse: z.string().min(1),
   summary: z.string().min(1),
+  taskTitle: z.string().min(1).max(ARGUE_TASK_TITLE_MAX),
   extractedClaims: z.array(ExtractedClaimOutputSchema),
   judgements: z.array(ClaimJudgementSchema)
 });
@@ -94,10 +96,17 @@ export const InitialRoundOutputContentJsonSchema = {
   title: "ArgueInitialRoundOutputContentV1",
   type: "object",
   additionalProperties: false,
-  required: ["fullResponse", "summary", "extractedClaims", "judgements"],
+  required: ["fullResponse", "summary", "taskTitle", "extractedClaims", "judgements"],
   properties: {
     fullResponse: { type: "string" },
     summary: { type: "string" },
+    taskTitle: {
+      type: "string",
+      minLength: 1,
+      maxLength: ARGUE_TASK_TITLE_MAX,
+      description:
+        "Concise one-sentence title summarising the debate task, suitable for a UI header. Aim for around 30 characters in CJK scripts (Chinese/Japanese/Korean) or around 60 characters in Latin scripts (English and similar). Single line, no markdown, no surrounding quotes."
+    },
     extractedClaims: {
       type: "array",
       items: CLAIM_JSON_SCHEMA

@@ -51,8 +51,8 @@ export {
   getRoundOutputContentSchemaRef
 } from "./contracts/task.js";
 
-export type { ActionOutput } from "./contracts/result.js";
-export { ActionOutputSchema, ARGUE_RESULT_VERSION } from "./contracts/result.js";
+export type { ActionOutput, Task } from "./contracts/result.js";
+export { ActionOutputSchema, ARGUE_RESULT_VERSION, ARGUE_TASK_TITLE_MAX, TaskSchema } from "./contracts/result.js";
 
 export type {
   ArgueResult,

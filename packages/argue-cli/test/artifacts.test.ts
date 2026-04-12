@@ -10,6 +10,10 @@ function makeResult(overrides?: Partial<ArgueResult>): ArgueResult {
     resultVersion: 1,
     requestId: "req-1",
     sessionId: "s1",
+    task: {
+      prompt: "Should we standardise on async/await across the codebase?",
+      title: "Standardise on async/await"
+    },
     status: "partial_consensus",
     finalClaims: [
       {
@@ -111,6 +115,7 @@ function makeResult(overrides?: Partial<ArgueResult>): ArgueResult {
             round: 0,
             phase: "initial" as const,
             fullResponse: "resp",
+            taskTitle: "Standardise on async/await",
             judgements: [{ claimId: "c1", stance: "agree" as const, confidence: 0.9, rationale: "solid" }],
             summary: "I agree"
           },
@@ -119,6 +124,7 @@ function makeResult(overrides?: Partial<ArgueResult>): ArgueResult {
             round: 0,
             phase: "initial" as const,
             fullResponse: "resp",
+            taskTitle: "Adopt async/await everywhere",
             judgements: [{ claimId: "c1", stance: "disagree" as const, confidence: 0.6, rationale: "hmm" }],
             summary: "I disagree"
           }
@@ -190,6 +196,7 @@ describe("buildResultSummary", () => {
     const summary = buildResultSummary(makeResult());
 
     expect(summary).toContain("# argue run req-1");
+    expect(summary).toContain("task: Standardise on async/await");
     expect(summary).toContain("status: partial_consensus");
     expect(summary).toContain("representative: agent-a");
     expect(summary).toContain("elapsed: 15.0s");
@@ -197,6 +204,17 @@ describe("buildResultSummary", () => {
     expect(summary).toContain("turns: 4");
     expect(summary).toContain("claims: 2 active / 3 total");
     expect(summary).toContain("resolved: 1/2");
+  });
+
+  it("includes a dedicated Task section with the full prompt before the conclusion", () => {
+    const summary = buildResultSummary(makeResult());
+
+    expect(summary).toContain("## Task");
+    expect(summary).toContain("Should we standardise on async/await across the codebase?");
+    // Task section must precede the Conclusion section so readers see the
+    // question before the answer.
+    expect(summary.indexOf("## Task")).toBeGreaterThan(0);
+    expect(summary.indexOf("## Task")).toBeLessThan(summary.indexOf("## Conclusion"));
   });
 
   it("includes conclusion section with finalSummary", () => {

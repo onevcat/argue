@@ -51,6 +51,7 @@ const envelope = JSON.parse(stdin);
 const output = {
   fullResponse: String(process.argv[2]) + ":" + String(process.env.ARG_TEMPLATE),
   summary: envelope.task.prompt,
+  taskTitle: "generic cli title",
   extractedClaims: [],
   judgements: []
 };
@@ -431,6 +432,7 @@ const fence = String.fromCharCode(96).repeat(3);
 process.stdout.write(fence + 'json\\n' + JSON.stringify({
   fullResponse: "fenced",
   summary: "sum",
+  taskTitle: "demo title",
   extractedClaims: [],
   judgements: []
 }) + '\\n' + fence + '\\n');
@@ -486,6 +488,7 @@ for await (const chunk of process.stdin) stdin += chunk;
 process.stdout.write(JSON.stringify({
   fullResponse: JSON.stringify(process.argv),
   summary: "ok",
+  taskTitle: "demo title",
   extractedClaims: [],
   judgements: []
 }));
@@ -509,6 +512,7 @@ for await (const chunk of process.stdin) stdin += chunk;
 process.stdout.write(JSON.stringify({
   fullResponse: JSON.stringify({ argv: process.argv, stdin }),
   summary: "ok",
+  taskTitle: "demo title",
   extractedClaims: [],
   judgements: []
 }));

@@ -24,6 +24,7 @@ function makeParticipantRespondedEvent(overrides: Record<string, unknown> = {}):
       round: 1,
       participantId: "agent-a",
       summary: "I agree with the main claim.",
+      taskTitle: "demo title",
       extractedClaims: 1,
       judgements: 2,
       stanceAgree: 1,

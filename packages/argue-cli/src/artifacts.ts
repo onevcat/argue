@@ -32,6 +32,7 @@ export function buildResultSummary(result: ArgueResult): string {
   lines.push(
     `# argue run ${result.requestId}`,
     "",
+    `- task: ${result.task.title}`,
     `- status: ${result.status}`,
     `- representative: ${result.representative.participantId} (${result.representative.reason}, score=${formatNumber(result.representative.score)})`,
     `- elapsed: ${formatMs(metrics.elapsedMs)}`,
@@ -40,6 +41,9 @@ export function buildResultSummary(result: ArgueResult): string {
     `- claims: ${activeClaims.length} active / ${result.finalClaims.length} total`,
     `- resolved: ${resolvedCount}/${result.claimResolutions.length}`
   );
+
+  // --- Task ---
+  lines.push("", "## Task", "", result.task.prompt);
 
   // --- Conclusion ---
   lines.push("", "## Conclusion", "", result.report.finalSummary);
