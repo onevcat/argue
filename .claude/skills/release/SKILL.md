@@ -73,17 +73,12 @@ Wait for confirmation. The user may override the version.
 
 ## Step 3 — Update Versions
 
-Update the version in all relevant files:
-
-1. `packages/argue/package.json` — `"version"`
-2. `packages/argue-cli/package.json` — `"version"`
-3. `packages/argue-cli/package.json` — `"dependencies"["@onevcat/argue"]` to `"^X.Y.Z"`
-
-Then run:
-
 ```bash
+node scripts/bump-version.mjs X.Y.Z
 npm install
 ```
+
+This updates `version` in both package.json files and the CLI dependency on `@onevcat/argue`.
 
 ## Step 4 — Generate Changelog
 
