@@ -5,6 +5,7 @@ import {
   buildClaimLookup,
   buildContributionIndex,
   computeExtractedClaimIds,
+  formatDebateDate,
   formatElapsed,
   formatTimestamp,
   nameRound,
@@ -92,6 +93,7 @@ export function ReportView({ result }: ReportViewProps) {
   const claimLookup = useMemo(() => buildClaimLookup(result), [result]);
   const ranked = useMemo(() => rankScoreboard(result.scoreboard), [result.scoreboard]);
   const activeClaims = useMemo(() => result.finalClaims.filter((claim) => claim.status !== "merged"), [result]);
+  const debateDate = useMemo(() => formatDebateDate(result), [result]);
 
   const [activeClaimId, setActiveClaimId] = useState<string | null>(null);
   const [hoveredParticipantId, setHoveredParticipantId] = useState<string | null>(null);
@@ -153,6 +155,12 @@ export function ReportView({ result }: ReportViewProps) {
             <dt>status</dt>
             <dd>{result.status}</dd>
           </div>
+          {debateDate ? (
+            <div>
+              <dt>date</dt>
+              <dd>{debateDate}</dd>
+            </div>
+          ) : null}
           <div>
             <dt>request id</dt>
             <dd>{result.requestId}</dd>
@@ -191,9 +199,6 @@ export function ReportView({ result }: ReportViewProps) {
       <section className="panel claims-panel">
         <header className="section-head">
           <p className="eyebrow">§{sectionNumbers.claims} · Claims</p>
-          <p className="subtle">
-            {activeClaims.length} active · click a row to highlight related judgements and votes
-          </p>
         </header>
         <div className="claims-list">
           {activeClaims.map((claim, index) => {

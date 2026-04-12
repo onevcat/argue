@@ -52,6 +52,33 @@ export function formatElapsed(elapsedMs: number): string {
 }
 
 /**
+ * Derive the debate date from the earliest `respondedAt` ISO timestamp
+ * across all round outputs. Returns a short human-readable date
+ * (`YYYY-MM-DD`) in UTC so the header meta stays stable regardless of
+ * the viewer's locale. Returns null when no output carries a timestamp
+ * so callers can omit the field cleanly.
+ */
+export function formatDebateDate(result: ArgueResult): string | null {
+  let earliest: number | null = null;
+  for (const round of result.rounds) {
+    for (const output of round.outputs) {
+      if (!output.respondedAt) continue;
+      const t = Date.parse(output.respondedAt);
+      if (Number.isNaN(t)) continue;
+      if (earliest === null || t < earliest) {
+        earliest = t;
+      }
+    }
+  }
+  if (earliest === null) return null;
+  const date = new Date(earliest);
+  const yyyy = date.getUTCFullYear();
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
  * Format an ISO timestamp for display next to round outputs.
  * Returns UTC `HH:MM:SS` so results render identically regardless of the
  * viewer's locale. Falls back to the raw string for unparseable input so

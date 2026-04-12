@@ -1487,23 +1487,22 @@ textarea {
   background: var(--stamp-fail);
 }
 
-/* Confidence chip — mini bar + numeric, tinted by band. */
+/* Confidence chip — mini bar + numeric. Intentionally muted so it
+   reads as supporting data next to the louder stance chip, rather
+   than competing with it. */
 .confidence-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--paper-2) 60%, transparent);
-  border: 1px solid var(--hairline);
+  padding: 1px 4px;
 }
 
 .confidence-bar {
   display: inline-block;
-  width: 34px;
-  height: 6px;
+  width: 32px;
+  height: 3px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--ink-3) 22%, transparent);
+  background: color-mix(in srgb, var(--ink-3) 18%, transparent);
   overflow: hidden;
 }
 
@@ -1511,42 +1510,43 @@ textarea {
   display: block;
   height: 100%;
   border-radius: inherit;
+  background: color-mix(in srgb, var(--ink-2) 70%, transparent);
   transition: width 180ms ease;
 }
 
 .confidence-chip.conf-high .confidence-bar-fill {
-  background: var(--teal);
+  background: color-mix(in srgb, var(--teal) 55%, var(--ink-2));
 }
 .confidence-chip.conf-med .confidence-bar-fill {
-  background: var(--amber);
+  background: color-mix(in srgb, var(--amber) 55%, var(--ink-2));
 }
 .confidence-chip.conf-low .confidence-bar-fill {
-  background: var(--stamp-fail);
+  background: color-mix(in srgb, var(--stamp-fail) 55%, var(--ink-2));
 }
 
 .confidence-value {
-  font-size: 0.72rem;
-  color: var(--ink-1);
-  font-weight: 600;
+  font-size: 0.7rem;
+  color: var(--ink-3);
+  font-weight: 500;
 }
 
-.confidence-chip.conf-high .confidence-value {
-  color: var(--teal);
-}
-.confidence-chip.conf-med .confidence-value {
-  color: var(--amber);
-}
-.confidence-chip.conf-low .confidence-value {
-  color: var(--stamp-fail);
-}
-
-/* Judgement row layout — align claim ref + chips horizontally. */
+/* Judgement rows use a fixed grid so claim-ref, stance, confidence
+   and merge columns align vertically across all judgements in a
+   round output. Narrow viewports fall back to a wrapping flex row. */
 .judgement-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 180px 84px 96px 1fr;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
+  gap: 14px;
   padding: 4px 0;
+}
+
+@media (max-width: 760px) {
+  .judgement-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
 }
 
 .judgement-merge {
