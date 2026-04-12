@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { AgentTaskDelegate, ArgueObserver, SessionStore, WaitCoordinator } from "../contracts/delegate.js";
 import { normalizeStartInput, type ArgueStartInput, type NormalizedArgueStartInput } from "../contracts/request.js";
 import {
@@ -52,7 +51,7 @@ export class ArgueEngine {
     this.waitCoordinator = deps.waitCoordinator ?? new DefaultWaitCoordinator(deps.taskDelegate);
     this.store = deps.sessionStore ?? new MemorySessionStore();
     this.now = deps.now ?? (() => Date.now());
-    this.idFactory = deps.idFactory ?? (() => `argue_${randomUUID()}`);
+    this.idFactory = deps.idFactory ?? (() => `argue_${globalThis.crypto.randomUUID()}`);
   }
 
   async start(input: ArgueStartInput): Promise<ArgueResult> {
