@@ -1,8 +1,11 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import type { AgentTaskDelegate, AgentTaskInput, AgentTaskResult } from "@onevcat/argue";
 import type { LoadedCliConfig, ProviderConfig } from "../config.js";
 import type { ResolvedRunPlan } from "../run-plan.js";
 import { createApiRunner } from "./api.js";
 import { createCliRunner } from "./cli.js";
+import { JsonParseError } from "./json.js";
 import { createMockRunner } from "./mock.js";
 import { createSdkRunner } from "./sdk.js";
 import { normalizeTaskOutput } from "./task-output.js";
@@ -12,6 +15,7 @@ type TaskEntry = {
   controller: AbortController;
   promise: Promise<AgentTaskResult>;
   timeoutMs?: number;
+  task: AgentTaskInput;
 };
 
 export async function createTaskDelegate(args: {
@@ -43,6 +47,11 @@ export async function createTaskDelegate(args: {
   const tasks = new Map<string, TaskEntry>();
   let seq = 0;
 
+  // Every artefact for a given run lives under the same directory; we
+  // derive it once from the plan so that raw-error dumps land next to
+  // events.jsonl / error.json / result.json.
+  const runDir = dirname(args.plan.jsonlPath);
+
   return {
     async dispatch(task: AgentTaskInput) {
       const agent = agentCatalog.get(task.participantId);
@@ -60,7 +69,8 @@ export async function createTaskDelegate(args: {
       tasks.set(taskId, {
         controller,
         promise,
-        timeoutMs: agent.timeoutMs
+        timeoutMs: agent.timeoutMs,
+        task
       });
 
       return {
@@ -83,6 +93,19 @@ export async function createTaskDelegate(args: {
         if (error instanceof TimeoutError) {
           entry.controller.abort();
           return { ok: false, error: "__timeout__" };
+        }
+
+        // On JSON parse failure, persist the raw agent output to disk
+        // so the failure can be inspected after the run exits. We do
+        // this on a best-effort basis — if the dump itself fails we
+        // still propagate the original error to the engine.
+        if (error instanceof JsonParseError) {
+          try {
+            const dumpPath = await persistRawParseError(runDir, entry.task, error);
+            process.stderr.write(`[argue] raw agent output saved to: ${dumpPath}\n`);
+          } catch {
+            // Swallow dump failures; the parse error still propagates.
+          }
         }
 
         return { ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -170,4 +193,52 @@ class TimeoutError extends Error {
 
 function assertNever(value: never): never {
   throw new Error(`Unhandled provider: ${String(value)}`);
+}
+
+/**
+ * Write a raw agent payload to a `raw-error-*.txt` file under the run
+ * directory so the failure can be inspected post-mortem. The filename
+ * encodes participant, phase, and round so the same participant can
+ * fail multiple times in the same run without clobbering earlier
+ * captures. Returns the absolute path that was written.
+ */
+async function persistRawParseError(runDir: string, task: AgentTaskInput, error: JsonParseError): Promise<string> {
+  await mkdir(runDir, { recursive: true });
+
+  const filename = buildRawErrorFilename(task);
+  const dumpPath = join(runDir, filename);
+
+  const header = [
+    `# argue raw agent output — JSON parse failure`,
+    `# taskKind: ${task.kind}`,
+    ...(task.kind === "round" ? [`# phase: ${task.phase}`, `# round: ${task.round}`] : []),
+    `# participantId: ${task.participantId}`,
+    `# requestId: ${task.requestId}`,
+    `# sessionId: ${task.sessionId}`,
+    `# error: ${error.message}`,
+    ``,
+    `# --- raw text (as returned by the runner) ---`,
+    error.rawText,
+    ``,
+    `# --- extracted candidate (post code-fence / brace-balance) ---`,
+    error.extractedCandidate ?? "(no candidate extracted)",
+    ``
+  ].join("\n");
+
+  await writeFile(dumpPath, header, "utf8");
+  return dumpPath;
+}
+
+function buildRawErrorFilename(task: AgentTaskInput): string {
+  const safeParticipant = sanitiseFilenameSegment(task.participantId);
+  if (task.kind === "round") {
+    return `raw-error-${safeParticipant}-${task.phase}-${task.round}.txt`;
+  }
+  return `raw-error-${safeParticipant}-${task.kind}.txt`;
+}
+
+function sanitiseFilenameSegment(input: string): string {
+  // Keep things simple — strip anything that could break path handling
+  // on any host filesystem. Participant IDs are typically already ASCII.
+  return input.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
