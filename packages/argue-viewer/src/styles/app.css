@@ -33,6 +33,7 @@
   --ok: var(--stamp-pass);
   --warn: var(--stamp-warn);
   --bad: var(--stamp-fail);
+  --heart: var(--stamp-pass);
 
   --rule: rgba(26, 36, 30, 0.16);
   --rule-strong: rgba(26, 36, 30, 0.32);
@@ -134,9 +135,27 @@ input {
 
 .app-shell {
   width: var(--shell-width);
-  margin: clamp(24px, 4vw, 60px) auto clamp(48px, 6vw, 96px);
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
+/* Report state keeps the original editorial rhythm with block margins. */
+.app-shell.is-report {
+  margin-block: clamp(24px, 4vw, 60px) clamp(48px, 6vw, 96px);
   display: grid;
   gap: clamp(36px, 4vw, 60px);
+}
+
+/* Landing state fills the viewport with a sticky-footer flex column so
+   the hero, drop zone and footer arrange inside one screen whenever the
+   content fits, instead of leaning on block margins that pushed the
+   footer below the fold. */
+.app-shell.is-landing {
+  min-height: 100vh;
+  padding-block: clamp(16px, 2.2vw, 36px) clamp(16px, 2vw, 28px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 1.6vw, 24px);
 }
 
 /* ------------------------------------------------------------------
@@ -155,9 +174,7 @@ input {
 .section-head {
   display: grid;
   gap: 6px;
-  padding-bottom: 10px;
   margin-bottom: 16px;
-  border-bottom: 1px solid var(--rule);
 }
 
 .section-head .eyebrow {
@@ -174,41 +191,8 @@ input {
 }
 
 /* ------------------------------------------------------------------
- * Ingress panel
+ * Shared controls
  * ------------------------------------------------------------------ */
-
-.ingress {
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  padding: 8px 4px;
-  display: grid;
-  gap: 16px;
-  outline: 2px dashed transparent;
-  outline-offset: 10px;
-  transition: outline-color 180ms ease;
-}
-
-.ingress.is-drag-over {
-  outline-color: var(--teal);
-}
-
-.ingress-meta h1 {
-  font-size: clamp(1.5rem, 2vw + 0.5rem, 2rem);
-  letter-spacing: -0.01em;
-  margin-bottom: 2px;
-}
-
-.ingress-meta p {
-  color: var(--ink-2);
-  font-size: 0.94rem;
-}
-
-.ingress-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
 
 button {
   font-family: "Manrope", sans-serif;
@@ -240,24 +224,16 @@ button:disabled {
 
 button:focus-visible,
 textarea:focus-visible,
+input:focus-visible,
 .claim-row:focus-visible,
-summary:focus-visible {
+summary:focus-visible,
+.landing-drop:focus-visible {
   outline: 2px solid var(--teal-soft);
   outline-offset: 3px;
 }
 
-.paste-box {
-  display: grid;
-  gap: 8px;
-  font-family: "Manrope", sans-serif;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--ink-2);
-  font-weight: 700;
-}
-
-textarea {
+textarea,
+input[type="url"] {
   width: 100%;
   font-family: "JetBrains Mono", monospace;
   font-size: 0.85rem;
@@ -266,49 +242,295 @@ textarea {
   border: 1px solid var(--paper-edge);
   border-radius: 3px;
   padding: 12px;
-  resize: vertical;
   line-height: 1.5;
 }
 
-.source-note {
-  color: var(--ink-3);
-  font-family: "JetBrains Mono", monospace;
-  font-size: 0.78rem;
-  padding-inline: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.source-note .mono {
-  color: var(--amber);
+textarea {
+  resize: vertical;
 }
 
 /* ------------------------------------------------------------------
- * State panels (idle / error)
+ * Landing page — centered hero, drop zone, paste & URL inputs
  * ------------------------------------------------------------------ */
 
-.state-panel {
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  padding: 4px 0;
-  display: grid;
-  gap: 8px;
+.landing {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(16px, 2vw, 28px);
 }
 
-.state-panel h2 {
+.landing-hero {
+  display: grid;
+  gap: clamp(18px, 2.2vw, 28px);
+  justify-items: center;
+  text-align: center;
+  max-width: 720px;
+}
+
+.landing-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(16px, 2vw, 28px);
+  color: var(--ink-0);
+}
+
+.landing-flank {
+  display: inline-block;
+  width: clamp(48px, 8vw, 96px);
+  height: 2px;
+  background: var(--amber);
+  opacity: 0.85;
+}
+
+.landing-title {
   font-family: "Fraunces", serif;
-  font-size: 1.4rem;
+  font-size: clamp(3rem, 6vw + 1rem, 5.5rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+
+.landing-slogan {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  max-width: 48ch;
+}
+
+.landing-slogan p {
+  font-family: "Fraunces", serif;
+  font-style: italic;
+  font-size: clamp(1.1rem, 1vw + 0.8rem, 1.45rem);
+  line-height: 1.38;
   color: var(--ink-1);
 }
 
-.state-panel p {
-  color: var(--ink-2);
-  font-size: 0.94rem;
+.landing-slogan cite {
+  font-style: normal;
+  font-family: "Manrope", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--ink-3);
 }
 
-.state-panel.error h2 {
-  color: var(--bad);
+.landing-drop {
+  width: min(640px, 100%);
+  padding: clamp(26px, 3.4vw, 44px) clamp(24px, 3vw, 40px);
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  text-align: center;
+  background: color-mix(in srgb, var(--paper-0) 70%, transparent);
+  border: 2px dashed var(--paper-edge);
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.landing-drop:hover {
+  border-color: var(--ink-2);
+  background: color-mix(in srgb, var(--paper-0) 92%, transparent);
+  transform: translateY(-1px);
+}
+
+.landing-drop.is-drag-over {
+  border-color: var(--teal);
+  background: color-mix(in srgb, var(--teal) 10%, var(--paper-0));
+}
+
+.landing-drop-headline {
+  font-family: "Fraunces", serif;
+  font-size: clamp(1.25rem, 1.2vw + 0.9rem, 1.6rem);
+  font-weight: 700;
+  color: var(--ink-0);
+  letter-spacing: -0.01em;
+}
+
+.landing-drop-sub {
+  font-family: "Manrope", sans-serif;
+  font-size: 0.85rem;
+  color: var(--ink-2);
+  letter-spacing: 0.04em;
+}
+
+.landing-input-grid {
+  width: min(640px, 100%);
+  display: grid;
+  gap: clamp(20px, 2.6vw, 32px);
+  grid-template-columns: 1fr;
+}
+
+.landing-field {
+  display: grid;
+  gap: 10px;
+}
+
+.landing-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: "Manrope", sans-serif;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-2);
+}
+
+.landing-field-tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--amber);
+  padding: 2px 8px;
+  border: 1px solid var(--amber);
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+.landing-field button {
+  justify-self: end;
+}
+
+.landing-field.is-disabled input,
+.landing-field.is-disabled textarea {
+  background: color-mix(in srgb, var(--paper-2) 60%, transparent);
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
+.landing-error {
+  width: min(640px, 100%);
+  display: grid;
+  gap: 6px;
+  padding: 14px 18px;
+  background: color-mix(in srgb, var(--stamp-fail) 8%, transparent);
+  border-left: 3px solid var(--stamp-fail);
+  color: var(--ink-1);
+  font-family: "Manrope", sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.landing-error-source {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--stamp-fail);
+}
+
+.landing-error-message {
+  color: var(--ink-1);
+}
+
+/* ------------------------------------------------------------------
+ * Report layout — small header + reset button
+ * ------------------------------------------------------------------ */
+
+.report-layout {
+  display: grid;
+  gap: clamp(28px, 3.2vw, 48px);
+}
+
+.report-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.report-header-mark {
+  display: inline-block;
+  width: 3px;
+  height: 22px;
+  background: var(--amber);
+  border-radius: 1px;
+}
+
+.report-header-wordmark {
+  font-family: "Fraunces", serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--ink-0);
+  text-transform: uppercase;
+}
+
+.report-reset {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+}
+
+/* ------------------------------------------------------------------
+ * Site footer — shared attribution row
+ * ------------------------------------------------------------------ */
+
+.site-footer {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  padding-top: clamp(24px, 3vw, 40px);
+  border-top: 1px solid var(--rule);
+  font-family: "Manrope", sans-serif;
+  font-size: 0.76rem;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.site-footer-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.site-footer-link {
+  color: var(--ink-2);
+  text-decoration: none;
+  border-bottom: 1px solid var(--hairline);
+  transition:
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.site-footer-link:hover {
+  color: var(--ink-0);
+  border-color: var(--ink-2);
+}
+
+.site-footer-sep {
+  color: var(--ink-3);
+  opacity: 0.6;
+}
+
+.site-footer-version {
+  color: var(--amber);
+  letter-spacing: 0.08em;
+  text-transform: none;
+}
+
+.site-footer-heart {
+  color: var(--heart);
+  font-size: 0.95rem;
+  line-height: 1;
+  display: inline-block;
+  transform: translateY(1px);
 }
 
 /* ------------------------------------------------------------------
@@ -1112,13 +1334,280 @@ textarea {
   list-style: none;
   padding: 0;
   display: grid;
-  gap: 4px;
+  gap: 6px;
   font-size: 0.85rem;
   color: var(--ink-1);
 }
 
 .inline-list {
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+}
+
+/* ------------------------------------------------------------------
+ * §05 Rounds — chips, claim refs, merges, confidence/stance visuals
+ * ------------------------------------------------------------------ */
+
+/* Extracted-claim chip: dark-green pill with the deterministic claim id. */
+.claim-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--stamp-pass);
+  color: var(--paper-0);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.claim-chip.is-new {
+  background: var(--amber);
+}
+
+.claim-chip-title {
+  font-family: "Manrope", sans-serif;
+  font-size: 0.88rem;
+  color: var(--ink-1);
+}
+
+/* Claim reference — dashed underline + hover/focus popover. */
+.claim-ref {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+}
+
+.claim-ref-id {
+  font-size: 0.76rem;
+  color: var(--ink-1);
+  text-decoration: underline dashed var(--ink-3);
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.claim-ref:hover .claim-ref-id,
+.claim-ref:focus-visible .claim-ref-id {
+  color: var(--amber);
+  text-decoration-color: var(--amber);
+}
+
+.claim-ref-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  min-width: 240px;
+  max-width: 360px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 6px;
+  background: var(--paper-0);
+  color: var(--ink-0);
+  border: 1px solid var(--paper-edge);
+  border-left: 3px solid var(--amber);
+  border-radius: 3px;
+  box-shadow: 0 14px 28px rgba(12, 20, 16, 0.18);
+  font-family: "Manrope", sans-serif;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(2px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+  text-align: left;
+  white-space: normal;
+}
+
+.claim-ref:hover .claim-ref-tip,
+.claim-ref:focus-within .claim-ref-tip,
+.claim-ref:focus-visible .claim-ref-tip {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.claim-ref-tip-title {
+  font-family: "Fraunces", serif;
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--ink-0);
+  line-height: 1.25;
+}
+
+.claim-ref-tip-body {
+  color: var(--ink-1);
+}
+
+.claim-ref-tip-meta {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-3);
+}
+
+.claim-ref-tip-chain {
+  padding-top: 6px;
+  border-top: 1px dashed var(--rule);
+  font-size: 0.76rem;
+  color: var(--ink-2);
+}
+
+.claim-ref-tip-chain em {
+  color: var(--ink-1);
+  font-style: italic;
+}
+
+/* Stance chips — colored by agree / revise / disagree. */
+.stance-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-family: "Manrope", sans-serif;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--paper-0);
+}
+
+.stance-chip.stance-agree {
+  background: var(--stamp-pass);
+}
+
+.stance-chip.stance-revise {
+  background: var(--amber);
+}
+
+.stance-chip.stance-disagree {
+  background: var(--stamp-fail);
+}
+
+/* Confidence chip — mini bar + numeric, tinted by band. */
+.confidence-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper-2) 60%, transparent);
+  border: 1px solid var(--hairline);
+}
+
+.confidence-bar {
+  display: inline-block;
+  width: 34px;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink-3) 22%, transparent);
+  overflow: hidden;
+}
+
+.confidence-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 180ms ease;
+}
+
+.confidence-chip.conf-high .confidence-bar-fill {
+  background: var(--teal);
+}
+.confidence-chip.conf-med .confidence-bar-fill {
+  background: var(--amber);
+}
+.confidence-chip.conf-low .confidence-bar-fill {
+  background: var(--stamp-fail);
+}
+
+.confidence-value {
+  font-size: 0.72rem;
+  color: var(--ink-1);
+  font-weight: 600;
+}
+
+.confidence-chip.conf-high .confidence-value {
+  color: var(--teal);
+}
+.confidence-chip.conf-med .confidence-value {
+  color: var(--amber);
+}
+.confidence-chip.conf-low .confidence-value {
+  color: var(--stamp-fail);
+}
+
+/* Judgement row layout — align claim ref + chips horizontally. */
+.judgement-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.judgement-merge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-3);
+}
+
+.merge-arrow {
+  font-family: "JetBrains Mono", monospace;
+  color: var(--amber);
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+/* Round-level Merges block — highlights this round's consolidations. */
+.round-merges {
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  border-left: 2px solid var(--amber);
+  border-radius: 2px;
+  display: grid;
+  gap: 8px;
+}
+
+.round-merges h5 {
+  margin: 0;
+}
+
+.merge-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.merge-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.merge-author {
+  font-size: 0.68rem;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* Vote rows — claim ref + colored pill. */
+.vote-list {
+  gap: 6px 12px;
+}
+
+.vote-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* ------------------------------------------------------------------

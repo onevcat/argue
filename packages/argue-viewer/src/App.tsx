@@ -1,7 +1,8 @@
 import { useState } from "preact/hooks";
 import type { ArgueResult } from "@onevcat/argue";
-import { FileIngress } from "./components/FileIngress.js";
-import { ReportView } from "./components/ReportView.js";
+import { Landing } from "./components/Landing.js";
+import { ReportLayout } from "./components/ReportLayout.js";
+import { SiteFooter } from "./components/SiteFooter.js";
 import { validateArgueResult } from "./lib/validate.js";
 
 type ViewState =
@@ -40,35 +41,25 @@ export function App() {
     setState({ kind: "error", source, error });
   };
 
+  const reset = () => {
+    setState({ kind: "idle" });
+  };
+
+  const shellClass = `app-shell is-${state.kind === "loaded" ? "report" : "landing"}`;
+
   return (
-    <div className="app-shell">
-      <FileIngress onLoadText={loadText} onReadError={handleReadError} />
-
-      {state.kind === "idle" ? (
-        <section className="state-panel">
-          <h2>No Result Loaded</h2>
-          <p>Load an argue result JSON file to render a stable report page.</p>
-        </section>
-      ) : null}
-
-      {state.kind === "error" ? (
-        <section className="state-panel error">
-          <h2>Validation Error</h2>
-          <p>
-            source: <strong>{state.source}</strong>
-          </p>
-          <p>{state.error}</p>
-        </section>
-      ) : null}
-
+    <div className={shellClass}>
       {state.kind === "loaded" ? (
-        <>
-          <p className="source-note">
-            source: <span className="mono">{state.source}</span>
-          </p>
-          <ReportView result={state.result} />
-        </>
-      ) : null}
+        <ReportLayout result={state.result} onReset={reset} />
+      ) : (
+        <Landing
+          error={state.kind === "error" ? { source: state.source, message: state.error } : null}
+          onLoadText={loadText}
+          onReadError={handleReadError}
+        />
+      )}
+
+      <SiteFooter />
     </div>
   );
 }

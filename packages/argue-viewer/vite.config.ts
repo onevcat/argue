@@ -1,7 +1,16 @@
 /// <reference types="vitest/config" />
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import preact from "@preact/preset-vite";
 import { defineConfig } from "vite";
+
+// Display the @onevcat/argue library version in the viewer footer.
+// The viewer package itself is `private: true` and its own version is
+// a placeholder — what users care about is "which Argue build is this
+// rendering", which is the library that owns the result schema.
+const arguePkg = JSON.parse(readFileSync(resolve(__dirname, "../argue/package.json"), "utf8")) as {
+  version: string;
+};
 
 // The viewer only needs schemas and types from `@onevcat/argue`, not the
 // engine. The engine imports `node:crypto` which Vite externalises in the
@@ -19,6 +28,9 @@ import { defineConfig } from "vite";
 // one and only resolution path.
 export default defineConfig({
   plugins: [preact()],
+  define: {
+    __ARGUE_VERSION__: JSON.stringify(arguePkg.version)
+  },
   resolve: {
     alias: {
       "@onevcat/argue": resolve(__dirname, "../argue/src/contracts/result.ts")

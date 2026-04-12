@@ -2,11 +2,15 @@ import { useMemo, useState } from "preact/hooks";
 import type { ArgueResult, Claim } from "@onevcat/argue";
 import {
   buildClaimInsights,
+  buildClaimLookup,
   buildContributionIndex,
+  computeExtractedClaimIds,
   formatElapsed,
   formatTimestamp,
+  nameRound,
   rankScoreboard
 } from "../lib/view-model.js";
+import { ClaimRef } from "./ClaimRef.js";
 
 type ReportViewProps = {
   result: ArgueResult;
@@ -26,6 +30,30 @@ const breakdownOrder = ["correctness", "completeness", "actionability", "consist
 function formatRomanish(index: number): string {
   // simple decimal padding so §03.02 reads editorially without depending on roman numerals.
   return index.toString().padStart(2, "0");
+}
+
+type ConfidenceBand = "high" | "med" | "low";
+function confidenceBand(value: number): ConfidenceBand {
+  if (value >= 0.8) return "high";
+  if (value >= 0.5) return "med";
+  return "low";
+}
+
+function ConfidenceChip({ value }: { value: number }) {
+  const band = confidenceBand(value);
+  const pct = Math.max(0, Math.min(1, value)) * 100;
+  return (
+    <span className={`confidence-chip conf-${band}`} title={`confidence ${value.toFixed(2)}`}>
+      <span className="confidence-bar" aria-hidden="true">
+        <span className="confidence-bar-fill" style={{ width: `${pct}%` }} />
+      </span>
+      <span className="confidence-value mono">{value.toFixed(2)}</span>
+    </span>
+  );
+}
+
+function StanceChip({ stance }: { stance: "agree" | "disagree" | "revise" }) {
+  return <span className={`stance-chip stance-${stance}`}>{stance}</span>;
 }
 
 function votesView(
@@ -61,7 +89,9 @@ function votesView(
 export function ReportView({ result }: ReportViewProps) {
   const claimInsights = useMemo(() => buildClaimInsights(result), [result]);
   const contributionIndex = useMemo(() => buildContributionIndex(result), [result]);
+  const claimLookup = useMemo(() => buildClaimLookup(result), [result]);
   const ranked = useMemo(() => rankScoreboard(result.scoreboard), [result.scoreboard]);
+  const activeClaims = useMemo(() => result.finalClaims.filter((claim) => claim.status !== "merged"), [result]);
 
   const [activeClaimId, setActiveClaimId] = useState<string | null>(null);
   const [hoveredParticipantId, setHoveredParticipantId] = useState<string | null>(null);
@@ -71,6 +101,33 @@ export function ReportView({ result }: ReportViewProps) {
   };
 
   const verdict = verdictByStatus[result.status];
+
+  // Compute contiguous section numbers at render time so conditional
+  // panels (disagreements / eliminations / action) don't punch gaps in
+  // the numbering readers scan for. Each section registers a key and
+  // the counter only advances when the panel actually renders.
+  const sectionNumbers: Record<string, string> = {};
+  let sectionCounter = 0;
+  const assignSection = (key: string) => {
+    sectionNumbers[key] = sectionCounter.toString().padStart(2, "0");
+    sectionCounter += 1;
+  };
+  assignSection("verdict");
+  assignSection("conclusion");
+  assignSection("representative");
+  assignSection("claims");
+  assignSection("scoreboard");
+  assignSection("rounds");
+  if (result.disagreements && result.disagreements.length > 0) {
+    assignSection("disagreements");
+  }
+  if (result.eliminations.length > 0) {
+    assignSection("eliminations");
+  }
+  if (result.action) {
+    assignSection("action");
+  }
+  assignSection("metrics");
 
   return (
     <main className="report-root">
@@ -82,7 +139,7 @@ export function ReportView({ result }: ReportViewProps) {
             <span className="stamp-label">{verdict.label}</span>
           </div>
           <div className="verdict-title">
-            <p className="eyebrow">§00 · Argue Adjudication · Result Report</p>
+            <p className="eyebrow">§{sectionNumbers.verdict} · Argue Adjudication · Result Report</p>
             <h1 className="task-headline">{result.task.title}</h1>
             <p className="verdict-subtitle">{verdict.subtitle}</p>
             <details className="task-prompt">
@@ -113,14 +170,14 @@ export function ReportView({ result }: ReportViewProps) {
 
       {/* §01 — Conclusion hero */}
       <section className="panel conclusion-panel">
-        <p className="eyebrow">§01 · The Verdict</p>
+        <p className="eyebrow">§{sectionNumbers.conclusion} · The Verdict</p>
         <p className="conclusion-quote">{result.report.finalSummary}</p>
       </section>
 
       {/* §02 — Representative */}
       <section className="panel representative-panel">
         <header className="section-head">
-          <p className="eyebrow">§02 · Representative</p>
+          <p className="eyebrow">§{sectionNumbers.representative} · Representative</p>
         </header>
         <div className="rep-main">
           <h2>{result.representative.participantId}</h2>
@@ -130,16 +187,16 @@ export function ReportView({ result }: ReportViewProps) {
         <blockquote className="rep-speech">{result.representative.speech}</blockquote>
       </section>
 
-      {/* §03 — Claims */}
+      {/* §03 — Claims (merged claims are excluded — they still appear in §05 Rounds merge chains) */}
       <section className="panel claims-panel">
         <header className="section-head">
-          <p className="eyebrow">§03 · Claims</p>
+          <p className="eyebrow">§{sectionNumbers.claims} · Claims</p>
           <p className="subtle">
-            {result.finalClaims.length} total · click a row to highlight related judgements and votes
+            {activeClaims.length} active · click a row to highlight related judgements and votes
           </p>
         </header>
         <div className="claims-list">
-          {result.finalClaims.map((claim, index) => {
+          {activeClaims.map((claim, index) => {
             const insight = claimInsights[claim.claimId];
             const isActive = activeClaimId === claim.claimId;
             const participantLinked =
@@ -206,7 +263,7 @@ export function ReportView({ result }: ReportViewProps) {
       {/* §04 — Scoreboard */}
       <section className="panel">
         <header className="section-head">
-          <p className="eyebrow">§04 · Scoreboard</p>
+          <p className="eyebrow">§{sectionNumbers.scoreboard} · Scoreboard</p>
         </header>
         <ol className="score-list">
           {ranked.map((participant, index) => {
@@ -265,86 +322,140 @@ export function ReportView({ result }: ReportViewProps) {
       {/* §05 — Rounds */}
       <section className="panel">
         <header className="section-head">
-          <p className="eyebrow">§05 · Rounds</p>
+          <p className="eyebrow">§{sectionNumbers.rounds} · Rounds</p>
         </header>
         <div className="rounds-list">
-          {result.rounds.map((round) => (
-            <details className="round-block" key={round.round}>
-              <summary>
-                <span className="round-label">Round {round.round}</span>
-                <span className="round-meta">{round.outputs.length} outputs</span>
-                <span className="round-caret">›</span>
-              </summary>
-              <div className="round-details">
-                {round.outputs.map((output, outputIndex) => {
-                  const participantLinked = hoveredParticipantId === output.participantId;
-                  return (
-                    <article
-                      className={`round-output ${participantLinked ? "link-participant" : ""}`}
-                      key={`${output.participantId}-${round.round}-${outputIndex}`}
-                    >
-                      <header>
-                        <h4>{output.participantId}</h4>
-                        <div className="output-tags">
-                          <span>{output.phase}</span>
-                          {output.selfScore != null ? <span>self {output.selfScore.toFixed(1)}</span> : null}
-                          <span>r{round.round}</span>
-                          {output.respondedAt ? (
-                            <span title={output.respondedAt}>{formatTimestamp(output.respondedAt)}</span>
-                          ) : null}
-                        </div>
-                      </header>
+          {result.rounds.map((round) => {
+            const extractedIds = computeExtractedClaimIds(round);
+            const mergesInRound = round.outputs.flatMap((output) =>
+              output.judgements
+                .filter((judgement) => judgement.mergesWith)
+                .map((judgement) => ({
+                  participantId: output.participantId,
+                  sourceClaimId: judgement.claimId,
+                  targetClaimId: judgement.mergesWith!
+                }))
+            );
+            return (
+              <details className="round-block" key={round.round}>
+                <summary>
+                  <span className="round-label">{nameRound(round, result.rounds)}</span>
+                  <span className="round-meta">{round.outputs.length} outputs</span>
+                  <span className="round-caret">›</span>
+                </summary>
+                <div className="round-details">
+                  {mergesInRound.length > 0 ? (
+                    <div className="round-merges">
+                      <h5>Merges</h5>
+                      <ul className="merge-list">
+                        {mergesInRound.map((merge, mergeIndex) => (
+                          <li className="merge-row" key={`${merge.sourceClaimId}-${merge.targetClaimId}-${mergeIndex}`}>
+                            <ClaimRef claimId={merge.sourceClaimId} lookup={claimLookup} compact />
+                            <span className="merge-arrow" aria-hidden="true">
+                              ⟶
+                            </span>
+                            <ClaimRef claimId={merge.targetClaimId} lookup={claimLookup} compact />
+                            <span className="merge-author mono">by {merge.participantId}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
 
-                      <p>{output.summary}</p>
+                  {round.outputs.map((output, outputIndex) => {
+                    const participantLinked = hoveredParticipantId === output.participantId;
+                    return (
+                      <article
+                        className={`round-output ${participantLinked ? "link-participant" : ""}`}
+                        key={`${output.participantId}-${round.round}-${outputIndex}`}
+                      >
+                        <header>
+                          <h4>{output.participantId}</h4>
+                          <div className="output-tags">
+                            <span>{output.phase}</span>
+                            {output.selfScore != null ? <span>self {output.selfScore.toFixed(1)}</span> : null}
+                            {output.respondedAt ? (
+                              <span title={output.respondedAt}>{formatTimestamp(output.respondedAt)}</span>
+                            ) : null}
+                          </div>
+                        </header>
 
-                      {output.extractedClaims?.length ? (
+                        <p>{output.summary}</p>
+
+                        {output.extractedClaims?.length ? (
+                          <div>
+                            <h5>Extracted claims</h5>
+                            <ul className="stack-list">
+                              {output.extractedClaims.map((item, claimIndex) => {
+                                const resolvedId = extractedIds[`${outputIndex}:${claimIndex}`] ?? item.claimId;
+                                return (
+                                  <li key={`${item.title}-${claimIndex}`}>
+                                    {resolvedId ? (
+                                      <span className="claim-chip mono">{resolvedId}</span>
+                                    ) : (
+                                      <span className="claim-chip is-new mono">NEW</span>
+                                    )}
+                                    <span className="claim-chip-title">{item.title}</span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        ) : null}
+
                         <div>
-                          <h5>Extracted claims</h5>
+                          <h5>Judgements</h5>
                           <ul className="stack-list">
-                            {output.extractedClaims.map((item, claimIndex) => (
-                              <li key={`${item.title}-${claimIndex}`}>
-                                <strong>{item.claimId ?? "(new)"}</strong> · {item.title}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-
-                      <div>
-                        <h5>Judgements</h5>
-                        <ul className="stack-list">
-                          {output.judgements.map((item, judgementIndex) => {
-                            const claimLinked = activeClaimId === item.claimId;
-                            return (
-                              <li className={claimLinked ? "link-claim" : ""} key={`${item.claimId}-${judgementIndex}`}>
-                                <strong>{item.claimId}</strong> · {item.stance} · c={item.confidence.toFixed(2)}
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-
-                      {output.phase === "final_vote" ? (
-                        <div>
-                          <h5>Votes</h5>
-                          <ul className="inline-list">
-                            {output.claimVotes.map((vote, voteIndex) => {
-                              const claimLinked = activeClaimId === vote.claimId;
+                            {output.judgements.map((item, judgementIndex) => {
+                              const claimLinked = activeClaimId === item.claimId;
                               return (
-                                <li className={claimLinked ? "link-claim" : ""} key={`${vote.claimId}-${voteIndex}`}>
-                                  {vote.claimId}: {vote.vote}
+                                <li
+                                  className={`judgement-row ${claimLinked ? "link-claim" : ""}`}
+                                  key={`${item.claimId}-${judgementIndex}`}
+                                >
+                                  <ClaimRef claimId={item.claimId} lookup={claimLookup} />
+                                  <StanceChip stance={item.stance} />
+                                  <ConfidenceChip value={item.confidence} />
+                                  {item.mergesWith ? (
+                                    <span className="judgement-merge">
+                                      <span className="merge-arrow" aria-hidden="true">
+                                        ⟶
+                                      </span>
+                                      <ClaimRef claimId={item.mergesWith} lookup={claimLookup} compact />
+                                    </span>
+                                  ) : null}
                                 </li>
                               );
                             })}
                           </ul>
                         </div>
-                      ) : null}
-                    </article>
-                  );
-                })}
-              </div>
-            </details>
-          ))}
+
+                        {output.phase === "final_vote" ? (
+                          <div>
+                            <h5>Votes</h5>
+                            <ul className="inline-list vote-list">
+                              {output.claimVotes.map((vote, voteIndex) => {
+                                const claimLinked = activeClaimId === vote.claimId;
+                                return (
+                                  <li
+                                    className={`vote-row ${claimLinked ? "link-claim" : ""}`}
+                                    key={`${vote.claimId}-${voteIndex}`}
+                                  >
+                                    <ClaimRef claimId={vote.claimId} lookup={claimLookup} compact />
+                                    <span className={`vote-pill vote-${vote.vote}`}>{vote.vote}</span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </div>
+              </details>
+            );
+          })}
         </div>
       </section>
 
@@ -352,7 +463,7 @@ export function ReportView({ result }: ReportViewProps) {
       {result.disagreements?.length ? (
         <section className="panel diagnostics-panel">
           <header className="section-head">
-            <p className="eyebrow">§06 · Disagreements</p>
+            <p className="eyebrow">§{sectionNumbers.disagreements} · Disagreements</p>
           </header>
           <ul className="stack-list">
             {result.disagreements.map((item, index) => {
@@ -375,7 +486,7 @@ export function ReportView({ result }: ReportViewProps) {
       {result.eliminations.length ? (
         <section className="panel diagnostics-panel">
           <header className="section-head">
-            <p className="eyebrow">§07 · Eliminations</p>
+            <p className="eyebrow">§{sectionNumbers.eliminations} · Eliminations</p>
           </header>
           <ul className="stack-list">
             {result.eliminations.map((item, index) => (
@@ -391,7 +502,7 @@ export function ReportView({ result }: ReportViewProps) {
       {result.action ? (
         <section className="panel action-panel">
           <header className="section-head">
-            <p className="eyebrow">Action</p>
+            <p className="eyebrow">§{sectionNumbers.action} · Action</p>
           </header>
           <p>
             <strong>{result.action.actorId}</strong> · {result.action.status}
@@ -404,7 +515,7 @@ export function ReportView({ result }: ReportViewProps) {
       {/* §08 — Metrics */}
       <section className="panel metrics-panel">
         <header className="section-head">
-          <p className="eyebrow">§08 · Metrics</p>
+          <p className="eyebrow">§{sectionNumbers.metrics} · Metrics</p>
         </header>
         <dl className="metrics-grid">
           <div>

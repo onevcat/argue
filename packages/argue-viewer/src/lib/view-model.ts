@@ -1,4 +1,6 @@
-import type { ArgueResult, ClaimJudgement, ParticipantScore } from "@onevcat/argue";
+import type { ArgueResult, Claim, ClaimJudgement, ParticipantScore } from "@onevcat/argue";
+
+type RoundRecord = ArgueResult["rounds"][number];
 
 export type ClaimStanceCounts = {
   agree: number;
@@ -109,6 +111,122 @@ export function buildClaimInsights(result: ArgueResult): Record<string, ClaimIns
   }
 
   return insights;
+}
+
+/**
+ * Name a round by its dominant phase so readers can scan the debate
+ * flow instead of decoding numeric round indices.
+ *
+ * Rules:
+ * - initial phase → "Initial Propose"
+ * - final_vote phase → "Final Vote"
+ * - debate phase → "Debate #N" where N is the 1-based position among
+ *   debate rounds in chronological order
+ * - unknown/empty → "Round N"
+ */
+export function nameRound(round: RoundRecord, allRounds: RoundRecord[]): string {
+  const phase = round.outputs[0]?.phase;
+  if (phase === "initial") {
+    return "Initial Propose";
+  }
+  if (phase === "final_vote") {
+    return "Final Vote";
+  }
+  if (phase === "debate") {
+    const debateRounds = allRounds.filter((candidate) => candidate.outputs[0]?.phase === "debate");
+    const position = debateRounds.findIndex((candidate) => candidate.round === round.round);
+    return position >= 0 ? `Debate #${position + 1}` : `Debate Round ${round.round}`;
+  }
+  return `Round ${round.round}`;
+}
+
+/**
+ * Mirror the engine's deterministic claim-id assignment for extracted
+ * claims within a single round. The engine resets `seqByParticipant`
+ * per round (inside `updateClaims`), so we do the same here and emit
+ * `${participantId}:${round}:${seq}` ids per output position. The
+ * result is keyed by "outputIndex:claimIndex" so the renderer can look
+ * up the id without mutating state during render.
+ */
+export function computeExtractedClaimIds(round: RoundRecord): Record<string, string> {
+  const ids: Record<string, string> = {};
+  const seqByParticipant = new Map<string, number>();
+
+  round.outputs.forEach((output, outputIndex) => {
+    const extracted = output.extractedClaims ?? [];
+    extracted.forEach((claim, claimIndex) => {
+      const existing = claim.claimId;
+      if (existing && existing.length > 0) {
+        ids[`${outputIndex}:${claimIndex}`] = existing;
+        return;
+      }
+      const seq = seqByParticipant.get(output.participantId) ?? 0;
+      seqByParticipant.set(output.participantId, seq + 1);
+      ids[`${outputIndex}:${claimIndex}`] = `${output.participantId}:${round.round}:${seq}`;
+    });
+  });
+
+  return ids;
+}
+
+export type ClaimLookup = {
+  byId: Record<string, Claim>;
+  survivorId(claimId: string): string;
+  describe(claimId: string): {
+    claim: Claim | null;
+    survivor: Claim | null;
+    chain: string[];
+  };
+};
+
+/**
+ * Build a lookup that resolves claim id references against the final
+ * claim catalogue, including merged-into survivorship so tooltip and
+ * cross-reference consumers can walk the merge chain without caring
+ * about ordering or intermediate nodes.
+ */
+export function buildClaimLookup(result: ArgueResult): ClaimLookup {
+  const byId: Record<string, Claim> = {};
+  for (const claim of result.finalClaims) {
+    byId[claim.claimId] = claim;
+  }
+
+  const survivorId = (claimId: string): string => {
+    let current = claimId;
+    const seen = new Set<string>();
+    while (true) {
+      if (seen.has(current)) {
+        return current;
+      }
+      seen.add(current);
+      const node = byId[current];
+      if (!node || node.status !== "merged" || !node.mergedInto) {
+        return current;
+      }
+      current = node.mergedInto;
+    }
+  };
+
+  const describe = (claimId: string) => {
+    const claim = byId[claimId] ?? null;
+    const chain: string[] = [];
+    let current = claimId;
+    const seen = new Set<string>();
+    while (true) {
+      if (seen.has(current)) break;
+      seen.add(current);
+      const node = byId[current];
+      if (!node || node.status !== "merged" || !node.mergedInto) {
+        break;
+      }
+      chain.push(node.mergedInto);
+      current = node.mergedInto;
+    }
+    const survivor = chain.length > 0 ? (byId[chain[chain.length - 1]!] ?? null) : claim;
+    return { claim, survivor, chain };
+  };
+
+  return { byId, survivorId, describe };
 }
 
 export function buildContributionIndex(result: ArgueResult): ContributionIndex {

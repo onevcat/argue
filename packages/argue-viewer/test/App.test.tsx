@@ -5,84 +5,125 @@ import { createFixtureResult } from "./fixtures.js";
 
 afterEach(cleanup);
 
-function pasteAndLoad(text: string) {
-  const textarea = screen.getByLabelText(/Paste JSON/i) as HTMLTextAreaElement;
-  fireEvent.input(textarea, { target: { value: text } });
-  const loadButton = screen.getByRole("button", { name: /Load Pasted JSON/i });
-  fireEvent.click(loadButton);
+function makeJsonFile(content: string, name = "result.json"): File {
+  return new File([content], name, { type: "application/json" });
+}
+
+function getDropZone(): HTMLElement {
+  const zone = document.querySelector(".landing-drop");
+  if (!zone) {
+    throw new Error("landing-drop element not found");
+  }
+  return zone as HTMLElement;
+}
+
+async function dropJsonText(text: string, filename = "result.json") {
+  const zone = getDropZone();
+  const file = makeJsonFile(text, filename);
+  fireEvent.drop(zone, { dataTransfer: { files: [file] } });
+  // flush file.text() microtasks
+  await Promise.resolve();
+  await Promise.resolve();
 }
 
 describe("App", () => {
-  it("renders idle state on mount", () => {
+  it("renders the landing hero on mount", () => {
     render(<App />);
-    expect(screen.getByText("No Result Loaded")).toBeTruthy();
+    expect(screen.getByText("Argue")).toBeTruthy();
+    expect(screen.getByText(/Follow the argument/)).toBeTruthy();
+    expect(screen.getByText(/Drop result.json/)).toBeTruthy();
   });
 
   it("shows parse error for malformed JSON", async () => {
     render(<App />);
-    pasteAndLoad("{not json");
+    await dropJsonText("{not json");
     await waitFor(() => {
-      expect(screen.getByText("Validation Error")).toBeTruthy();
-      expect(screen.getByText(/Cannot parse JSON/)).toBeTruthy();
+      const alert = screen.getByRole("alert");
+      expect(alert.textContent).toContain("Cannot parse JSON");
     });
   });
 
   it("shows schema error for unsupported resultVersion", async () => {
     render(<App />);
     const bad = JSON.stringify({ ...createFixtureResult(), resultVersion: 999 });
-    pasteAndLoad(bad);
+    await dropJsonText(bad);
     await waitFor(() => {
-      expect(screen.getByText(/Unsupported resultVersion/)).toBeTruthy();
+      const alert = screen.getByRole("alert");
+      expect(alert.textContent).toMatch(/Unsupported resultVersion/);
     });
   });
 
   it("shows schema error with path for structurally broken input", async () => {
     render(<App />);
     const bad = JSON.stringify({ ...createFixtureResult(), requestId: "" });
-    pasteAndLoad(bad);
+    await dropJsonText(bad);
     await waitFor(() => {
-      expect(screen.getByText(/Schema mismatch at requestId/)).toBeTruthy();
+      const alert = screen.getByRole("alert");
+      expect(alert.textContent).toMatch(/Schema mismatch at requestId/);
     });
   });
 
   it("renders report after loading a valid result", async () => {
     render(<App />);
     const valid = JSON.stringify(createFixtureResult());
-    pasteAndLoad(valid);
+    await dropJsonText(valid);
     await waitFor(() => {
       // §00 headline is the task.title from the fixture.
       expect(screen.getByText("Strict schema validation in the viewer")).toBeTruthy();
-      // status chip — fixture fixture has status "consensus".
+      // status chip — fixture has status "consensus".
       expect(screen.getByText("consensus")).toBeTruthy();
       // representative reason
       expect(screen.getByText(/top-score/)).toBeTruthy();
     });
   });
 
-  it("recovers from error to loaded when a new valid payload is loaded", async () => {
+  it("shows the Check Another Report button in loaded state and can reset", async () => {
     render(<App />);
-    pasteAndLoad("not json");
-    await waitFor(() => expect(screen.getByText("Validation Error")).toBeTruthy());
-
     const valid = JSON.stringify(createFixtureResult());
-    pasteAndLoad(valid);
+    await dropJsonText(valid);
     await waitFor(() => {
-      // §00 headline is the task.title from the fixture.
       expect(screen.getByText("Strict schema validation in the viewer")).toBeTruthy();
-      expect(screen.queryByText("Validation Error")).toBeNull();
+    });
+
+    const resetButton = screen.getByRole("button", { name: /Check Another Report/i });
+    fireEvent.click(resetButton);
+
+    await waitFor(() => {
+      // Landing hero returns.
+      expect(screen.getByText(/Follow the argument/)).toBeTruthy();
+      // Report body is gone.
+      expect(screen.queryByText("Strict schema validation in the viewer")).toBeNull();
     });
   });
 
-  it("reports empty input as an error", async () => {
+  it("recovers from error to loaded when a new valid payload is loaded", async () => {
     render(<App />);
-    // Empty paste: the button is disabled until text is present, so we call
-    // the empty-input path by typing whitespace then pressing the button.
-    const textarea = screen.getByLabelText(/Paste JSON/i) as HTMLTextAreaElement;
-    fireEvent.input(textarea, { target: { value: "   " } });
-    // The button is now disabled because our trim check in FileIngress also
-    // filters whitespace — so nothing happens. We assert the disabled state
-    // instead, which is the more meaningful contract.
-    const loadButton = screen.getByRole("button", { name: /Load Pasted JSON/i }) as HTMLButtonElement;
-    expect(loadButton.disabled).toBe(true);
+    await dropJsonText("not json");
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toContain("Cannot parse JSON");
+    });
+
+    const valid = JSON.stringify(createFixtureResult());
+    await dropJsonText(valid);
+    await waitFor(() => {
+      // §00 headline is the task.title from the fixture.
+      expect(screen.getByText("Strict schema validation in the viewer")).toBeTruthy();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+  });
+
+  it("reports empty dropped file as an error", async () => {
+    render(<App />);
+    await dropJsonText("   ", "empty.json");
+    await waitFor(() => {
+      const alert = screen.getByRole("alert");
+      expect(alert.textContent).toContain("Input is empty");
+    });
+  });
+
+  it("always renders the site footer", () => {
+    render(<App />);
+    expect(screen.getByText(/github.com\/onevcat\/argue/)).toBeTruthy();
+    expect(screen.getByText(/@onevcat/)).toBeTruthy();
   });
 });
