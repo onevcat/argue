@@ -37,6 +37,13 @@
   --rule: rgba(26, 36, 30, 0.16);
   --rule-strong: rgba(26, 36, 30, 0.32);
   --hairline: rgba(26, 36, 30, 0.08);
+
+  /* Shell width and viewport bleed offset. Exposed as variables so
+     full-bleed sections (e.g. §01 Conclusion) can escape the app
+     shell and reach the viewport edges while keeping their inner
+     content aligned to the shell grid. */
+  --shell-width: min(1120px, calc(100vw - 32px));
+  --shell-bleed: calc((100vw - var(--shell-width)) / 2);
 }
 
 * {
@@ -47,6 +54,7 @@ html,
 body {
   margin: 0;
   padding: 0;
+  overflow-x: clip;
 }
 
 body {
@@ -54,11 +62,11 @@ body {
   font-family: "Manrope", sans-serif;
   font-size: 16px;
   color: var(--ink-0);
-  background-color: #0e1512;
+  background-color: var(--paper-1);
   background-image:
-    radial-gradient(1100px 560px at -10% -20%, rgba(184, 118, 40, 0.12), transparent 62%),
-    radial-gradient(900px 520px at 120% 8%, rgba(35, 109, 104, 0.14), transparent 60%),
-    linear-gradient(180deg, #0e1512 0%, #0b1310 55%, #09110e 100%);
+    radial-gradient(1100px 560px at -10% -20%, rgba(184, 118, 40, 0.14), transparent 62%),
+    radial-gradient(900px 520px at 120% 8%, rgba(35, 109, 104, 0.1), transparent 60%),
+    linear-gradient(180deg, #fbf5e4 0%, #f4edd8 55%, #ebe3cc 100%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -125,10 +133,10 @@ input {
  * ------------------------------------------------------------------ */
 
 .app-shell {
-  width: min(1120px, calc(100vw - 32px));
+  width: var(--shell-width);
   margin: clamp(24px, 4vw, 60px) auto clamp(48px, 6vw, 96px);
   display: grid;
-  gap: clamp(18px, 2vw, 28px);
+  gap: clamp(36px, 4vw, 60px);
 }
 
 /* ------------------------------------------------------------------
@@ -142,10 +150,6 @@ input {
   color: var(--ink-2);
   text-transform: uppercase;
   letter-spacing: 0.18em;
-}
-
-.eyebrow.on-dark {
-  color: rgba(246, 241, 228, 0.62);
 }
 
 .section-head {
@@ -174,24 +178,19 @@ input {
  * ------------------------------------------------------------------ */
 
 .ingress {
-  background: linear-gradient(170deg, var(--paper-0) 0%, var(--paper-1) 100%);
-  border: 1px solid var(--paper-edge);
-  border-radius: 4px;
-  padding: clamp(18px, 2.4vw, 28px);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 8px 4px;
   display: grid;
   gap: 16px;
-  box-shadow:
-    0 1px 0 rgba(246, 241, 228, 0.08) inset,
-    0 24px 54px rgba(0, 0, 0, 0.32);
-  transition: border-color 180ms ease;
+  outline: 2px dashed transparent;
+  outline-offset: 10px;
+  transition: outline-color 180ms ease;
 }
 
 .ingress.is-drag-over {
-  border-color: var(--teal);
-  box-shadow:
-    0 1px 0 rgba(246, 241, 228, 0.08) inset,
-    0 0 0 3px color-mix(in srgb, var(--teal) 40%, transparent),
-    0 24px 54px rgba(0, 0, 0, 0.32);
+  outline-color: var(--teal);
 }
 
 .ingress-meta h1 {
@@ -272,7 +271,7 @@ textarea {
 }
 
 .source-note {
-  color: rgba(246, 241, 228, 0.72);
+  color: var(--ink-3);
   font-family: "JetBrains Mono", monospace;
   font-size: 0.78rem;
   padding-inline: 4px;
@@ -281,7 +280,7 @@ textarea {
 }
 
 .source-note .mono {
-  color: var(--amber-soft);
+  color: var(--amber);
 }
 
 /* ------------------------------------------------------------------
@@ -289,10 +288,10 @@ textarea {
  * ------------------------------------------------------------------ */
 
 .state-panel {
-  background: var(--paper-0);
-  border: 1px solid var(--paper-edge);
-  border-radius: 4px;
-  padding: 24px 28px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 4px 0;
   display: grid;
   gap: 8px;
 }
@@ -308,11 +307,6 @@ textarea {
   font-size: 0.94rem;
 }
 
-.state-panel.error {
-  border-color: color-mix(in srgb, var(--bad) 45%, var(--paper-edge));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--bad) 6%, var(--paper-0)), var(--paper-0));
-}
-
 .state-panel.error h2 {
   color: var(--bad);
 }
@@ -323,29 +317,17 @@ textarea {
 
 .report-root {
   display: grid;
-  gap: clamp(14px, 1.8vw, 22px);
+  gap: clamp(36px, 4vw, 60px);
 }
 
 .panel {
   position: relative;
-  background: var(--paper-0);
-  border: 1px solid var(--paper-edge);
-  border-radius: 4px;
-  padding: clamp(22px, 2.6vw, 32px);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
   display: grid;
   gap: 14px;
-}
-
-.panel.on-dark {
-  background: linear-gradient(160deg, #13201a 0%, #172420 100%);
-  border: 1px solid rgba(246, 241, 228, 0.1);
-  color: var(--paper-0);
-}
-
-.panel.on-dark h1,
-.panel.on-dark h2,
-.panel.on-dark h3 {
-  color: var(--paper-0);
 }
 
 /* ------------------------------------------------------------------
@@ -353,19 +335,10 @@ textarea {
  * ------------------------------------------------------------------ */
 
 .header-panel {
-  padding: clamp(32px, 4vw, 56px);
+  padding: 0;
   display: grid;
   gap: 24px;
-  overflow: hidden;
-}
-
-.header-panel::before {
-  content: "";
-  position: absolute;
-  inset: 12px;
-  border: 1px solid var(--hairline);
-  border-radius: 2px;
-  pointer-events: none;
+  overflow: visible;
 }
 
 .verdict-row {
@@ -476,24 +449,49 @@ textarea {
 }
 
 /* ------------------------------------------------------------------
- * §01 Conclusion — hero pull-quote on dark
+ * §01 Conclusion — hero pull-quote on a dark ink plate.
+ * The dark fill IS the form; no outline or card chrome.
  * ------------------------------------------------------------------ */
 
 .conclusion-panel {
-  padding: clamp(32px, 4vw, 56px) clamp(32px, 4vw, 64px);
+  /* Full-bleed: push the panel box outward to the viewport edges so
+     the dark plate spans the entire page width, then pad the content
+     back inward so the eyebrow and quote still align with the
+     app-shell grid used by the other sections.
+
+     Vertical rhythm: eyebrow sits near the top, the oversized quote
+     glyph hangs decoratively below it, and the quote text clears
+     the glyph's visual mark. padding-block is asymmetric (smaller
+     top, larger bottom) to fit the stacked eyebrow → glyph → text
+     order. */
+  margin-inline: calc(-1 * var(--shell-bleed));
+  padding-block: clamp(52px, 5.5vw, 88px) clamp(88px, 9vw, 140px);
+  padding-inline: calc(var(--shell-bleed) + clamp(4px, 0.6vw, 12px));
   overflow: hidden;
+  background: linear-gradient(160deg, #13201a 0%, #172420 60%, #101a16 100%);
+  color: var(--paper-0);
+  box-shadow:
+    inset 0 1px 0 rgba(246, 241, 228, 0.05),
+    0 18px 40px rgba(12, 20, 16, 0.32);
 }
 
 .conclusion-panel::before {
+  /* Oversized pull-quote glyph. Sits between the eyebrow and the
+     quote text as a decorative watermark. top is tuned so the visual
+     mark in Fraunces (which sits in the top ~30% of the tightened
+     line-box) appears just under the eyebrow label. left is computed
+     against --shell-bleed so the glyph hangs just inside the content
+     grid — clamped non-negative for narrow viewports where the bleed
+     collapses to almost nothing. */
   content: "\201C";
   position: absolute;
-  top: -36px;
-  left: 18px;
+  top: clamp(82px, 8.5vw, 138px);
+  left: max(4px, calc(var(--shell-bleed) - 10px));
   font-family: "Fraunces", serif;
-  font-size: clamp(8rem, 14vw, 14rem);
-  line-height: 1;
+  font-size: clamp(9rem, 16vw, 16rem);
+  line-height: 0.78;
   color: var(--amber);
-  opacity: 0.42;
+  opacity: 0.55;
   pointer-events: none;
 }
 
@@ -510,8 +508,8 @@ textarea {
   font-size: clamp(1.3rem, 1.6vw + 0.7rem, 2rem);
   line-height: 1.35;
   color: var(--paper-0);
-  max-width: 70ch;
-  margin-top: 12px;
+  max-width: 56ch;
+  margin-top: clamp(60px, 6.4vw, 108px);
 }
 
 /* ------------------------------------------------------------------
@@ -773,7 +771,7 @@ textarea {
   list-style: none;
   padding: 0;
   display: grid;
-  gap: clamp(18px, 2vw, 26px);
+  gap: clamp(6px, 0.8vw, 12px);
 }
 
 .score-row {
@@ -781,17 +779,18 @@ textarea {
   grid-template-columns: 90px 1fr;
   gap: clamp(18px, 2vw, 30px);
   align-items: start;
-  padding-bottom: clamp(16px, 1.8vw, 22px);
+  padding: clamp(16px, 1.8vw, 22px) clamp(18px, 2vw, 26px);
   border-bottom: 1px solid var(--hairline);
+  border-radius: 4px;
+  transition: background 180ms ease;
 }
 
 .score-row:last-child {
   border-bottom: none;
-  padding-bottom: 0;
 }
 
 .score-row.link-participant {
-  background: color-mix(in srgb, var(--teal) 8%, transparent);
+  background: color-mix(in srgb, var(--teal) 10%, transparent);
   border-bottom-color: var(--rule);
 }
 
@@ -1064,20 +1063,12 @@ textarea {
  * §06 Disagreements / Eliminations / Action
  * ------------------------------------------------------------------ */
 
-.diagnostics-panel {
-  border-color: color-mix(in srgb, var(--amber) 30%, var(--paper-edge));
-}
-
 .diagnostics-panel .stack-list li {
   padding: 8px 12px;
   background: color-mix(in srgb, var(--amber) 7%, transparent);
   border-left: 2px solid var(--amber);
   font-size: 0.92rem;
   color: var(--ink-1);
-}
-
-.action-panel {
-  border-color: color-mix(in srgb, var(--teal) 30%, var(--paper-edge));
 }
 
 .error-line {
@@ -1088,16 +1079,6 @@ textarea {
 /* ------------------------------------------------------------------
  * §08 Metrics
  * ------------------------------------------------------------------ */
-
-.metrics-panel {
-  background: repeating-linear-gradient(
-    0deg,
-    var(--paper-1) 0,
-    var(--paper-1) 40px,
-    var(--paper-0) 40px,
-    var(--paper-0) 80px
-  );
-}
 
 .metrics-grid {
   display: grid;
@@ -1143,8 +1124,11 @@ textarea {
  * ------------------------------------------------------------------ */
 
 @media (max-width: 760px) {
+  :root {
+    --shell-width: calc(100vw - 40px);
+  }
+
   .app-shell {
-    width: min(calc(100vw - 20px), 100%);
     margin-block: 16px 40px;
   }
 

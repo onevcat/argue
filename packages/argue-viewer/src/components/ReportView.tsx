@@ -110,8 +110,8 @@ export function ReportView({ result }: ReportViewProps) {
       </section>
 
       {/* §01 — Conclusion hero */}
-      <section className="panel on-dark conclusion-panel">
-        <p className="eyebrow on-dark">§01 · The Verdict</p>
+      <section className="panel conclusion-panel">
+        <p className="eyebrow">§01 · The Verdict</p>
         <p className="conclusion-quote">{result.report.finalSummary}</p>
       </section>
 
