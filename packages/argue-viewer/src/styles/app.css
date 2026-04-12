@@ -1020,11 +1020,15 @@ textarea {
 }
 
 .vote-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-family: "Manrope", sans-serif;
   font-size: 0.62rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
+  text-indent: 0.1em;
   padding: 2px 6px;
   border-radius: 2px;
   color: var(--paper-0);
@@ -1465,6 +1469,7 @@ textarea {
 .stance-chip {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   padding: 2px 9px;
   border-radius: 999px;
   font-family: "Manrope", sans-serif;
@@ -1472,6 +1477,10 @@ textarea {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
+  /* Offset the trailing letter-spacing gap so text is optically
+     centered inside the pill (letter-spacing adds 0.12em after
+     every letter, including the last one). */
+  text-indent: 0.12em;
   color: var(--paper-0);
 }
 
