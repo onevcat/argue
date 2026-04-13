@@ -5,9 +5,8 @@
 Argue uses a JSON config file. Lookup order (highest priority first):
 
 1. CLI flags (`--config <path>`)
-2. Input JSON (`--input <path>`)
-3. Project-local: `./argue.config.json`
-4. Global: `~/.config/argue/config.json`
+2. Project-local: `./argue.config.json`
+3. Global: `~/.config/argue/config.json`
 
 ### Init Commands
 
@@ -51,14 +50,17 @@ argue config add-provider --id custom --type cli --cli-type generic --command my
 
 ### API-based providers
 
-For direct API access without a CLI:
+For direct API access without a CLI. Use `--vendor` for presets or `--protocol` for custom endpoints:
 
 ```bash
-# Anthropic API (uses ANTHROPIC_API_KEY env var)
+# Vendor presets (auto-fill protocol, baseUrl, apiKeyEnv):
+# Anthropic (uses ANTHROPIC_API_KEY)
 argue config add-provider --id anthropic --type api --vendor anthropic --model-id claude-4-sonnet
 
-# OpenAI API (uses OPENAI_API_KEY env var)
+# OpenAI (uses OPENAI_API_KEY)
 argue config add-provider --id openai --type api --vendor openai --model-id gpt-5.4
+
+# Other vendors: groq, together, mistral, deepseek
 
 # OpenAI-compatible endpoint (Ollama, vLLM, etc.)
 argue config add-provider --id local \
@@ -66,8 +68,15 @@ argue config add-provider --id local \
   --base-url http://localhost:11434/v1 \
   --model-id llama3
 
-# Other vendors: groq, together, mistral, deepseek
-# Custom API key env var: --api-key-env MY_CUSTOM_KEY
+# Anthropic-compatible endpoint
+argue config add-provider --id anthropic-proxy \
+  --type api --protocol anthropic-compatible \
+  --base-url https://my-proxy.example.com \
+  --model-id claude-4-sonnet
+
+# Custom API key env var
+argue config add-provider --id custom-api --type api --protocol openai-compatible \
+  --base-url https://api.example.com/v1 --api-key-env MY_API_KEY --model-id my-model
 ```
 
 ### SDK-based providers
@@ -75,6 +84,8 @@ argue config add-provider --id local \
 For custom adapters loaded from Node modules:
 ```bash
 argue config add-provider --id my-sdk --type sdk --adapter ./my-adapter.js --model-id my-model
+# With custom export name:
+argue config add-provider --id my-sdk --type sdk --adapter ./my-adapter.js --export-name createMyProvider --model-id my-model
 ```
 
 ### Mock provider (testing)
@@ -99,6 +110,22 @@ argue config add-agent --id expert-agent --provider gemini --model gemini-3.1-pr
 
 # Agent with temperature and timeout
 argue config add-agent --id creative-agent --provider openai --model gpt-5.4 --temperature 0.9 --timeout-ms 120000
+```
+
+### Shorthand: Provider + Agent in One Command
+
+Add `--agent <id>` to `add-provider` to create both at once:
+
+```bash
+argue config add-provider --id codex --type cli --cli-type codex --model-id gpt-5.4 --agent codex-agent
+```
+
+### Provider-Model Aliasing
+
+Use `--provider-model` to map a generic model ID to the provider's actual model name:
+
+```bash
+argue config add-provider --id codex --type cli --cli-type codex --model-id gpt5 --provider-model gpt-5.4
 ```
 
 ## Removing Providers/Agents
@@ -126,7 +153,7 @@ Remove entries from the `providers` object or `agents` array, then save.
       "command": "optional-binary-name",
       "args": [],
       "models": {
-        "<model-id>": {}
+        "<model-id>": { "providerModel": "optional-actual-model-name" }
       }
     }
   },
@@ -137,10 +164,30 @@ Remove entries from the `providers` object or `agents` array, then save.
       "model": "<model-id>",
       "role": "optional-role-description",
       "systemPrompt": "optional-system-prompt",
-      "temperature": 0.7,
-      "timeoutMs": 60000
+      "timeoutMs": 120000,
+      "temperature": 0.7
     }
-  ]
+  ],
+  "defaults": {
+    "defaultAgents": ["agent-1", "agent-2"],
+    "language": "optional-locale",
+    "tokenBudgetHint": 100000,
+    "minRounds": 2,
+    "maxRounds": 3,
+    "perTaskTimeoutMs": 600000,
+    "perRoundTimeoutMs": 600000,
+    "globalDeadlineMs": 3600000,
+    "consensusThreshold": 1,
+    "composer": "builtin",
+    "representativeId": "optional-agent-id",
+    "includeDeliberationTrace": false,
+    "traceLevel": "compact"
+  },
+  "output": {
+    "jsonlPath": "optional-path",
+    "resultPath": "optional-path",
+    "summaryPath": "optional-path"
+  }
 }
 ```
 

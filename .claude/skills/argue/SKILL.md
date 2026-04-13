@@ -37,7 +37,7 @@ argue config init --local  # project-local, or --global for ~/.config/argue/
 argue config add-provider --id codex --type cli --cli-type codex --model-id gpt-5.4
 argue config add-provider --id gemini --type cli --cli-type gemini --model-id gemini-3.1-pro-preview
 
-# Add at least 2 agents
+# Add at least 2 agents (--agent shorthand creates agent alongside provider)
 argue config add-agent --id codex-agent --provider codex --model gpt-5.4
 argue config add-agent --id gemini-agent --provider gemini --model gemini-3.1-pro-preview
 ```
@@ -57,13 +57,26 @@ argue run \
   --verbose
 
 # Specific agents + deeper rounds
-argue run --task "..." --agents codex-agent,gemini-agent --min-rounds 3 --max-rounds 5
+argue run --agents codex-agent,gemini-agent --min-rounds 3 --max-rounds 5 --task "..."
 
 # JSON input for complex tasks
-argue run --input debate-config.json --verbose
+argue run --input debate-config.json
 ```
 
-**Always use `--verbose`** to see agent reasoning and claim evolution in real-time. Set exec timeout to **600 seconds** — 2 agents × 3 rounds typically take 3-7 minutes.
+Use `run` or `exec` — both start a debate session. Use `--verbose` while learning or debugging; skip it for quieter output.
+
+Set exec timeout to **600 seconds** — 2 agents × 3 rounds typically take 3-7 minutes.
+
+## Acting on Results
+
+After a debate completes, use `argue act` to execute a follow-up task using the debate result as context:
+
+```bash
+argue act --result ~/.argue/output/<requestId>/result.json --task "Write a summary blog post"
+argue act --result ./out/<requestId>/result.json --task "Implement the changes" --agent codex-agent
+```
+
+Add `--no-action-full-result` to omit the full result JSON from the action context (saves tokens).
 
 ## Key Options
 
@@ -71,16 +84,21 @@ argue run --input debate-config.json --verbose
 |------|---------|---------|
 | `--agents <ids>` | Override which agents participate | all configured |
 | `--min-rounds` / `--max-rounds` | Control debate depth | 2-3 |
-| `--threshold <0-1>` | Consensus threshold | auto |
+| `--threshold <0-1>` | Consensus threshold (1 = unanimous) | 1 |
 | `--composer builtin\|representative` | Report style | builtin |
 | `--representative-id <id>` | Agent for representative composer | — |
 | `--action <prompt>` | Execute task after consensus | none |
 | `--action-agent <id>` | Override which agent executes action | representative |
+| `--per-task-timeout-ms <n>` | Timeout per agent task | 600000 |
+| `--per-round-timeout-ms <n>` | Timeout per debate round | 600000 |
+| `--global-deadline-ms <n>` | Overall deadline for entire debate | none |
 | `--language <lang>` | Output language | config default |
 | `--token-budget <n>` | Token limit per agent | unlimited |
-| `--trace` / `--trace-level` | Debug tracing | off |
+| `--request-id <id>` | Custom request ID | auto-generated |
+| `--trace` / `--trace-level compact\|full` | Debug tracing | off |
 | `--input <file>` | JSON config for complex setups | — |
 | `--jsonl` / `--result` / `--summary` | Output file paths | auto |
+| `--no-color` | Disable colored output | off |
 
 ## Understanding Output
 
@@ -92,13 +110,18 @@ argue run --input debate-config.json --verbose
 
 **Key metrics:**
 - **Claims:** Unique propositions (grows in round 0, shrinks via merges in later rounds)
-- **Consensus score:** 0-100 (higher = stronger agreement)
-- **Result type:** `consensus` (agreement) or `partial` (disagreement remains)
+- **Representative score:** Per-agent confidence rating
+- **Result status:** `consensus` | `partial_consensus` | `unresolved` | `failed`
 
-**Output files** (at `~/.argue/output/argue_<requestId>/`):
+**Output files** — path depends on config location:
+- **Global config** (`~/.config/argue/config.json`): `~/.argue/output/<requestId>/`
+- **Local config** (`./argue.config.json`): `./out/<requestId>/`
+
+Each directory contains:
 - `result.json` — full structured result
 - `summary.md` — markdown summary (written on completion)
 - `events.jsonl` — event stream (written live)
+- `error.json` — error details (on failure)
 
 ## Tips for Better Debates
 
