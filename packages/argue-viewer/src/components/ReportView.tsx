@@ -11,6 +11,7 @@ import {
   nameRound,
   rankScoreboard
 } from "../lib/view-model.js";
+import { Prose } from "../lib/prose.js";
 import { ClaimRef } from "./ClaimRef.js";
 
 type ReportViewProps = {
@@ -190,7 +191,7 @@ export function ReportView({ result }: ReportViewProps) {
             <p className="verdict-subtitle">{verdict.subtitle}</p>
             <details className="task-prompt">
               <summary>Full task prompt</summary>
-              <p>{result.task.prompt}</p>
+              <Prose text={result.task.prompt} />
             </details>
           </div>
         </div>
@@ -223,7 +224,9 @@ export function ReportView({ result }: ReportViewProps) {
       {/* §01 — Conclusion hero */}
       <section className="panel conclusion-panel">
         <p className="eyebrow">§{sectionNumbers.conclusion} · The Verdict</p>
-        <p className="conclusion-quote">{result.report.finalSummary}</p>
+        <div className="conclusion-quote">
+          <Prose text={result.report.finalSummary} />
+        </div>
       </section>
 
       {/* §02 — Representative */}
@@ -236,7 +239,9 @@ export function ReportView({ result }: ReportViewProps) {
           <span className="rep-reason">{result.representative.reason}</span>
           <span className="rep-score">{result.representative.score.toFixed(2)}</span>
         </div>
-        <blockquote className="rep-speech">{result.representative.speech}</blockquote>
+        <blockquote className="rep-speech">
+          <Prose text={result.representative.speech} />
+        </blockquote>
       </section>
 
       {/* §03 — Claims (merged claims are excluded — they still appear in §05 Rounds merge chains) */}
@@ -278,7 +283,9 @@ export function ReportView({ result }: ReportViewProps) {
                 </aside>
                 <div className="claim-body">
                   <h3>{claim.title}</h3>
-                  <p className="claim-statement">{claim.statement}</p>
+                  <div className="claim-statement">
+                    <Prose text={claim.statement} />
+                  </div>
                   <div className="claim-tally">
                     <div>
                       <span>accept</span>
@@ -429,7 +436,9 @@ export function ReportView({ result }: ReportViewProps) {
                           </div>
                         </header>
 
-                        <p>{output.summary}</p>
+                        <div className="round-output-summary">
+                          <Prose text={output.summary} />
+                        </div>
 
                         {output.extractedClaims?.length ? (
                           <div>
@@ -556,7 +565,7 @@ export function ReportView({ result }: ReportViewProps) {
           <p>
             <strong>{result.action.actorId}</strong> · {result.action.status}
           </p>
-          {result.action.summary ? <p>{result.action.summary}</p> : null}
+          {result.action.summary ? <Prose text={result.action.summary} /> : null}
           {result.action.error ? <p className="error-line">{result.action.error}</p> : null}
         </section>
       ) : null}

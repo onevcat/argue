@@ -1,3 +1,4 @@
+import { InlineProse } from "../lib/prose.js";
 import type { ClaimLookup } from "../lib/view-model.js";
 
 type ClaimRefProps = {
@@ -29,7 +30,11 @@ export function ClaimRef({ claimId, lookup, compact = false }: ClaimRefProps) {
       {hasDetail ? (
         <span className="claim-ref-tip" role="tooltip">
           <span className="claim-ref-tip-title">{primary?.title ?? survivor?.title ?? claimId}</span>
-          {primary?.statement ? <span className="claim-ref-tip-body">{primary.statement}</span> : null}
+          {primary?.statement ? (
+            <span className="claim-ref-tip-body">
+              <InlineProse text={primary.statement} />
+            </span>
+          ) : null}
           {primary?.category ? <span className="claim-ref-tip-meta">category: {primary.category}</span> : null}
           {isMerged && survivor && survivor.claimId !== claimId ? (
             <span className="claim-ref-tip-chain">

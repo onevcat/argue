@@ -796,6 +796,14 @@ textarea {
   margin-top: clamp(60px, 6.4vw, 108px);
 }
 
+.conclusion-quote p {
+  margin: 0;
+}
+
+.conclusion-quote p + p {
+  margin-top: 0.7em;
+}
+
 /* ------------------------------------------------------------------
  * §02 Representative
  * ------------------------------------------------------------------ */
@@ -846,6 +854,14 @@ textarea {
   padding-left: 20px;
   border-left: 3px solid var(--amber);
   max-width: 72ch;
+}
+
+.rep-speech p {
+  margin: 0;
+}
+
+.rep-speech p + p {
+  margin-top: 0.75em;
 }
 
 /* ------------------------------------------------------------------
@@ -970,6 +986,14 @@ textarea {
   line-height: 1.62;
   color: var(--ink-1);
   max-width: 66ch;
+}
+
+.claim-statement p {
+  margin: 0;
+}
+
+.claim-statement p + p {
+  margin-top: 0.65em;
 }
 
 .claim-tally {
@@ -1336,6 +1360,14 @@ textarea {
   font-size: 0.92rem;
   line-height: 1.55;
   color: var(--ink-1);
+}
+
+.round-output-summary p {
+  margin: 0;
+}
+
+.round-output-summary p + p {
+  margin-top: 0.55em;
 }
 
 .stack-list,
