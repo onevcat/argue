@@ -65,7 +65,7 @@ argue run --input debate-config.json
 
 Use `run` or `exec` — both start a debate session. Use `--verbose` while learning or debugging; skip it for quieter output.
 
-Set exec timeout to **600 seconds** — 2 agents × 3 rounds typically take 3-7 minutes.
+Debates typically take 3-7 minutes for 2 agents × 3 rounds. Complex topics or large reviews may need longer — allow ample exec timeout (600s is a reasonable starting point).
 
 ## Acting on Results
 
