@@ -302,7 +302,7 @@ describe("runCli view command", () => {
     const resultPath = join(runDir, "result.json");
     await writeFile(resultPath, JSON.stringify({ demo: true }));
 
-    const { io, out } = captureIo();
+    const { io, out, err } = captureIo();
     const result = await runCli(
       [
         "view",
@@ -315,16 +315,14 @@ describe("runCli view command", () => {
       io
     );
     expect(result.ok).toBe(true);
-    const joined = out.join("\n");
-    // Must contain the URL prefix so the user can see where the report opens.
-    expect(joined).toContain("Opening report: https://argue.onev.cat/#v=1&d=");
-    // Must include the encoded size diagnostic.
-    expect(joined).toMatch(/\(\d+ bytes encoded\)/);
-    // Tiny fixture compresses under 100 chars — no truncation marker expected.
-    expect(joined).not.toContain("…");
+    // stdout must be exactly one URL line so `$(argue view --no-open)` works.
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatch(/^https:\/\/argue\.onev\.cat\/#v=1&d=\S+$/);
+    // stderr must stay empty on success — any diagnostic would pollute scripted callers.
+    expect(err).toHaveLength(0);
   });
 
-  it("truncates very long URLs with an ellipsis marker", async () => {
+  it("prints the full URL under --no-open even when it exceeds the preview limit", async () => {
     const { randomBytes } = await import("node:crypto");
     const runId = "argue_1712000000000_ccccdd";
     const runDir = join(tmpRoot, runId);
@@ -335,15 +333,18 @@ describe("runCli view command", () => {
     const big = JSON.stringify({ blob: randomBytes(200).toString("base64") });
     await writeFile(resultPath, big);
 
-    const { io, out } = captureIo();
+    const { io, out, err } = captureIo();
     const result = await runCli(
       ["view", "--result", resultPath, "--viewer-url", "https://argue.onev.cat/", "--no-open"],
       io
     );
     expect(result.ok).toBe(true);
-    const joined = out.join("\n");
-    expect(joined).toContain("Opening report: https://argue.onev.cat/#v=1&d=");
-    expect(joined).toContain("…");
-    expect(joined).toMatch(/\(\d+ bytes encoded\)/);
+    // The preview helper caps at 100 chars — assert the URL we logged blows past it,
+    // proving --no-open bypasses truncation instead of just happening to fit.
+    expect(out).toHaveLength(1);
+    expect(out[0].length).toBeGreaterThan(150);
+    expect(out[0]).toMatch(/^https:\/\/argue\.onev\.cat\/#v=1&d=\S+$/);
+    expect(out[0]).not.toContain("…");
+    expect(err).toHaveLength(0);
   });
 });

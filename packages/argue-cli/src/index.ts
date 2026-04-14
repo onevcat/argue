@@ -554,7 +554,13 @@ async function runView(args: string[], io: Pick<typeof console, "log" | "error">
     return { ok: false, code: 1 };
   }
 
-  io.log(`→ Opening report: ${formatViewerUrlForLog(outcome.url, outcome.encodedSize)}`);
+  if (options.value.noOpen) {
+    // --no-open makes the URL the actual output — emit it alone on stdout so
+    // callers can do `open $(argue view --no-open)` or pipe to pbcopy.
+    io.log(outcome.url);
+  } else {
+    io.log(`→ Opening report: ${formatViewerUrlForLog(outcome.url, outcome.encodedSize)}`);
+  }
   return { ok: true, code: 0 };
 }
 
