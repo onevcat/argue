@@ -122,10 +122,19 @@ export const OutputSchema = z
   })
   .strict();
 
+export const DEFAULT_VIEWER_URL = "https://argue.onev.cat/";
+
+export const ViewerConfigSchema = z
+  .object({
+    url: z.string().url()
+  })
+  .strict();
+
 const CliConfigSchemaBase = z
   .object({
     schemaVersion: z.literal(1),
     output: OutputSchema.optional(),
+    viewer: ViewerConfigSchema.optional(),
     defaults: DefaultsSchema.optional(),
     providers: z.record(ProviderSchema).refine((providers) => Object.keys(providers).length > 0, {
       message: "config.providers must contain at least one provider"
