@@ -92,7 +92,7 @@ argue view <request-id>     # open a specific run
 argue run --view            # open automatically after a run completes
 ```
 
-The report is gzip-compressed and base64url-encoded into the URL fragment, then decoded entirely in the browser — **nothing is uploaded to any server**. To override the viewer location (for example, during local viewer development), set `viewer.url` in your config or pass `--viewer-url https://your-viewer/`.
+The report is gzip-compressed and base64url-encoded into the URL fragment, then decoded entirely in the browser — **nothing is uploaded to any server**. The default viewer is hosted at `https://argue.onev.cat/`. To point at a different viewer (for example, during local viewer development), set `viewer.url` in your config or pass `--viewer-url https://your-viewer/`.
 
 ### Common Options
 

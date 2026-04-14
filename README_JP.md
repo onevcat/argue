@@ -92,7 +92,7 @@ argue view <request-id>     # 指定した実行を開く
 argue run --view            # 実行完了後に自動で開く
 ```
 
-レポートは gzip 圧縮後に base64url で URL フラグメントにエンコードされ、デコードはすべてブラウザ側で行われます——**サーバーには何もアップロードされません**。viewer の URL を変更する場合（ローカル viewer 開発など）、config に `viewer.url` を設定するか `--viewer-url https://your-viewer/` を渡してください。
+レポートは gzip 圧縮後に base64url で URL フラグメントにエンコードされ、デコードはすべてブラウザ側で行われます——**サーバーには何もアップロードされません**。デフォルトの viewer は `https://argue.onev.cat/` でホストされています。別の viewer を指定するには（ローカル viewer 開発など）、config に `viewer.url` を設定するか `--viewer-url https://your-viewer/` を渡してください。
 
 ### よく使うオプション
 

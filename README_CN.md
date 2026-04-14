@@ -92,7 +92,7 @@ argue view <request-id>     # 打开指定的运行
 argue run --view            # 运行完成后自动打开
 ```
 
-报告会被 gzip 压缩后以 base64url 编码写入 URL fragment，所有解码都在浏览器端完成——**任何服务器都不会收到数据**。如果需要指定其它 viewer 地址（例如本地 viewer 开发），在 config 里设置 `viewer.url` 或通过 `--viewer-url https://your-viewer/` 覆盖。
+报告会被 gzip 压缩后以 base64url 编码写入 URL fragment，所有解码都在浏览器端完成——**任何服务器都不会收到数据**。默认的 viewer 托管在 `https://argue.onev.cat/`。如需指定其它地址（例如本地 viewer 开发），在 config 里设置 `viewer.url` 或通过 `--viewer-url https://your-viewer/` 覆盖。
 
 ### 常用选项
 
