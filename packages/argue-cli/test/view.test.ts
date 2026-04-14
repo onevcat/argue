@@ -10,6 +10,7 @@ import {
   launchBrowser,
   listCompletedRuns,
   MAX_ENCODED_BYTES,
+  openReportInViewer,
   resolveLatestRequestId
 } from "../src/view.js";
 
@@ -198,5 +199,68 @@ describe("launchBrowser", () => {
     await expect(launchBrowser("https://example.com/", { platform: "aix", spawn: vi.fn() })).rejects.toThrow(
       /Unsupported platform/
     );
+  });
+});
+
+describe("openReportInViewer", () => {
+  it("opens the browser with a fragment URL built from the given result.json", async () => {
+    const runId = "argue_1712000000000_aaaaaa";
+    const runDir = join(tmpRoot, runId);
+    await mkdir(runDir, { recursive: true });
+    const resultPath = join(runDir, "result.json");
+    await writeFile(resultPath, JSON.stringify({ hello: "world" }));
+
+    const spawned: Array<{ cmd: string; args: string[] }> = [];
+    const outcome = await openReportInViewer({
+      resultPath,
+      viewerUrl: "https://argue.onev.cat/",
+      platform: "darwin",
+      spawn: (cmd, args) => {
+        spawned.push({ cmd, args });
+      }
+    });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.url.startsWith("https://argue.onev.cat/#v=1&d=")).toBe(true);
+    expect(spawned).toHaveLength(1);
+    expect(spawned[0]!.cmd).toBe("open");
+    expect(spawned[0]!.args).toEqual([outcome.url]);
+  });
+
+  it("returns { ok: false, reason: 'too-large' } without opening the browser", async () => {
+    const runId = "argue_1712000000000_bbbbbb";
+    const runDir = join(tmpRoot, runId);
+    await mkdir(runDir, { recursive: true });
+    const resultPath = join(runDir, "result.json");
+    const huge = JSON.stringify({ blob: randomBytes(MAX_ENCODED_BYTES).toString("base64") });
+    await writeFile(resultPath, huge);
+
+    const spawned: Array<{ cmd: string; args: string[] }> = [];
+    const outcome = await openReportInViewer({
+      resultPath,
+      viewerUrl: "https://argue.onev.cat/",
+      platform: "darwin",
+      spawn: (cmd, args) => {
+        spawned.push({ cmd, args });
+      }
+    });
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toBe("too-large");
+    expect(spawned).toHaveLength(0);
+  });
+
+  it("returns { ok: false, reason: 'not-found' } if result.json is missing", async () => {
+    const outcome = await openReportInViewer({
+      resultPath: join(tmpRoot, "nope", "result.json"),
+      viewerUrl: "https://argue.onev.cat/",
+      platform: "darwin",
+      spawn: () => {}
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toBe("not-found");
   });
 });

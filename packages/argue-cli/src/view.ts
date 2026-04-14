@@ -1,4 +1,4 @@
-import { access, readdir } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import { spawn as nodeSpawn } from "node:child_process";
 import { gzipSync } from "node:zlib";
 import { REQUEST_ID_PATTERN } from "./request-id.js";
@@ -122,4 +122,33 @@ export async function launchBrowser(url: string, options: LaunchBrowserOptions =
   }
 
   spawn(cmd, args);
+}
+
+export type OpenReportInViewerOptions = {
+  resultPath: string;
+  viewerUrl: string;
+  platform?: NodeJS.Platform | string;
+  spawn?: BrowserSpawnFn;
+};
+
+export type OpenReportInViewerResult =
+  | { ok: true; url: string; encodedSize: number }
+  | { ok: false; reason: "not-found"; resultPath: string }
+  | { ok: false; reason: "too-large"; encodedSize: number; resultPath: string };
+
+export async function openReportInViewer(options: OpenReportInViewerOptions): Promise<OpenReportInViewerResult> {
+  let json: string;
+  try {
+    json = await readFile(options.resultPath, "utf8");
+  } catch {
+    return { ok: false, reason: "not-found", resultPath: options.resultPath };
+  }
+
+  const built = buildViewerUrl({ viewerUrl: options.viewerUrl, reportJson: json });
+  if (!built.ok) {
+    return { ok: false, reason: "too-large", encodedSize: built.encodedSize, resultPath: options.resultPath };
+  }
+
+  await launchBrowser(built.url, { platform: options.platform, spawn: options.spawn });
+  return { ok: true, url: built.url, encodedSize: built.encodedSize };
 }
