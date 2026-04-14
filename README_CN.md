@@ -360,6 +360,26 @@ CLI 支持四种 provider 类型来连接 agent：
 
 完整配置示例见 [`packages/argue-cli/examples/config.example.json`](packages/argue-cli/examples/config.example.json)。
 
+`reasoning` 是 provider model 配置和 agent 配置上的可选字符串：
+
+- `providers.<id>.models.<modelId>.reasoning`：model 级默认值
+- `agents[].reasoning`：agent 级覆盖
+
+`reasoning` 的透传是 best-effort，取决于 provider 类型/运行路径：
+
+- `cli` providers：
+  - `claude` → `--effort <reasoning>`
+  - `codex` → `-c model_reasoning_effort=<reasoning>`
+  - `generic` → 作为 stdin envelope 中的 `agent.reasoning` 传递
+  - 其他 `cliType` → no-op，并告警（每个 runner 仅一次）
+- `api` providers：当前为 no-op（配置可接受，但尚未向下游转发）
+
+用户责任：
+
+- `argue` 只存储/转发该字符串，不校验 provider 可接受值是否合法。
+- 与下游模型/工具能力的兼容性由用户自行保证。
+- 如果 provider 拒绝该值，错误会由下游 runtime/API 暴露。
+
 配置查找顺序：
 
 1. `--config <path>` 参数
