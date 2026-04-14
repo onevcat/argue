@@ -76,6 +76,24 @@ codex-agent は issue にアクセスし ESLint/Prettier の主張を提出。cl
 
 [この実行の完全な出力を確認する。](https://gist.github.com/onevcat/bbf42778888180c443bea78f395f255b)
 
+### レポートを表示
+
+実行が完了するたびに、argue はレポートをホストされた viewer で開く方法を示すヒントを出力します：
+
+```
+→ View report: argue view argue_1712345678901_a3f9c2
+```
+
+最近の実行を直接開くこともできます：
+
+```bash
+argue view                  # 最新の実行を開く
+argue view <request-id>     # 指定した実行を開く
+argue run --view            # 実行完了後に自動で開く
+```
+
+レポートは gzip 圧縮後に base64url で URL フラグメントにエンコードされ、デコードはすべてブラウザ側で行われます——**サーバーには何もアップロードされません**。viewer の URL を変更する場合（ローカル viewer 開発など）、config に `viewer.url` を設定するか `--viewer-url https://your-viewer/` を渡してください。
+
 ### よく使うオプション
 
 複雑なタスクや繰り返し実行する場合は、インラインフラグの代わりに [input JSON ファイル](https://github.com/onevcat/argue/blob/master/packages/argue-cli/examples/task.example.json)を使用できます：

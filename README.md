@@ -76,6 +76,24 @@ After each run, argue writes three output files to `~/.argue/output/<requestId>/
 
 [See the full unabridged output of this run.](https://gist.github.com/onevcat/bbf42778888180c443bea78f395f255b)
 
+### View the Report
+
+After every run, argue prints a hint telling you how to open the report in the hosted viewer:
+
+```
+→ View report: argue view argue_1712345678901_a3f9c2
+```
+
+You can also open the most recent run directly:
+
+```bash
+argue view                  # open the most recent run
+argue view <request-id>     # open a specific run
+argue run --view            # open automatically after a run completes
+```
+
+The report is gzip-compressed and base64url-encoded into the URL fragment, then decoded entirely in the browser — **nothing is uploaded to any server**. To override the viewer location (for example, during local viewer development), set `viewer.url` in your config or pass `--viewer-url https://your-viewer/`.
+
 ### Common Options
 
 For complex or repeated tasks, use an [input JSON file](https://github.com/onevcat/argue/blob/master/packages/argue-cli/examples/task.example.json) instead of inline flags:
