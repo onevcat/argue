@@ -104,7 +104,7 @@ function buildBaseArgs(
         ...(sessionUUID ? ["--session-id", sessionUUID] : ["--no-session-persistence"])
       ];
     case "codex":
-      return ["exec", "-m", providerModel, "--full-auto", "--color", "never"];
+      return ["exec", "-m", providerModel, "--full-auto", "--color", "never", "--skip-git-repo-check"];
     case "copilot":
       return ["-p", prompt, "--yolo", "--model", providerModel];
     case "gemini":
@@ -208,7 +208,9 @@ async function runCommand(args: {
       }
 
       reject(
-        new Error(`CLI provider exited with code=${code ?? "null"} signal=${signal ?? "null"} stderr=${stderr.trim()}`)
+        new Error(
+          `CLI provider exited with code=${code ?? "null"} signal=${signal ?? "null"} stderr=${stderr.trim() || "empty"} stdout=${stdout.trim() || "empty"}`
+        )
       );
     });
 
