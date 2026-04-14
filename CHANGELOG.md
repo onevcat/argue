@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.3.0] - 2026-04-14
+
+Headline: `argue view` lands. Open any past run's report directly in the browser — from the CLI, from a `--view` flag on `argue run`, or by visiting a shareable URL that carries the result in its fragment. Also: a new `argue` skill for Claude Code, viewer UX polish, and collision-resistant request IDs.
+
+### Features
+
+- `argue view` command: open a past run's report in the browser by request ID or latest run (1352ba0)
+- `argue run --view`: launch the viewer automatically after a run finishes (4e5fba9)
+- Encode `result.json` into a viewer URL fragment via gzip + base64url so reports load without a backend (20875a4)
+- Cross-platform browser launcher for `argue view` (50dba68) and orchestrator that wires discovery, encoding, and launch together (683ce0e)
+- Run discovery helpers for locating past runs on disk (75a70f3)
+- `viewer.url` config field, defaulting to `https://argue.onev.cat` (285cc42)
+- Collision-resistant `requestId` generator used for all new runs (26dc754, f689518)
+- Viewer auto-loads the report from the URL fragment on startup (f8c83f2, 8ea37b9)
+- Viewer routes the example report under `/example` with browser back/forward support (c017626)
+- Viewer renders agent prose with markdown emphasis (6a77eb6)
+- Viewer persists round merge events and gains chain-merge replay coverage (ca3d61d)
+- New `argue` skill for Claude Code so agents can run debates through the CLI (dfad285)
+
+### Fixes
+
+- Require HTTPS for `viewer.url` except loopback addresses (7c50024)
+- Tighten `REQUEST_ID_PATTERN` to match the generator exactly and unify `argue view` discovery on it (f4e8b96, 1ab2bec)
+- Truncate long report URLs in terminal output to avoid log spam (50cc4cd)
+- Fix merge replay handling in the engine (d70460b)
+- Viewer: wrap hash decoder failures in descriptive errors (310d1c5)
+- Viewer: snapshot the URL hash before async decode to avoid a race (cd5227e)
+- Viewer: pin `Uint8Array` buffer type for strict tsc check (57e9ca4)
+- Address argue skill self-review findings and follow-up review feedback (6b4f584, 42a7608)
+
+### Other
+
+- Document `argue view`, `--no-open`, and default viewer URL across README, CLI help, and package docs (c9eacfc, b12f4fd, 106a7bf, dbd6782)
+- Add "Install the Argue Skill" and "Live Demo" sections to the root README (5e70681, b315d0e)
+- Refresh README epigraph quotes and tease the manual route (1cadc34)
+- Tighten the argue skill docs and point at `result.ts` instead of bundling the schema (d3d15e8, 9cfee65)
+- `chore(release)`: publish GitHub Release page automatically from CHANGELOG (cdf6bd1)
+- Refactors: share default output dir helper, reuse loaded config in `argue view`, make `launchBrowser` async (dbd6782, 6141df3, 59ebd35)
+
 ## [0.2.0] - 2026-04-13
 
 First release under **unified versioning**: `@onevcat/argue`, `@onevcat/argue-cli`, and `@onevcat/argue-viewer` now share one version number driven by the root `package.json`. Headline change: `@onevcat/argue-viewer` is real — a Preact web app that renders an `ArgueResult` JSON file as a readable dossier.
