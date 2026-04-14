@@ -1,6 +1,5 @@
 import { access, mkdir, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { ActionTaskResultSchema, ArgueResultSchema, type ActionTaskInput, type AgentTaskInput } from "@onevcat/argue";
 import packageMetadata from "../package.json" with { type: "json" };
 import {
@@ -20,7 +19,7 @@ import {
 import { executeHeadlessRun } from "./headless-run.js";
 import { createOutputFormatter } from "./output.js";
 import { loadRunInput } from "./run-input.js";
-import { resolveRunPlan } from "./run-plan.js";
+import { defaultOutputDirTemplate, resolveRunPlan } from "./run-plan.js";
 import { createTaskDelegate } from "./runtime/delegate.js";
 import { MAX_ENCODED_BYTES, openReportInViewer, resolveLatestRequestId } from "./view.js";
 import { VENDOR_PRESETS, getVendorNames } from "./vendors.js";
@@ -613,10 +612,7 @@ function parseViewOptions(args: string[]): { ok: true; value: ViewOptions } | { 
 }
 
 function resolveResultPathTemplate(loadedConfig: LoadedCliConfig): string {
-  // Mirror the logic in resolveRunPlan — local vs global default, with override.
-  const globalConfigDir = join(homedir(), ".config", "argue");
-  const isGlobalConfig = loadedConfig.configDir === globalConfigDir;
-  const defaultOutputDir = isGlobalConfig ? join(homedir(), ".argue", "output", "{requestId}") : "./out/{requestId}";
+  const defaultOutputDir = defaultOutputDirTemplate(loadedConfig);
   const raw = loadedConfig.config.output?.resultPath ?? `${defaultOutputDir}/result.json`;
   return resolveOutputPath(raw, loadedConfig.configDir, "{requestId}");
 }
@@ -1394,6 +1390,7 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("  --request-id <id>               specific run id (overrides default-latest)");
   io.log("  --result <path>                 path to a result.json (overrides discovery)");
   io.log("  --viewer-url <url>              override viewer URL (default: https://argue.onev.cat/)");
+  io.log("  --no-open                       print the URL without launching a browser");
   io.log("");
   io.log("Config commands:");
   io.log("  argue config init [-c <path>] [--local|--project|--global]");

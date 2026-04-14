@@ -67,6 +67,17 @@ export type ResolvedRunPlan = {
   };
 };
 
+/**
+ * Returns the default output directory template (with `{requestId}` token intact)
+ * for the given loaded config — used by both `resolveRunPlan` and `argue view`'s
+ * discovery path so the two stay in lockstep.
+ */
+export function defaultOutputDirTemplate(loadedConfig: LoadedCliConfig): string {
+  const globalConfigDir = join(homedir(), ".config", "argue");
+  const isGlobalConfig = loadedConfig.configDir === globalConfigDir;
+  return isGlobalConfig ? join(homedir(), ".argue", "output", "{requestId}") : "./out/{requestId}";
+}
+
 export function resolveRunPlan(args: {
   loadedConfig: LoadedCliConfig;
   runInput: RunInput;
@@ -128,9 +139,7 @@ export function resolveRunPlan(args: {
     ? { prompt: actionPrompt, ...(actionActorId ? { actorId: actionActorId } : {}), includeFullResult }
     : undefined;
 
-  const globalConfigDir = join(homedir(), ".config", "argue");
-  const isGlobalConfig = loadedConfig.configDir === globalConfigDir;
-  const defaultOutputDir = isGlobalConfig ? join(homedir(), ".argue", "output", "{requestId}") : "./out/{requestId}";
+  const defaultOutputDir = defaultOutputDirTemplate(loadedConfig);
   const jsonlRaw = overrides.jsonlPath ?? loadedConfig.config.output?.jsonlPath ?? `${defaultOutputDir}/events.jsonl`;
   const resultRaw = overrides.resultPath ?? loadedConfig.config.output?.resultPath ?? `${defaultOutputDir}/result.json`;
   const summaryRaw =
