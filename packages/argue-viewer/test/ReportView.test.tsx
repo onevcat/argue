@@ -224,5 +224,4 @@ describe("ReportView", () => {
     expect(text).toContain("by alpha, zeta");
     expect(text).not.toContain("by zeta, alpha");
   });
-
 });
