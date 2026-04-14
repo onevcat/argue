@@ -8,7 +8,8 @@ export const ProviderModelSchema = z
     providerModel: z.string().min(1).optional(),
     contextWindow: z.number().int().positive().optional(),
     maxOutputTokens: z.number().int().positive().optional(),
-    temperature: z.number().min(0).max(2).optional()
+    temperature: z.number().min(0).max(2).optional(),
+    reasoning: z.string().min(1).optional()
   })
   .strict();
 
@@ -92,7 +93,8 @@ export const AgentSchema = z
     role: z.string().min(1).optional(),
     systemPrompt: z.string().min(1).optional(),
     timeoutMs: z.number().int().positive().optional(),
-    temperature: z.number().min(0).max(2).optional()
+    temperature: z.number().min(0).max(2).optional(),
+    reasoning: z.string().min(1).optional()
   })
   .strict();
 

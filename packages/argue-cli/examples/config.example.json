@@ -25,7 +25,8 @@
       "apiKeyEnv": "OPENAI_API_KEY",
       "models": {
         "gpt-4.1": {
-          "providerModel": "gpt-4.1"
+          "providerModel": "gpt-4.1",
+          "reasoning": "minimal"
         }
       }
     },
@@ -36,7 +37,8 @@
       "args": ["--print", "--permission-mode", "bypassPermissions"],
       "models": {
         "claude-sonnet-4-5": {
-          "providerModel": "claude-sonnet-4-5"
+          "providerModel": "claude-sonnet-4-5",
+          "reasoning": "medium"
         }
       }
     }
@@ -46,7 +48,8 @@
       "id": "architect",
       "provider": "claude_cli",
       "model": "claude-sonnet-4-5",
-      "role": "architecture-reviewer"
+      "role": "architecture-reviewer",
+      "reasoning": "high"
     },
     {
       "id": "bughunter",

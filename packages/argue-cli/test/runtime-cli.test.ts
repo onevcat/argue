@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentTaskInput } from "@onevcat/argue";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createCliRunner } from "../src/runtime/cli.js";
 
 function makeRoundTask(): AgentTaskInput {
@@ -188,6 +188,31 @@ process.stdout.write(JSON.stringify(output));
     }
   });
 
+  it("passes reasoning to claude via --effort and prefers agent override", async () => {
+    const script = await createArgvEchoScript("argue-cli-runner-claude-reasoning-");
+
+    const runner = createCliRunner({
+      type: "cli",
+      cliType: "claude",
+      command: script,
+      args: [],
+      models: { fake: {} }
+    });
+
+    const result = await runner.runTask({
+      task: makeRoundTask(),
+      agent: {
+        ...agent,
+        reasoning: "high",
+        modelConfig: { reasoning: "low" }
+      }
+    });
+
+    const argv = getArgv(result as { kind: string; output: { fullResponse: string } });
+    expect(argv).toContain("--effort");
+    expect(argv[argv.indexOf("--effort") + 1]).toBe("high");
+  });
+
   it("prepends codex base args before custom args", async () => {
     const script = await createArgvEchoScript("argue-cli-runner-codex-args-");
 
@@ -222,6 +247,67 @@ process.stdout.write(JSON.stringify(output));
     expect(argv[colorIndex + 1]).toBe("never");
     expect(sandboxIndex).toBeGreaterThan(colorIndex);
     expect(argv[sandboxIndex + 1]).toBe("danger-full-access");
+  });
+
+  it("passes reasoning to codex via model_reasoning_effort config override", async () => {
+    const script = await createArgvEchoScript("argue-cli-runner-codex-reasoning-");
+
+    const runner = createCliRunner({
+      type: "cli",
+      cliType: "codex",
+      command: script,
+      args: [],
+      models: {
+        fake: {}
+      }
+    });
+
+    const result = await runner.runTask({
+      task: makeRoundTask(),
+      agent: {
+        ...agent,
+        modelConfig: { reasoning: "minimal" }
+      }
+    });
+
+    const argv = getArgv(result as { kind: string; output: { fullResponse: string } });
+    expect(argv).toContain("-c");
+    const configOverride = argv[argv.indexOf("-c") + 1];
+    expect(configOverride).toBe("model_reasoning_effort=minimal");
+  });
+
+  it("warns once for unsupported cliType reasoning and keeps running", async () => {
+    const script = await createArgvAndStdinEchoScript("argue-cli-runner-gemini-reasoning-warning-");
+    const writeSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+    try {
+      const runner = createCliRunner({
+        type: "cli",
+        cliType: "gemini",
+        command: script,
+        args: [],
+        models: { fake: {} }
+      });
+
+      const customAgent = {
+        ...agent,
+        modelConfig: { reasoning: "high" }
+      };
+
+      await runner.runTask({ task: makeRoundTask(), agent: customAgent });
+      await runner.runTask({
+        task: { ...makeRoundTask(), round: 1 },
+        agent: customAgent
+      });
+
+      const warningCalls = writeSpy.mock.calls.filter((call) =>
+        String(call[0]).includes("does not have a verified reasoning flag")
+      );
+      expect(warningCalls).toHaveLength(1);
+      expect(String(warningCalls[0]?.[0])).toContain("cliType 'gemini'");
+    } finally {
+      writeSpy.mockRestore();
+    }
   });
 
   it("builds copilot base args with prompt in args and --yolo", async () => {
