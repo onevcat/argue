@@ -138,8 +138,12 @@ export function App() {
 
   useEffect(() => {
     const consumeHash = async (): Promise<boolean> => {
+      // Snapshot the hash so concurrent navigation cannot desync the decoded
+      // payload from the URL we eventually strip.
+      const capturedHash = window.location.hash;
+
       try {
-        const decoded = await decodeHashPayload(window.location.hash);
+        const decoded = await decodeHashPayload(capturedHash);
         if (!decoded) return false;
         pushRoute("report");
         const result = applyText(decoded, "hash");
