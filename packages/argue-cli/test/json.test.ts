@@ -110,7 +110,8 @@ describe("runtime/json", () => {
     // This combination defeats jsonrepair's stray-quote lookahead — it
     // starts parsing the CJK phrase as an unquoted key and throws
     // "Colon expected" — so parseJsonObject must fall back to a
-    // schema-agnostic iterative-escape recovery path.
+    // syntax-only iterative-escape recovery path. Output schema
+    // validation is intentionally handled later by normalizeTaskOutput.
     const broken = readFileSync(join(FIXTURE_DIR, "claude-final-vote-stray-quotes-fullwidth-paren.txt"), "utf8").trim();
 
     // Document the baseline: jsonrepair alone cannot salvage this input.

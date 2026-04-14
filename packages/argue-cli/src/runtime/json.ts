@@ -111,17 +111,21 @@ export function tryRepairJson(candidate: string): string | null {
 }
 
 /**
- * Schema-agnostic recovery for stray ASCII double quotes inside string
- * values. Driven by `JSON.parse`'s own error position: each rejection at
- * position P means everything strictly before P parsed cleanly, so the
- * offending quote is the most recent unescaped `"` at or before P. We
- * escape it and retry, up to a small iteration cap. Progress is enforced
- * by requiring the reported error position to strictly advance each round.
+ * Syntax-only recovery for stray ASCII double quotes inside string values.
+ * Driven by `JSON.parse`'s own error position: each rejection at position
+ * P means everything strictly before P parsed cleanly, so the offending
+ * quote is the most recent unescaped `"` at or before P. We escape it and
+ * retry, up to a small iteration cap. Progress is enforced by requiring
+ * the reported error position to strictly advance each round.
+ *
+ * This pass never inspects task-specific keys or output schemas. It only
+ * rewrites raw JSON text so syntax recovery stays generic. Any structural
+ * or schema validation still happens later in `normalizeTaskOutput`.
  *
  * This covers failures that `jsonrepair`'s lookahead heuristic trips on —
  * e.g. CJK phrases wrapped in stray ASCII quotes where surrounding
  * characters like `(N)` or fullwidth `（` mislead its "is this a new key?"
- * tie-breaker — without needing to know anything about the payload schema.
+ * tie-breaker.
  */
 function tryEscapeStrayQuotes(candidate: string): { text: string; iterations: number } | null {
   const MAX_ITERATIONS = 64;
@@ -186,9 +190,11 @@ export function parseJsonObject(text: string): unknown {
       }
     }
 
-    // Second chance: a narrower, data-driven stray-quote escape pass that
+    // Second chance: a narrower, syntax-only stray-quote escape pass that
     // survives the CJK + "(N)" + fullwidth "（" combinations where
     // jsonrepair's heuristic misclassifies the stray quote as a new key.
+    // It does not try to repair missing/invalid fields; schema enforcement
+    // remains a separate step in normalizeTaskOutput.
     const escaped = tryEscapeStrayQuotes(candidate);
     if (escaped !== null) {
       try {

@@ -1,5 +1,6 @@
 import type { AgentTaskInput } from "@onevcat/argue";
 import { describe, expect, it } from "vitest";
+import { parseJsonObject } from "../src/runtime/json.js";
 import { normalizeTaskOutput, normalizeTaskOutputFromText } from "../src/runtime/task-output.js";
 
 function makeInitialTask(): AgentTaskInput {
@@ -92,6 +93,17 @@ describe("runtime/task-output", () => {
     if (output.kind === "round") {
       expect(output.output.summary).toBe("sum");
     }
+  });
+
+  it("keeps stray-quote rescue separate from round-schema enforcement", () => {
+    const task = makeInitialTask();
+    const parsed = parseJsonObject('{"fullResponse":"Hello"world","summary":"sum"}');
+
+    expect(parsed).toEqual({
+      fullResponse: 'Hello"world',
+      summary: "sum"
+    });
+    expect(() => normalizeTaskOutput(task, parsed)).toThrow();
   });
 
   it("keeps action output stable when already normalized", () => {
