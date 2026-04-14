@@ -1362,7 +1362,7 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("");
   io.log("Usage:");
   io.log("  argue run|exec [options]        # run a debate session");
-  io.log("  argue view [request-id] [options]   # open a completed run in the hosted viewer");
+  io.log("  argue view [request-id]       # open a completed run in the hosted viewer");
   io.log("  argue act --result <path> --task <prompt> [--agent <id>] [--config <path>] [--no-action-full-result]");
   io.log("  argue config init                # create empty config file");
   io.log("  argue config add-provider ...    # append provider to config");
@@ -1390,10 +1390,10 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("  --viewer-url <url>                  # override viewer URL (default: https://argue.onev.cat/)");
   io.log("");
   io.log("View options:");
-  io.log("  --config <path>                     config JSON path");
-  io.log("  --request-id <id>                   specific run id (overrides default-latest)");
-  io.log("  --result <path>                     path to a result.json (overrides discovery)");
-  io.log("  --viewer-url <url>                  override viewer URL (default: https://argue.onev.cat/)");
+  io.log("  --config <path>                 config JSON path");
+  io.log("  --request-id <id>               specific run id (overrides default-latest)");
+  io.log("  --result <path>                 path to a result.json (overrides discovery)");
+  io.log("  --viewer-url <url>              override viewer URL (default: https://argue.onev.cat/)");
   io.log("");
   io.log("Config commands:");
   io.log("  argue config init [-c <path>] [--local|--project|--global]");
