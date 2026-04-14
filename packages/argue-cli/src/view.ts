@@ -136,6 +136,15 @@ export type OpenReportInViewerResult =
   | { ok: false; reason: "not-found"; resultPath: string }
   | { ok: false; reason: "too-large"; encodedSize: number; resultPath: string };
 
+/**
+ * Reads a result.json, encodes it for the viewer, and launches the browser.
+ *
+ * Returns a structured outcome for the success, not-found, and too-large
+ * cases. Unsupported `platform` values (outside `darwin`/`linux`/`win32`)
+ * cause `launchBrowser` to throw, which this function does NOT catch —
+ * callers are expected to pass `process.platform` in production, where
+ * that value will always be one of the three supported platforms.
+ */
 export async function openReportInViewer(options: OpenReportInViewerOptions): Promise<OpenReportInViewerResult> {
   let json: string;
   try {

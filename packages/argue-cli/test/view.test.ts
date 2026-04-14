@@ -249,12 +249,16 @@ describe("openReportInViewer", () => {
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
     expect(outcome.reason).toBe("too-large");
+    if (outcome.reason !== "too-large") return;
+    expect(outcome.resultPath).toBe(resultPath);
+    expect(outcome.encodedSize).toBeGreaterThan(MAX_ENCODED_BYTES);
     expect(spawned).toHaveLength(0);
   });
 
   it("returns { ok: false, reason: 'not-found' } if result.json is missing", async () => {
+    const missingPath = join(tmpRoot, "nope", "result.json");
     const outcome = await openReportInViewer({
-      resultPath: join(tmpRoot, "nope", "result.json"),
+      resultPath: missingPath,
       viewerUrl: "https://argue.onev.cat/",
       platform: "darwin",
       spawn: () => {}
@@ -262,5 +266,7 @@ describe("openReportInViewer", () => {
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
     expect(outcome.reason).toBe("not-found");
+    if (outcome.reason !== "not-found") return;
+    expect(outcome.resultPath).toBe(missingPath);
   });
 });
