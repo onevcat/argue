@@ -1,6 +1,7 @@
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { randomBytes } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -136,13 +137,24 @@ describe("buildViewerUrl", () => {
   });
 
   it("refuses payloads whose encoded size exceeds MAX_ENCODED_BYTES", () => {
-    const big = JSON.stringify({ blob: Array.from({ length: MAX_ENCODED_BYTES + 1 }, (_, i) => i).join("-") });
+    // Genuinely incompressible input: random bytes base64-encoded.
+    // ~200KB of random bytes → ~266KB base64 → gzip cannot reduce →
+    // final base64url of gzipped output is comfortably over MAX_ENCODED_BYTES.
+    const incompressible = randomBytes(MAX_ENCODED_BYTES).toString("base64");
+    const big = JSON.stringify({ blob: incompressible });
     const out = buildViewerUrl({ viewerUrl: "https://argue.onev.cat/", reportJson: big });
-    if (!out.ok) {
-      expect(out.reason).toBe("too-large");
-      expect(out.encodedSize).toBeGreaterThan(0);
-    } else {
-      expect(out.url.length).toBeLessThanOrEqual("https://argue.onev.cat/#v=1&d=".length + MAX_ENCODED_BYTES);
-    }
+    expect(out.ok).toBe(false);
+    if (out.ok) throw new Error("expected refusal");
+    expect(out.reason).toBe("too-large");
+    expect(out.encodedSize).toBeGreaterThan(MAX_ENCODED_BYTES);
+  });
+
+  it("accepts payloads whose encoded size is within the budget", () => {
+    const small = JSON.stringify({ demo: "ok", items: Array.from({ length: 50 }, (_, i) => ({ id: i })) });
+    const out = buildViewerUrl({ viewerUrl: "https://argue.onev.cat/", reportJson: small });
+    expect(out.ok).toBe(true);
+    if (!out.ok) throw new Error("expected success");
+    expect(out.encodedSize).toBeLessThanOrEqual(MAX_ENCODED_BYTES);
+    expect(out.url.length).toBeLessThanOrEqual("https://argue.onev.cat/#v=1&d=".length + out.encodedSize);
   });
 });
