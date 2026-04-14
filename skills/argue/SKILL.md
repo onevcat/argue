@@ -67,7 +67,7 @@ Useful flags (full list: `argue --help`):
 | `--input <file>`                | JSON input for complex setups                                                                                 |
 | `--verbose` / `-v`              | Stream agent reasoning live                                                                                   |
 
-Debates typically take 3–7 minutes for 2 agents × 3 rounds. Defaults are 10 min per task and 20 min per round; bump them for heavy reviews.
+Debates typically take 3–7 minutes for 2 agents × 3 rounds. Default cap is 20 min per round (and per task, which tracks the round cap by default); bump `--per-round-timeout-ms` for heavy reviews.
 
 ## Viewing & Acting on Results
 

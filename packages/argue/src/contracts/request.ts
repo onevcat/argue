@@ -113,11 +113,14 @@ export const ArgueStartInputSchema = z
 
     waitingPolicy: z
       .object({
+        // Default matches perRoundTimeoutMs: in a concurrent round the round
+        // cap already bounds the effective wait. perTask only has independent
+        // effect when explicitly set below it, which stays opt-in.
         perTaskTimeoutMs: z
           .number()
           .int()
           .min(1_000)
-          .default(10 * 60 * 1_000),
+          .default(20 * 60 * 1_000),
         perRoundTimeoutMs: z
           .number()
           .int()
@@ -127,7 +130,7 @@ export const ArgueStartInputSchema = z
       })
       .strict()
       .default({
-        perTaskTimeoutMs: 10 * 60 * 1_000,
+        perTaskTimeoutMs: 20 * 60 * 1_000,
         perRoundTimeoutMs: 20 * 60 * 1_000
       }),
 

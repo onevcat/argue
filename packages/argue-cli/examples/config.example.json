@@ -10,7 +10,7 @@
     "language": "en",
     "minRounds": 2,
     "maxRounds": 3,
-    "perTaskTimeoutMs": 600000,
+    "perTaskTimeoutMs": 1200000,
     "perRoundTimeoutMs": 1200000,
     "consensusThreshold": 1,
     "composer": "builtin",
