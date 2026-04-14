@@ -20,7 +20,7 @@ export async function decodeHashPayload(hash: string): Promise<string | null> {
     throw new Error("Missing data (`d=`) in report hash.");
   }
 
-  let bytes: Uint8Array;
+  let bytes: Uint8Array<ArrayBuffer>;
   try {
     bytes = base64UrlToBytes(data);
   } catch {
@@ -35,12 +35,13 @@ export async function decodeHashPayload(hash: string): Promise<string | null> {
   }
 }
 
-function base64UrlToBytes(encoded: string): Uint8Array {
+function base64UrlToBytes(encoded: string): Uint8Array<ArrayBuffer> {
   const normalized = encoded.replace(/-/g, "+").replace(/_/g, "/");
   const padLength = (4 - (normalized.length % 4)) % 4;
   const padded = normalized + "=".repeat(padLength);
   const binary = atob(padded);
-  const bytes = new Uint8Array(binary.length);
+  const buffer = new ArrayBuffer(binary.length);
+  const bytes = new Uint8Array(buffer);
   for (let i = 0; i < binary.length; i += 1) {
     bytes[i] = binary.charCodeAt(i);
   }
