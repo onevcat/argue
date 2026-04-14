@@ -52,6 +52,8 @@ export type CliRunOptions = {
   noActionFullResult?: boolean;
   verbose?: boolean;
   noColor?: boolean;
+  view?: boolean;
+  viewerUrl?: string;
 };
 
 type ConfigAddProviderOptions = {
@@ -194,6 +196,33 @@ async function runHeadless(args: string[], io: Pick<typeof console, "log" | "err
       resultPath: execution.resultPath,
       summaryPath: execution.summaryPath
     });
+
+    out.viewHint(plan.requestId);
+
+    if (options.value.view) {
+      const viewerUrl = options.value.viewerUrl ?? loadedConfig.config.viewer?.url ?? DEFAULT_VIEWER_URL;
+      const outcome = await openReportInViewer({
+        resultPath: execution.resultPath,
+        viewerUrl
+      });
+      if (!outcome.ok) {
+        if (outcome.reason === "not-found") {
+          io.error(`No result.json at: ${outcome.resultPath}`);
+        } else {
+          io.error(
+            [
+              `Report too large to embed in a URL (encoded: ${outcome.encodedSize} bytes, limit: ${MAX_ENCODED_BYTES}).`,
+              `Open ${viewerUrl} manually and drag this file in:`,
+              `  ${outcome.resultPath}`
+            ].join("\n")
+          );
+        }
+        // Don't fail the run — the debate succeeded. Just surface the error.
+      } else {
+        io.log(`→ Opening report: ${outcome.url}`);
+      }
+    }
+
     return { ok: true, code: 0 };
   } catch (error) {
     io.error(String(error));
@@ -902,6 +931,18 @@ function parseRunOptions(args: string[]): { ok: true; value: CliRunOptions } | {
 
     if (arg === "--no-action-full-result") {
       out.noActionFullResult = true;
+      continue;
+    }
+
+    if (arg === "--view") {
+      out.view = true;
+      continue;
+    }
+
+    if (arg === "--viewer-url") {
+      const value = args[++i];
+      if (!value) return { ok: false, error: "Missing value for --viewer-url" };
+      out.viewerUrl = value;
       continue;
     }
 
