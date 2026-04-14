@@ -175,6 +175,22 @@ export const EliminationRecordSchema = z.object({
 
 export type EliminationRecord = z.infer<typeof EliminationRecordSchema>;
 
+export const RoundAppliedMergeSchema = z.object({
+  sourceClaimId: z.string().min(1),
+  targetClaimId: z.string().min(1),
+  participantIds: z.array(z.string().min(1)).min(1)
+});
+
+export type RoundAppliedMerge = z.infer<typeof RoundAppliedMergeSchema>;
+
+export const RoundRecordSchema = z.object({
+  round: z.number().int().min(0),
+  outputs: z.array(ParticipantRoundOutputSchema),
+  appliedMerges: z.array(RoundAppliedMergeSchema).optional()
+});
+
+export type RoundRecord = z.infer<typeof RoundRecordSchema>;
+
 export const ActionOutputSchema = z.object({
   actorId: z.string().min(1),
   status: z.enum(["completed", "failed"]),
@@ -225,12 +241,7 @@ export const ArgueResultSchema = z.object({
       })
     )
     .optional(),
-  rounds: z.array(
-    z.object({
-      round: z.number().int().min(0),
-      outputs: z.array(ParticipantRoundOutputSchema)
-    })
-  ),
+  rounds: z.array(RoundRecordSchema),
   metrics: z.object({
     elapsedMs: z.number().int().nonnegative(),
     totalRounds: z.number().int().nonnegative(),
