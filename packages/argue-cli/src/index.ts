@@ -22,7 +22,7 @@ import { createOutputFormatter } from "./output.js";
 import { loadRunInput } from "./run-input.js";
 import { resolveRunPlan } from "./run-plan.js";
 import { createTaskDelegate } from "./runtime/delegate.js";
-import { openReportInViewer, resolveLatestRequestId } from "./view.js";
+import { MAX_ENCODED_BYTES, openReportInViewer, resolveLatestRequestId } from "./view.js";
 import { VENDOR_PRESETS, getVendorNames } from "./vendors.js";
 export type { CliSdkProviderAdapter, CreateCliSdkProviderAdapter, ProviderTaskRunnerArgs } from "./runtime/types.js";
 
@@ -469,12 +469,12 @@ async function runView(args: string[], io: Pick<typeof console, "log" | "error">
   }
 
   let resultPath = options.value.resultPath;
+  let loadedConfig: LoadedCliConfig | null = null;
 
   if (!resultPath) {
     // No explicit result path → resolve from config + optional requestId.
-    let loadedConfig;
     try {
-      loadedConfig = await loadCliConfig({ explicitPath: options.value.configPath });
+      loadedConfig = await loadCliConfig({ explicitPath: options.value.configPath } satisfies ResolveConfigPathOptions);
     } catch (error) {
       io.error(String(error));
       return { ok: false, code: 1 };
@@ -499,7 +499,10 @@ async function runView(args: string[], io: Pick<typeof console, "log" | "error">
     }
   }
 
-  const viewerUrl = options.value.viewerUrl ?? (await resolveConfiguredViewerUrl(options.value.configPath));
+  const viewerUrl =
+    options.value.viewerUrl ??
+    loadedConfig?.config.viewer?.url ??
+    (await resolveConfiguredViewerUrl(options.value.configPath));
 
   const outcome = await openReportInViewer({
     resultPath,
@@ -515,7 +518,7 @@ async function runView(args: string[], io: Pick<typeof console, "log" | "error">
     // too-large — fall back to printing a helpful message.
     io.error(
       [
-        `Report too large to embed in a URL (encoded: ${outcome.encodedSize} bytes, limit: 200000).`,
+        `Report too large to embed in a URL (encoded: ${outcome.encodedSize} bytes, limit: ${MAX_ENCODED_BYTES}).`,
         `Open ${viewerUrl} manually and drag this file in:`,
         `  ${outcome.resultPath}`
       ].join("\n")
