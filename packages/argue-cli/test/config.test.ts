@@ -720,7 +720,7 @@ describe("viewer config", () => {
           { id: "a2", provider: "mock", model: "fake" }
         ]
       })
-    ).toThrow();
+    ).toThrow(/invalid_string|Invalid url/i);
   });
 
   it("allows config without viewer section (optional)", () => {
@@ -733,6 +733,46 @@ describe("viewer config", () => {
       ]
     });
     expect(config.viewer).toBeUndefined();
+  });
+
+  it("allows http://localhost for local viewer development", () => {
+    const config = CliConfigSchema.parse({
+      schemaVersion: 1,
+      viewer: { url: "http://localhost:5173/" },
+      providers: { mock: { type: "mock", models: { fake: {} } } },
+      agents: [
+        { id: "a1", provider: "mock", model: "fake" },
+        { id: "a2", provider: "mock", model: "fake" }
+      ]
+    });
+    expect(config.viewer?.url).toBe("http://localhost:5173/");
+  });
+
+  it("allows http://127.0.0.1 for local viewer development", () => {
+    const config = CliConfigSchema.parse({
+      schemaVersion: 1,
+      viewer: { url: "http://127.0.0.1:5173/" },
+      providers: { mock: { type: "mock", models: { fake: {} } } },
+      agents: [
+        { id: "a1", provider: "mock", model: "fake" },
+        { id: "a2", provider: "mock", model: "fake" }
+      ]
+    });
+    expect(config.viewer?.url).toBe("http://127.0.0.1:5173/");
+  });
+
+  it("rejects non-https non-loopback URLs", () => {
+    expect(() =>
+      CliConfigSchema.parse({
+        schemaVersion: 1,
+        viewer: { url: "http://viewer.example.com/" },
+        providers: { mock: { type: "mock", models: { fake: {} } } },
+        agents: [
+          { id: "a1", provider: "mock", model: "fake" },
+          { id: "a2", provider: "mock", model: "fake" }
+        ]
+      })
+    ).toThrow(/https/i);
   });
 });
 

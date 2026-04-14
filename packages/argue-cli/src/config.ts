@@ -124,9 +124,28 @@ export const OutputSchema = z
 
 export const DEFAULT_VIEWER_URL = "https://argue.onev.cat/";
 
+function isSecureOrLoopbackUrl(value: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol === "https:") return true;
+  if (parsed.protocol === "http:") {
+    return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  }
+  return false;
+}
+
 export const ViewerConfigSchema = z
   .object({
-    url: z.string().url()
+    url: z
+      .string()
+      .url()
+      .refine((value) => isSecureOrLoopbackUrl(value), {
+        message: "viewer.url must use https:// (http:// is allowed only for localhost/127.0.0.1)"
+      })
   })
   .strict();
 
