@@ -13,6 +13,7 @@ import {
   openReportInViewer,
   resolveLatestRequestId
 } from "../src/view.js";
+import { runCli } from "../src/index.js";
 
 let tmpRoot: string;
 
@@ -268,5 +269,52 @@ describe("openReportInViewer", () => {
     expect(outcome.reason).toBe("not-found");
     if (outcome.reason !== "not-found") return;
     expect(outcome.resultPath).toBe(missingPath);
+  });
+});
+
+describe("runCli view command", () => {
+  function captureIo() {
+    const out: string[] = [];
+    const err: string[] = [];
+    return {
+      io: {
+        log: (msg: string) => out.push(String(msg)),
+        error: (msg: string) => err.push(String(msg))
+      },
+      out,
+      err
+    };
+  }
+
+  it("rejects the command when there is no completed run to open", async () => {
+    // Pointing at an empty tmp dir via --result path to force the discovery miss.
+    const missingResult = join(tmpRoot, "argue_1712000000000_deadbe", "result.json");
+    const { io, err } = captureIo();
+    const result = await runCli(["view", "--result", missingResult, "--viewer-url", "https://argue.onev.cat/"], io);
+    expect(result.ok).toBe(false);
+    expect(err.join("\n")).toMatch(/No result\.json/);
+  });
+
+  it("resolves the result path from --result and calls the orchestrator", async () => {
+    const runId = "argue_1712000000000_a1b2c3";
+    const runDir = join(tmpRoot, runId);
+    await mkdir(runDir, { recursive: true });
+    const resultPath = join(runDir, "result.json");
+    await writeFile(resultPath, JSON.stringify({ demo: true }));
+
+    const { io, out } = captureIo();
+    const result = await runCli(
+      [
+        "view",
+        "--result",
+        resultPath,
+        "--viewer-url",
+        "https://argue.onev.cat/",
+        "--no-open" // test-only flag that skips launchBrowser
+      ],
+      io
+    );
+    expect(result.ok).toBe(true);
+    expect(out.join("\n")).toMatch(/https:\/\/argue\.onev\.cat\/#v=1&d=/);
   });
 });
