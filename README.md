@@ -2,7 +2,7 @@
 
 **[中文](README_CN.md) | [日本語](README_JP.md)**
 
-> _Better answers emerge when AI agents are forced to defend their reasoning._
+> _Follow the argument wherever it leads._ — Socrates, in Plato's _Republic_
 
 argue is a structured multi-agent debate engine. Multiple AI agents analyze the same problem independently, challenge each other's claims across rounds, and converge on consensus through voting — producing higher quality results than any single agent alone.
 
@@ -29,6 +29,8 @@ npx skills add https://github.com/onevcat/argue --skill argue
 Once installed, just ask your agent to "argue about X" or "get a second opinion on Y". It will bootstrap the CLI on first run (asking you before any global install) and drive the debate, the report, and any follow-up action for you.
 
 ## Quick Start
+
+Prefer driving the CLI yourself like a cave-dweller with a stone axe? Suit yourself — here's the manual route.
 
 ### Install
 
