@@ -40,6 +40,7 @@ export default defineConfig({
     exclude: ["@onevcat/argue"]
   },
   test: {
-    environment: "happy-dom"
+    environment: "happy-dom",
+    setupFiles: ["./test/setup.ts"]
   }
 });
