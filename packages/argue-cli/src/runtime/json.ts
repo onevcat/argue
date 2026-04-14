@@ -110,6 +110,58 @@ export function tryRepairJson(candidate: string): string | null {
   }
 }
 
+/**
+ * Schema-agnostic recovery for stray ASCII double quotes inside string
+ * values. Driven by `JSON.parse`'s own error position: each rejection at
+ * position P means everything strictly before P parsed cleanly, so the
+ * offending quote is the most recent unescaped `"` at or before P. We
+ * escape it and retry, up to a small iteration cap. Progress is enforced
+ * by requiring the reported error position to strictly advance each round.
+ *
+ * This covers failures that `jsonrepair`'s lookahead heuristic trips on —
+ * e.g. CJK phrases wrapped in stray ASCII quotes where surrounding
+ * characters like `(N)` or fullwidth `（` mislead its "is this a new key?"
+ * tie-breaker — without needing to know anything about the payload schema.
+ */
+function tryEscapeStrayQuotes(candidate: string): { text: string; iterations: number } | null {
+  const MAX_ITERATIONS = 64;
+  let text = candidate;
+  let lastErrorPos = -1;
+
+  for (let iteration = 0; iteration < MAX_ITERATIONS; iteration += 1) {
+    try {
+      JSON.parse(text);
+      return { text, iterations: iteration };
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) return null;
+      const match = /at position (\d+)/.exec(error.message);
+      if (!match) return null;
+      const errorPos = Math.min(Number(match[1]), text.length);
+      if (errorPos <= lastErrorPos) return null;
+      lastErrorPos = errorPos;
+
+      let quotePos = -1;
+      for (let j = errorPos; j >= 0; j -= 1) {
+        if (text[j] !== '"') continue;
+        let backslashes = 0;
+        let k = j - 1;
+        while (k >= 0 && text[k] === "\\") {
+          backslashes += 1;
+          k -= 1;
+        }
+        if (backslashes % 2 === 0) {
+          quotePos = j;
+          break;
+        }
+      }
+      if (quotePos === -1) return null;
+
+      text = `${text.slice(0, quotePos)}\\${text.slice(quotePos)}`;
+    }
+  }
+  return null;
+}
+
 export function parseJsonObject(text: string): unknown {
   const candidate = extractJsonObject(text);
   if (!candidate) {
@@ -122,16 +174,35 @@ export function parseJsonObject(text: string): unknown {
   try {
     return JSON.parse(candidate);
   } catch (error) {
-    // Strict parse failed. Try the lenient repair path before surfacing
-    // a hard error so a single stray unescaped quote does not eliminate
-    // an otherwise-cooperative participant.
+    // Strict parse failed. First try the general lenient repair path so a
+    // single stray unescaped quote (or trailing comma, truncation, etc.)
+    // does not eliminate an otherwise-cooperative participant.
     const repaired = tryRepairJson(candidate);
     if (repaired !== null) {
       try {
         return JSON.parse(repaired);
       } catch {
-        // Repair produced a syntactically broken result; fall through to
-        // the hard error below.
+        // Repair produced a syntactically broken result; fall through.
+      }
+    }
+
+    // Second chance: a narrower, data-driven stray-quote escape pass that
+    // survives the CJK + "(N)" + fullwidth "（" combinations where
+    // jsonrepair's heuristic misclassifies the stray quote as a new key.
+    const escaped = tryEscapeStrayQuotes(candidate);
+    if (escaped !== null) {
+      try {
+        const parsed = JSON.parse(escaped.text);
+        // Observability: record the fallback so operators can see how
+        // often LLM output needs this rescue path in production. Goes to
+        // stderr so it never contaminates CLI JSON stdout.
+        console.warn(
+          `[argue] parseJsonObject: recovered via iterative stray-quote escape ` +
+            `(iterations=${escaped.iterations}, candidateLength=${candidate.length})`
+        );
+        return parsed;
+      } catch {
+        // Fall through to the hard error below.
       }
     }
 
