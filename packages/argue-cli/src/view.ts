@@ -96,7 +96,7 @@ export type LaunchBrowserOptions = {
   spawn?: BrowserSpawnFn;
 };
 
-export function launchBrowser(url: string, options: LaunchBrowserOptions = {}): Promise<void> {
+export async function launchBrowser(url: string, options: LaunchBrowserOptions = {}): Promise<void> {
   const platform = options.platform ?? process.platform;
   const spawn =
     options.spawn ??
@@ -118,9 +118,8 @@ export function launchBrowser(url: string, options: LaunchBrowserOptions = {}): 
     cmd = "cmd";
     args = ["/c", "start", "", url];
   } else {
-    return Promise.reject(new Error(`Unsupported platform for launchBrowser: ${platform}`));
+    throw new Error(`Unsupported platform for launchBrowser: ${platform}`);
   }
 
   spawn(cmd, args);
-  return Promise.resolve();
 }
