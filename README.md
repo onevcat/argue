@@ -369,7 +369,20 @@ Full config example at [`packages/argue-cli/examples/config.example.json`](packa
 - `providers.<id>.models.<modelId>.reasoning`: model-level default
 - `agents[].reasoning`: per-agent override
 
-For CLI providers, argue forwards this string on a best-effort basis by `cliType` (for example Claude `--effort`, Codex `-c model_reasoning_effort=...`). Unsupported providers are treated as no-op and emit a warning.
+Reasoning passthrough is best-effort and depends on provider type/runtime path:
+
+- `cli` providers:
+  - `claude` → `--effort <reasoning>`
+  - `codex` → `-c model_reasoning_effort=<reasoning>`
+  - `generic` → included in the stdin envelope as `agent.reasoning`
+  - other `cliType` values → no-op with a warning (once per runner)
+- `api` providers: currently no-op (field is accepted in config but not forwarded yet)
+
+User responsibility:
+
+- `argue` only stores/forwards the string and does not validate provider-specific accepted values.
+- Compatibility with downstream model/tool capabilities is up to the user.
+- If a provider rejects a value, the error surfaces from the downstream runtime/API.
 
 Config lookup order:
 

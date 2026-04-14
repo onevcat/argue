@@ -90,6 +90,49 @@ process.stdout.write(JSON.stringify(output));
     });
   });
 
+  it("passes reasoning through generic envelope and prefers agent override", async () => {
+    const script = await createArgvAndStdinEchoScript("argue-cli-runner-generic-reasoning-");
+
+    const runner = createCliRunner({
+      type: "cli",
+      cliType: "generic",
+      command: script,
+      args: [],
+      models: { fake: {} }
+    });
+
+    const overridden = await runner.runTask({
+      task: makeRoundTask(),
+      agent: {
+        ...agent,
+        reasoning: "high",
+        modelConfig: { reasoning: "low" }
+      }
+    });
+
+    const overriddenEnvelope = JSON.parse(
+      getArgvAndStdin(overridden as { kind: string; output: { fullResponse: string } }).stdin
+    ) as {
+      agent: { reasoning?: string };
+    };
+    expect(overriddenEnvelope.agent.reasoning).toBe("high");
+
+    const inherited = await runner.runTask({
+      task: makeRoundTask(),
+      agent: {
+        ...agent,
+        modelConfig: { reasoning: "low" }
+      }
+    });
+
+    const inheritedEnvelope = JSON.parse(
+      getArgvAndStdin(inherited as { kind: string; output: { fullResponse: string } }).stdin
+    ) as {
+      agent: { reasoning?: string };
+    };
+    expect(inheritedEnvelope.agent.reasoning).toBe("low");
+  });
+
   it("passes --session-id for claude cliType when metadata has participantSessionKey", async () => {
     const script = await createArgvEchoScript("argue-cli-runner-session-");
 
