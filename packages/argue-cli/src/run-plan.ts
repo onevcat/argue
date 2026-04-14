@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { CliConfig, LoadedCliConfig } from "./config.js";
 import { resolveOutputPath } from "./config.js";
 import type { RunInput } from "./run-input.js";
+import { newRequestId } from "./request-id.js";
 
 export type RunOverrides = {
   requestId?: string;
@@ -66,6 +67,17 @@ export type ResolvedRunPlan = {
   };
 };
 
+/**
+ * Returns the default output directory template (with `{requestId}` token intact)
+ * for the given loaded config — used by both `resolveRunPlan` and `argue view`'s
+ * discovery path so the two stay in lockstep.
+ */
+export function defaultOutputDirTemplate(loadedConfig: LoadedCliConfig): string {
+  const globalConfigDir = join(homedir(), ".config", "argue");
+  const isGlobalConfig = loadedConfig.configDir === globalConfigDir;
+  return isGlobalConfig ? join(homedir(), ".argue", "output", "{requestId}") : "./out/{requestId}";
+}
+
 export function resolveRunPlan(args: {
   loadedConfig: LoadedCliConfig;
   runInput: RunInput;
@@ -74,7 +86,7 @@ export function resolveRunPlan(args: {
   const { loadedConfig, runInput, overrides } = args;
   const config = loadedConfig.config;
 
-  const requestId = overrides.requestId ?? runInput.requestId ?? `argue_${Date.now()}`;
+  const requestId = overrides.requestId ?? runInput.requestId ?? newRequestId();
   const task = (overrides.task ?? runInput.task ?? "").trim();
 
   if (!task) {
@@ -127,9 +139,7 @@ export function resolveRunPlan(args: {
     ? { prompt: actionPrompt, ...(actionActorId ? { actorId: actionActorId } : {}), includeFullResult }
     : undefined;
 
-  const globalConfigDir = join(homedir(), ".config", "argue");
-  const isGlobalConfig = loadedConfig.configDir === globalConfigDir;
-  const defaultOutputDir = isGlobalConfig ? join(homedir(), ".argue", "output", "{requestId}") : "./out/{requestId}";
+  const defaultOutputDir = defaultOutputDirTemplate(loadedConfig);
   const jsonlRaw = overrides.jsonlPath ?? loadedConfig.config.output?.jsonlPath ?? `${defaultOutputDir}/events.jsonl`;
   const resultRaw = overrides.resultPath ?? loadedConfig.config.output?.resultPath ?? `${defaultOutputDir}/result.json`;
   const summaryRaw =

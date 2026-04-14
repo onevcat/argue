@@ -364,3 +364,13 @@ describe("output formatter", () => {
     });
   });
 });
+
+describe("view hint", () => {
+  it("prints `→ View report: argue view <id>` after runCompleted", () => {
+    const logs: string[] = [];
+    const io = { log: (s: string) => logs.push(String(s)), error: () => {} };
+    const formatter = createOutputFormatter(io, { isTTY: false, noColor: true });
+    formatter.viewHint("argue_1712000000000_aaaaaa");
+    expect(logs.join("\n")).toContain("→ View report: argue view argue_1712000000000_aaaaaa");
+  });
+});

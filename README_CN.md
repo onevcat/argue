@@ -76,6 +76,24 @@ codex-agent 访问了 issue 并提出 ESLint/Prettier 相关主张。claude-agen
 
 [查看这次运行的完整输出。](https://gist.github.com/onevcat/bbf42778888180c443bea78f395f255b)
 
+### 查看报告
+
+每次运行结束后，argue 会打印一行提示，告诉你如何在托管 viewer 中打开本次报告：
+
+```
+→ View report: argue view argue_1712345678901_a3f9c2
+```
+
+也可以直接打开最近一次运行：
+
+```bash
+argue view                  # 打开最近一次运行
+argue view <request-id>     # 打开指定的运行
+argue run --view            # 运行完成后自动打开
+```
+
+报告会被 gzip 压缩后以 base64url 编码写入 URL fragment，所有解码都在浏览器端完成——**任何服务器都不会收到数据**。默认的 viewer 托管在 `https://argue.onev.cat/`。如需指定其它地址（例如本地 viewer 开发），在 config 里设置 `viewer.url` 或通过 `--viewer-url https://your-viewer/` 覆盖。
+
 ### 常用选项
 
 对于复杂或重复的任务，可以使用 [input JSON 文件](https://github.com/onevcat/argue/blob/master/packages/argue-cli/examples/task.example.json)代替内联参数：

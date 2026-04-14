@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
+import { gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App.js";
 import { createFixtureResult } from "./fixtures.js";
@@ -265,5 +266,34 @@ describe("App", () => {
       const alert = screen.getByRole("alert");
       expect(alert.textContent).toContain("HTTP 404");
     });
+  });
+});
+
+function encodeFixtureForHash(): string {
+  const gz = gzipSync(Buffer.from(JSON.stringify(createFixtureResult()), "utf8"));
+  return gz.toString("base64url");
+}
+
+describe("App hash payload", () => {
+  it("loads a report from the #v=1&d= fragment and clears the hash after render", async () => {
+    window.history.replaceState(null, "", `/#v=1&d=${encodeFixtureForHash()}`);
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Strict schema validation in the viewer")).toBeTruthy();
+    });
+    expect(window.location.pathname).toBe("/report");
+    expect(window.location.hash).toBe("");
+  });
+
+  it("surfaces a friendly error for malformed hash payloads", async () => {
+    window.history.replaceState(null, "", "/#v=1&d=@@@not-base64@@@");
+    render(<App />);
+
+    await waitFor(() => {
+      const alert = screen.getByRole("alert");
+      expect(alert.textContent).toMatch(/report hash|decode|base64/i);
+    });
+    expect(window.location.hash).toBe("");
   });
 });

@@ -2,7 +2,13 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createExampleConfigPath, loadCliConfig, resolveConfigPath } from "../src/config.js";
+import {
+  CliConfigSchema,
+  DEFAULT_VIEWER_URL,
+  createExampleConfigPath,
+  loadCliConfig,
+  resolveConfigPath
+} from "../src/config.js";
 import { runCli } from "../src/index.js";
 
 const VALID_CONFIG = {
@@ -684,6 +690,95 @@ describe("cli config loader", () => {
 
     expect(result).toEqual({ ok: false, code: 1 });
     expect(errors.some((line) => line.includes("Choose either --local/--project or --global"))).toBe(true);
+  });
+});
+
+describe("viewer config", () => {
+  it("accepts a viewer.url string in CliConfig", () => {
+    const config = CliConfigSchema.parse({
+      schemaVersion: 1,
+      viewer: { url: "https://viewer.example.com/" },
+      providers: {
+        mock: { type: "mock", models: { fake: {} } }
+      },
+      agents: [
+        { id: "a1", provider: "mock", model: "fake" },
+        { id: "a2", provider: "mock", model: "fake" }
+      ]
+    });
+    expect(config.viewer?.url).toBe("https://viewer.example.com/");
+  });
+
+  it("rejects a non-URL string", () => {
+    expect(() =>
+      CliConfigSchema.parse({
+        schemaVersion: 1,
+        viewer: { url: "not a url" },
+        providers: { mock: { type: "mock", models: { fake: {} } } },
+        agents: [
+          { id: "a1", provider: "mock", model: "fake" },
+          { id: "a2", provider: "mock", model: "fake" }
+        ]
+      })
+    ).toThrow(/invalid_string|Invalid url/i);
+  });
+
+  it("allows config without viewer section (optional)", () => {
+    const config = CliConfigSchema.parse({
+      schemaVersion: 1,
+      providers: { mock: { type: "mock", models: { fake: {} } } },
+      agents: [
+        { id: "a1", provider: "mock", model: "fake" },
+        { id: "a2", provider: "mock", model: "fake" }
+      ]
+    });
+    expect(config.viewer).toBeUndefined();
+  });
+
+  it("allows http://localhost for local viewer development", () => {
+    const config = CliConfigSchema.parse({
+      schemaVersion: 1,
+      viewer: { url: "http://localhost:5173/" },
+      providers: { mock: { type: "mock", models: { fake: {} } } },
+      agents: [
+        { id: "a1", provider: "mock", model: "fake" },
+        { id: "a2", provider: "mock", model: "fake" }
+      ]
+    });
+    expect(config.viewer?.url).toBe("http://localhost:5173/");
+  });
+
+  it("allows http://127.0.0.1 for local viewer development", () => {
+    const config = CliConfigSchema.parse({
+      schemaVersion: 1,
+      viewer: { url: "http://127.0.0.1:5173/" },
+      providers: { mock: { type: "mock", models: { fake: {} } } },
+      agents: [
+        { id: "a1", provider: "mock", model: "fake" },
+        { id: "a2", provider: "mock", model: "fake" }
+      ]
+    });
+    expect(config.viewer?.url).toBe("http://127.0.0.1:5173/");
+  });
+
+  it("rejects non-https non-loopback URLs", () => {
+    expect(() =>
+      CliConfigSchema.parse({
+        schemaVersion: 1,
+        viewer: { url: "http://viewer.example.com/" },
+        providers: { mock: { type: "mock", models: { fake: {} } } },
+        agents: [
+          { id: "a1", provider: "mock", model: "fake" },
+          { id: "a2", provider: "mock", model: "fake" }
+        ]
+      })
+    ).toThrow(/https/i);
+  });
+});
+
+describe("DEFAULT_VIEWER_URL", () => {
+  it("points at argue.onev.cat by default", () => {
+    expect(DEFAULT_VIEWER_URL).toBe("https://argue.onev.cat/");
   });
 });
 

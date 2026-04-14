@@ -3,6 +3,7 @@ import type { ArgueResult } from "@onevcat/argue";
 import { Landing } from "./components/Landing.js";
 import { ReportLayout } from "./components/ReportLayout.js";
 import { SiteFooter } from "./components/SiteFooter.js";
+import { decodeHashPayload } from "./lib/decode-hash.js";
 import { validateArgueResult } from "./lib/validate.js";
 
 const EXAMPLE_URL = "examples/spaces-vs-tabs.json";
@@ -136,6 +137,32 @@ export function App() {
   };
 
   useEffect(() => {
+    const consumeHash = async (): Promise<boolean> => {
+      // Snapshot the hash so concurrent navigation cannot desync the decoded
+      // payload from the URL we eventually strip.
+      const capturedHash = window.location.hash;
+
+      try {
+        const decoded = await decodeHashPayload(capturedHash);
+        if (!decoded) return false;
+        pushRoute("report");
+        const result = applyText(decoded, "hash");
+        if (result) {
+          reportCacheRef.current = { source: "hash", result };
+        }
+        // Strip the hash — it was a one-shot delivery mechanism, not a persistent route.
+        const cleanPath = window.location.pathname + window.location.search;
+        window.history.replaceState(null, "", cleanPath || "/");
+        return true;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to decode report hash.";
+        setState({ kind: "error", source: "hash", error: message });
+        const cleanPath = window.location.pathname + window.location.search;
+        window.history.replaceState(null, "", cleanPath || "/");
+        return true;
+      }
+    };
+
     const syncFromPath = () => {
       const route = routeFromPath(window.location.pathname);
       if (route === "home") {
@@ -152,16 +179,27 @@ export function App() {
         setState({ kind: "loaded", source: cached.source, result: cached.result });
         return;
       }
-      // No in-memory report — direct entry to /report has nothing to
-      // render, so fall back to landing without leaving a stale entry.
       replaceRoute("home");
       setState({ kind: "idle" });
     };
 
-    syncFromPath();
-    window.addEventListener("popstate", syncFromPath);
+    if (window.location.hash && window.location.hash !== "#") {
+      // Hash present: go async to decode it. No need to call syncFromPath —
+      // consumeHash will either load the report or surface an error.
+      void consumeHash();
+    } else {
+      syncFromPath();
+    }
+
+    const onPopState = () => {
+      void (async () => {
+        const consumed = await consumeHash();
+        if (!consumed) syncFromPath();
+      })();
+    };
+    window.addEventListener("popstate", onPopState);
     return () => {
-      window.removeEventListener("popstate", syncFromPath);
+      window.removeEventListener("popstate", onPopState);
     };
   }, []);
 

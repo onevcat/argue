@@ -192,6 +192,10 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
       };
     },
 
+    viewHint(requestId: string) {
+      io.log(c.dim(`→ View report: argue view ${requestId}`));
+    },
+
     runCompleted(result: ArgueResult, paths: { resultPath: string; summaryPath: string }) {
       io.log("");
       io.log(c.dim("─".repeat(60)));

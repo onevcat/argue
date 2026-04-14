@@ -6,18 +6,22 @@ import {
   AgentSchema,
   CliConfigSchema,
   createExampleConfigPath,
+  DEFAULT_VIEWER_URL,
   loadCliConfig,
   loadRawCliConfig,
   readJsonFile,
   ProviderSchema,
   resolveConfigPath,
+  resolveOutputPath,
+  type LoadedCliConfig,
   type ResolveConfigPathOptions
 } from "./config.js";
 import { executeHeadlessRun } from "./headless-run.js";
 import { createOutputFormatter } from "./output.js";
 import { loadRunInput } from "./run-input.js";
-import { resolveRunPlan } from "./run-plan.js";
+import { defaultOutputDirTemplate, resolveRunPlan } from "./run-plan.js";
 import { createTaskDelegate } from "./runtime/delegate.js";
+import { MAX_ENCODED_BYTES, openReportInViewer, resolveLatestRequestId } from "./view.js";
 import { VENDOR_PRESETS, getVendorNames } from "./vendors.js";
 export type { CliSdkProviderAdapter, CreateCliSdkProviderAdapter, ProviderTaskRunnerArgs } from "./runtime/types.js";
 
@@ -47,6 +51,8 @@ export type CliRunOptions = {
   noActionFullResult?: boolean;
   verbose?: boolean;
   noColor?: boolean;
+  view?: boolean;
+  viewerUrl?: string;
 };
 
 type ConfigAddProviderOptions = {
@@ -111,6 +117,10 @@ export async function runCli(argv: string[], io: Pick<typeof console, "log" | "e
 
   if (command === "act") {
     return runAction(rest, io);
+  }
+
+  if (command === "view") {
+    return runView(rest, io);
   }
 
   io.error(`Unknown command: ${command}`);
@@ -185,6 +195,33 @@ async function runHeadless(args: string[], io: Pick<typeof console, "log" | "err
       resultPath: execution.resultPath,
       summaryPath: execution.summaryPath
     });
+
+    out.viewHint(plan.requestId);
+
+    if (options.value.view) {
+      const viewerUrl = options.value.viewerUrl ?? loadedConfig.config.viewer?.url ?? DEFAULT_VIEWER_URL;
+      const outcome = await openReportInViewer({
+        resultPath: execution.resultPath,
+        viewerUrl
+      });
+      if (!outcome.ok) {
+        if (outcome.reason === "not-found") {
+          io.error(`No result.json at: ${outcome.resultPath}`);
+        } else {
+          io.error(
+            [
+              `Report too large to embed in a URL (encoded: ${outcome.encodedSize} bytes, limit: ${MAX_ENCODED_BYTES}).`,
+              `Open ${viewerUrl} manually and drag this file in:`,
+              `  ${outcome.resultPath}`
+            ].join("\n")
+          );
+        }
+        // Don't fail the run — the debate succeeded. Just surface the error.
+      } else {
+        io.log(`→ Opening report: ${formatViewerUrlForLog(outcome.url, outcome.encodedSize)}`);
+      }
+    }
+
     return { ok: true, code: 0 };
   } catch (error) {
     io.error(String(error));
@@ -449,6 +486,154 @@ async function runAction(args: string[], io: Pick<typeof console, "log" | "error
   } catch (error) {
     io.error(`Action execution failed: ${String(error)}`);
     return { ok: false, code: 1 };
+  }
+}
+
+async function runView(args: string[], io: Pick<typeof console, "log" | "error">): Promise<CliResult> {
+  const options = parseViewOptions(args);
+  if (!options.ok) {
+    io.error(options.error);
+    return { ok: false, code: 1 };
+  }
+
+  let resultPath = options.value.resultPath;
+  let loadedConfig: LoadedCliConfig | null = null;
+
+  if (!resultPath) {
+    // No explicit result path → resolve from config + optional requestId.
+    try {
+      loadedConfig = await loadCliConfig({ explicitPath: options.value.configPath } satisfies ResolveConfigPathOptions);
+    } catch (error) {
+      io.error(String(error));
+      return { ok: false, code: 1 };
+    }
+
+    const template = resolveResultPathTemplate(loadedConfig);
+    if (options.value.requestId) {
+      resultPath = template.replaceAll("{requestId}", options.value.requestId);
+    } else {
+      const latest = await resolveLatestRequestId(template);
+      if (!latest) {
+        io.error(
+          [
+            "No completed argue runs found.",
+            `Scanned template: ${template}`,
+            "Run `argue run ...` first, or pass --request-id <id> / --result <path>."
+          ].join("\n")
+        );
+        return { ok: false, code: 1 };
+      }
+      resultPath = latest.resultPath;
+    }
+  }
+
+  const viewerUrl =
+    options.value.viewerUrl ??
+    loadedConfig?.config.viewer?.url ??
+    (await resolveConfiguredViewerUrl(options.value.configPath));
+
+  const outcome = await openReportInViewer({
+    resultPath,
+    viewerUrl,
+    ...(options.value.noOpen ? { spawn: () => {} } : {})
+  });
+
+  if (!outcome.ok) {
+    if (outcome.reason === "not-found") {
+      io.error(`No result.json at: ${outcome.resultPath}`);
+      return { ok: false, code: 1 };
+    }
+    // too-large — fall back to printing a helpful message.
+    io.error(
+      [
+        `Report too large to embed in a URL (encoded: ${outcome.encodedSize} bytes, limit: ${MAX_ENCODED_BYTES}).`,
+        `Open ${viewerUrl} manually and drag this file in:`,
+        `  ${outcome.resultPath}`
+      ].join("\n")
+    );
+    return { ok: false, code: 1 };
+  }
+
+  io.log(`→ Opening report: ${formatViewerUrlForLog(outcome.url, outcome.encodedSize)}`);
+  return { ok: true, code: 0 };
+}
+
+/**
+ * Shorten a viewer URL for terminal output. A full viewer URL contains the
+ * entire gzip+base64url payload (often 30KB+), which is noise in the shell.
+ * Keep enough of the `d=` prefix to confirm the URL shape, then elide.
+ */
+function formatViewerUrlForLog(url: string, encodedSize: number): string {
+  const MAX_LOG_LENGTH = 100;
+  const display = url.length > MAX_LOG_LENGTH ? `${url.slice(0, MAX_LOG_LENGTH)}…` : url;
+  return `${display} (${encodedSize} bytes encoded)`;
+}
+
+type ViewOptions = {
+  configPath?: string;
+  requestId?: string;
+  resultPath?: string;
+  viewerUrl?: string;
+  noOpen?: boolean;
+};
+
+function parseViewOptions(args: string[]): { ok: true; value: ViewOptions } | { ok: false; error: string } {
+  const out: ViewOptions = {};
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i]!;
+    if (arg === "--config" || arg === "-c") {
+      const value = args[++i];
+      if (!value) return { ok: false, error: "Missing value for --config" };
+      out.configPath = value;
+      continue;
+    }
+    if (arg === "--request-id") {
+      const value = args[++i];
+      if (!value) return { ok: false, error: "Missing value for --request-id" };
+      out.requestId = value;
+      continue;
+    }
+    if (arg === "--result") {
+      const value = args[++i];
+      if (!value) return { ok: false, error: "Missing value for --result" };
+      out.resultPath = value;
+      continue;
+    }
+    if (arg === "--viewer-url") {
+      const value = args[++i];
+      if (!value) return { ok: false, error: "Missing value for --viewer-url" };
+      out.viewerUrl = value;
+      continue;
+    }
+    if (arg === "--no-open") {
+      out.noOpen = true;
+      continue;
+    }
+    if (arg.startsWith("-")) {
+      return { ok: false, error: `Unknown flag for argue view: ${arg}` };
+    }
+    // Positional → interpret as requestId (argue view <id>).
+    if (!out.requestId) {
+      out.requestId = arg;
+      continue;
+    }
+    return { ok: false, error: `Unexpected argument: ${arg}` };
+  }
+  return { ok: true, value: out };
+}
+
+function resolveResultPathTemplate(loadedConfig: LoadedCliConfig): string {
+  const defaultOutputDir = defaultOutputDirTemplate(loadedConfig);
+  const raw = loadedConfig.config.output?.resultPath ?? `${defaultOutputDir}/result.json`;
+  return resolveOutputPath(raw, loadedConfig.configDir, "{requestId}");
+}
+
+async function resolveConfiguredViewerUrl(explicitConfigPath?: string): Promise<string> {
+  try {
+    const loadedConfig = await loadCliConfig({ explicitPath: explicitConfigPath });
+    return loadedConfig.config.viewer?.url ?? DEFAULT_VIEWER_URL;
+  } catch {
+    return DEFAULT_VIEWER_URL;
   }
 }
 
@@ -753,6 +938,19 @@ function parseRunOptions(args: string[]): { ok: true; value: CliRunOptions } | {
 
     if (arg === "--no-action-full-result") {
       out.noActionFullResult = true;
+      continue;
+    }
+
+    if (arg === "--view") {
+      out.view = true;
+      continue;
+    }
+
+    if (arg === "--viewer-url") {
+      const value = args[i + 1];
+      if (!value) return { ok: false, error: "Missing value for --viewer-url" };
+      out.viewerUrl = value;
+      i += 1;
       continue;
     }
 
@@ -1171,6 +1369,7 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("");
   io.log("Usage:");
   io.log("  argue run|exec [options]        # run a debate session");
+  io.log("  argue view [request-id]       # open a completed run in the hosted viewer");
   io.log("  argue act --result <path> --task <prompt> [--agent <id>] [--config <path>] [--no-action-full-result]");
   io.log("  argue config init                # create empty config file");
   io.log("  argue config add-provider ...    # append provider to config");
@@ -1194,6 +1393,15 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("  --no-action-full-result            # omit full result JSON from action context");
   io.log("  --verbose|-v                        # detailed output with agent opinions");
   io.log("  --no-color                          # disable colored output");
+  io.log("  --view                              # open the report in the hosted viewer after run");
+  io.log("  --viewer-url <url>                  # override viewer URL (default: https://argue.onev.cat/)");
+  io.log("");
+  io.log("View options:");
+  io.log("  --config <path>                 config JSON path");
+  io.log("  --request-id <id>               specific run id (overrides default-latest)");
+  io.log("  --result <path>                 path to a result.json (overrides discovery)");
+  io.log("  --viewer-url <url>              override viewer URL (default: https://argue.onev.cat/)");
+  io.log("  --no-open                       print the URL without launching a browser");
   io.log("");
   io.log("Config commands:");
   io.log("  argue config init [-c <path>] [--local|--project|--global]");
