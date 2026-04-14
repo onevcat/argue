@@ -2,16 +2,16 @@
 
 ## Common Errors
 
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `ModelNotFoundError` | Model ID doesn't exist or is misspelled | Check model IDs match what the provider supports exactly. Use the model ID from your provider's docs, not a version alias. |
-| `SIGKILL` / process killed | Exec timeout too short | Increase timeout to 600s minimum. Use `--per-task-timeout-ms` and `--per-round-timeout-ms` for fine-grained control. |
-| Agent eliminated (error) | Agent crashed during debate | Check `events.jsonl` for per-agent errors. Common causes: wrong model ID, CLI not authenticated, rate limit hit. |
-| `minimum participant requirement` | Not enough agents completed | Usually means one agent errored out. Check `events.jsonl` for per-agent errors. Verify both CLIs work standalone first. |
-| Config not found | Wrong config path | Default: `~/.config/argue/config.json`. Project-local: `./argue.config.json`. Use `--config` flag to specify custom path. |
-| CLI not found | Provider CLI not on PATH | Ensure `codex`, `gemini`, etc. are installed and accessible. Run `which <cli>` to verify. |
-| `summary.md` missing | Debate killed before completion | `summary.md` only writes on successful completion. `events.jsonl` is written live and always available. Parse it directly for partial results. |
-| Rate limit errors | API throttling | Reduce `--max-rounds` or use `--per-task-timeout-ms` to increase per-task timeout. CLI-based providers handle rate limits internally. |
+| Error                             | Cause                                   | Fix                                                                                                                                            |
+| --------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ModelNotFoundError`              | Model ID doesn't exist or is misspelled | Check model IDs match what the provider supports exactly. Use the model ID from your provider's docs, not a version alias.                     |
+| `SIGKILL` / process killed        | Exec timeout too short                  | Increase timeout to 600s minimum. Use `--per-task-timeout-ms` and `--per-round-timeout-ms` for fine-grained control.                           |
+| Agent eliminated (error)          | Agent crashed during debate             | Check `events.jsonl` for per-agent errors. Common causes: wrong model ID, CLI not authenticated, rate limit hit.                               |
+| `minimum participant requirement` | Not enough agents completed             | Usually means one agent errored out. Check `events.jsonl` for per-agent errors. Verify both CLIs work standalone first.                        |
+| Config not found                  | Wrong config path                       | Default: `~/.config/argue/config.json`. Project-local: `./argue.config.json`. Use `--config` flag to specify custom path.                      |
+| CLI not found                     | Provider CLI not on PATH                | Ensure `codex`, `gemini`, etc. are installed and accessible. Run `which <cli>` to verify.                                                      |
+| `summary.md` missing              | Debate killed before completion         | `summary.md` only writes on successful completion. `events.jsonl` is written live and always available. Parse it directly for partial results. |
+| Rate limit errors                 | API throttling                          | Reduce `--max-rounds` or use `--per-task-timeout-ms` to increase per-task timeout. CLI-based providers handle rate limits internally.          |
 
 ## Output Path Behavior
 

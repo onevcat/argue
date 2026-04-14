@@ -13,6 +13,7 @@ Structured debates where AI agents analyze independently, cross-examine across r
 ## When to Use
 
 ✅ **Use argue when:**
+
 - Strategic or architectural decisions with real trade-offs
 - Questions where reasonable experts genuinely disagree
 - Pre-commit quality gates on major decisions
@@ -20,6 +21,7 @@ Structured debates where AI agents analyze independently, cross-examine across r
 - "Should we X or Y?" with real stakes
 
 ❌ **Don't use argue when:**
+
 - Simple factual lookups (just search)
 - Time-critical tasks (debates take 3-7 minutes)
 - Creative/open-ended generation (not a debate format)
@@ -80,44 +82,48 @@ Add `--no-action-full-result` to omit the full result JSON from the action conte
 
 ## Key Options
 
-| Flag | Purpose | Default |
-|------|---------|---------|
-| `--agents <ids>` | Override which agents participate | all configured |
-| `--min-rounds` / `--max-rounds` | Control debate depth | 2-3 |
-| `--threshold <0-1>` | Consensus threshold (1 = unanimous) | 1 |
-| `--composer builtin\|representative` | Report style | builtin |
-| `--representative-id <id>` | Agent for representative composer | — |
-| `--action <prompt>` | Execute task after consensus | none |
-| `--action-agent <id>` | Override which agent executes action | representative |
-| `--per-task-timeout-ms <n>` | Timeout per agent task | 600000 |
-| `--per-round-timeout-ms <n>` | Timeout per debate round | 600000 |
-| `--global-deadline-ms <n>` | Overall deadline for entire debate | none |
-| `--language <lang>` | Output language | config default |
-| `--token-budget <n>` | Token limit per agent | unlimited |
-| `--request-id <id>` | Custom request ID | auto-generated |
-| `--trace` / `--trace-level compact\|full` | Debug tracing | off |
-| `--input <file>` | JSON config for complex setups | — |
-| `--jsonl` / `--result` / `--summary` | Output file paths | auto |
-| `--no-color` | Disable colored output | off |
+| Flag                                      | Purpose                              | Default        |
+| ----------------------------------------- | ------------------------------------ | -------------- |
+| `--agents <ids>`                          | Override which agents participate    | all configured |
+| `--min-rounds` / `--max-rounds`           | Control debate depth                 | 2-3            |
+| `--threshold <0-1>`                       | Consensus threshold (1 = unanimous)  | 1              |
+| `--composer builtin\|representative`      | Report style                         | builtin        |
+| `--representative-id <id>`                | Agent for representative composer    | —              |
+| `--action <prompt>`                       | Execute task after consensus         | none           |
+| `--action-agent <id>`                     | Override which agent executes action | representative |
+| `--per-task-timeout-ms <n>`               | Timeout per agent task               | 600000         |
+| `--per-round-timeout-ms <n>`              | Timeout per debate round             | 600000         |
+| `--global-deadline-ms <n>`                | Overall deadline for entire debate   | none           |
+| `--language <lang>`                       | Output language                      | config default |
+| `--token-budget <n>`                      | Token limit per agent                | unlimited      |
+| `--request-id <id>`                       | Custom request ID                    | auto-generated |
+| `--trace` / `--trace-level compact\|full` | Debug tracing                        | off            |
+| `--input <file>`                          | JSON config for complex setups       | —              |
+| `--jsonl` / `--result` / `--summary`      | Output file paths                    | auto           |
+| `--no-color`                              | Disable colored output               | off            |
 
 ## Understanding Output
 
 **Debate flow:**
+
 1. **Round 0 (initial):** Each agent responds independently with claims
 2. **Rounds 1-N (debate):** Agents cross-examine, challenge, merge, and refine claims
 3. **Final vote:** Agents vote on remaining claims (✓ accept, ✗ reject, ↻ revise)
 4. **Report:** Final consensus report
 
 **Key metrics:**
+
 - **Claims:** Unique propositions (grows in round 0, shrinks via merges in later rounds)
 - **Representative score:** Per-agent confidence rating
 - **Result status:** `consensus` | `partial_consensus` | `unresolved` | `failed`
 
 **Output files** — path depends on config location:
+
 - **Global config** (`~/.config/argue/config.json`): `~/.argue/output/<requestId>/`
 - **Local config** (`./argue.config.json`): `./out/<requestId>/`
 
 Each directory contains:
+
 - `result.json` — full structured result
 - `summary.md` — markdown summary (written on completion)
 - `events.jsonl` — event stream (written live)

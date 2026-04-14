@@ -44,6 +44,7 @@ argue config add-provider --id copilot --type cli --cli-type copilot --model-id 
 ```
 
 For `generic` CLI type, specify `--command` and `--args`:
+
 ```bash
 argue config add-provider --id custom --type cli --cli-type generic --command my-cli --args "--model,model-name"
 ```
@@ -82,6 +83,7 @@ argue config add-provider --id custom-api --type api --protocol openai-compatibl
 ### SDK-based providers
 
 For custom adapters loaded from Node modules:
+
 ```bash
 argue config add-provider --id my-sdk --type sdk --adapter ./my-adapter.js --model-id my-model
 # With custom export name:
