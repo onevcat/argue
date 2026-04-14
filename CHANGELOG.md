@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.1] - 2026-04-14
+
+### Fixes
+
+- `argue view --no-open` now prints the full report URL on stdout instead of a truncated preview, so `$(argue view --no-open)` and `| pbcopy` pipelines work as expected (ab39ef9)
+
 ## [0.3.0] - 2026-04-14
 
 Headline: `argue view` lands. Open any past run's report directly in the browser — from the CLI, from a `--view` flag on `argue run`, or by visiting a shareable URL that carries the result in its fragment. Also: a new `argue` skill for Claude Code, viewer UX polish, and collision-resistant request IDs.
