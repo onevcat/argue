@@ -98,6 +98,8 @@ After every run, argue writes to `~/.argue/output/<requestId>/` (global config) 
 
 Result status: `consensus` | `partial_consensus` | `unresolved` | `failed`.
 
+If you need to parse `result.json` programmatically, the canonical schema lives at [`packages/argue/src/contracts/result.ts`](https://github.com/onevcat/argue/blob/master/packages/argue/src/contracts/result.ts).
+
 ## Tips
 
 1. **Frame as decisions, not topics.** "Should we use SwiftUI or UIKit?" beats "Tell me about SwiftUI".
