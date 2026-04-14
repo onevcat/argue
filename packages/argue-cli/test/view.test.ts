@@ -3,10 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { gunzipSync } from "node:zlib";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildViewerUrl,
   encodeReportForUrl,
+  launchBrowser,
   listCompletedRuns,
   MAX_ENCODED_BYTES,
   resolveLatestRequestId
@@ -156,5 +157,46 @@ describe("buildViewerUrl", () => {
     if (!out.ok) throw new Error("expected success");
     expect(out.encodedSize).toBeLessThanOrEqual(MAX_ENCODED_BYTES);
     expect(out.url.length).toBeLessThanOrEqual("https://argue.onev.cat/#v=1&d=".length + out.encodedSize);
+  });
+});
+
+describe("launchBrowser", () => {
+  it("spawns `open` on darwin", async () => {
+    const spawned: Array<{ cmd: string; args: string[] }> = [];
+    await launchBrowser("https://example.com/#v=1&d=abc", {
+      platform: "darwin",
+      spawn: (cmd, args) => {
+        spawned.push({ cmd, args });
+      }
+    });
+    expect(spawned).toEqual([{ cmd: "open", args: ["https://example.com/#v=1&d=abc"] }]);
+  });
+
+  it("spawns `xdg-open` on linux", async () => {
+    const spawned: Array<{ cmd: string; args: string[] }> = [];
+    await launchBrowser("https://example.com/#x", {
+      platform: "linux",
+      spawn: (cmd, args) => {
+        spawned.push({ cmd, args });
+      }
+    });
+    expect(spawned).toEqual([{ cmd: "xdg-open", args: ["https://example.com/#x"] }]);
+  });
+
+  it("spawns `cmd /c start` with an empty title arg on win32", async () => {
+    const spawned: Array<{ cmd: string; args: string[] }> = [];
+    await launchBrowser("https://example.com/#x", {
+      platform: "win32",
+      spawn: (cmd, args) => {
+        spawned.push({ cmd, args });
+      }
+    });
+    expect(spawned).toEqual([{ cmd: "cmd", args: ["/c", "start", "", "https://example.com/#x"] }]);
+  });
+
+  it("rejects unknown platforms with a clear error", async () => {
+    await expect(launchBrowser("https://example.com/", { platform: "aix", spawn: vi.fn() })).rejects.toThrow(
+      /Unsupported platform/
+    );
   });
 });

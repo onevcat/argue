@@ -1,4 +1,5 @@
 import { access, readdir } from "node:fs/promises";
+import { spawn as nodeSpawn } from "node:child_process";
 import { gzipSync } from "node:zlib";
 import { REQUEST_ID_PATTERN } from "./request-id.js";
 
@@ -86,4 +87,40 @@ export function buildViewerUrl(input: BuildViewerUrlInput): BuildViewerUrlResult
   }
   const base = input.viewerUrl.endsWith("/") ? input.viewerUrl : `${input.viewerUrl}/`;
   return { ok: true, url: `${base}#v=1&d=${encoded}`, encodedSize: size };
+}
+
+export type BrowserSpawnFn = (cmd: string, args: string[]) => void;
+
+export type LaunchBrowserOptions = {
+  platform?: NodeJS.Platform | string;
+  spawn?: BrowserSpawnFn;
+};
+
+export function launchBrowser(url: string, options: LaunchBrowserOptions = {}): Promise<void> {
+  const platform = options.platform ?? process.platform;
+  const spawn =
+    options.spawn ??
+    ((cmd: string, args: string[]): void => {
+      const child = nodeSpawn(cmd, args, { stdio: "ignore", detached: true });
+      child.unref();
+    });
+
+  let cmd: string;
+  let args: string[];
+  if (platform === "darwin") {
+    cmd = "open";
+    args = [url];
+  } else if (platform === "linux") {
+    cmd = "xdg-open";
+    args = [url];
+  } else if (platform === "win32") {
+    // `start` is a cmd.exe builtin; first quoted arg is the window title (empty).
+    cmd = "cmd";
+    args = ["/c", "start", "", url];
+  } else {
+    return Promise.reject(new Error(`Unsupported platform for launchBrowser: ${platform}`));
+  }
+
+  spawn(cmd, args);
+  return Promise.resolve();
 }
