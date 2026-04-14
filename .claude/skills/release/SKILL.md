@@ -115,6 +115,21 @@ git push && git push --tags
 
 After push, GitHub Actions detects the tag and publishes both `@onevcat/argue` and `@onevcat/argue-cli` to npm. `argue-viewer` is `private: true` and stays local.
 
+## Step 7 — Create GitHub Release
+
+Publish the GitHub Release page for the freshly pushed tag, using the changelog section generated in Step 4 as the release notes:
+
+```bash
+node scripts/publish-github-release.mjs
+```
+
+The script reads the version from root `package.json`, extracts the topmost `## [X.Y.Z] - ...` section from `CHANGELOG.md`, verifies its heading matches the version being released, and runs `gh release create vX.Y.Z --title vX.Y.Z --notes <section>`. You can also pass an explicit version: `node scripts/publish-github-release.mjs X.Y.Z`.
+
+Notes:
+
+- This step is independent from npm publishing; it's safe to run immediately after `git push --tags`, even before the npm workflow finishes.
+- If the release already exists (e.g. retrying), the script will fail with `Release.tag_name already exists`. To overwrite, delete it first via `gh release delete vX.Y.Z --yes` and re-run, or update notes manually with `gh release edit vX.Y.Z --notes-file <(awk '/^## \[/{n++; if(n==2)exit} n==1{print}' CHANGELOG.md)`.
+
 ## Troubleshooting
 
 - **Tag already exists**: If you need to redo a release, delete the tag locally and remotely (`git tag -d vX.Y.Z && git push --delete origin vX.Y.Z`), fix the issue, then re-tag.

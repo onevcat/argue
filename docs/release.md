@@ -18,6 +18,7 @@ Run the `/release` skill in Claude Code. It handles everything:
 4. Generates / updates `CHANGELOG.md`
 5. Validates with `npm run release:check`
 6. Commits, tags (`vX.Y.Z`), and pushes
+7. Creates the GitHub Release page (`gh release create`) with the changelog section as release notes
 
 GitHub Actions picks up the tag and publishes both packages to npm via OIDC trusted publishing.
 
@@ -32,6 +33,13 @@ If you need to release without the skill:
 5. Commit: `git commit -m "release: vX.Y.Z"`
 6. Tag: `git tag vX.Y.Z`
 7. Push: `git push && git push --tags`
+8. Create the GitHub Release page from the new changelog section:
+
+   ```bash
+   node scripts/publish-github-release.mjs
+   ```
+
+   The script defaults to the version in root `package.json`, extracts the matching `## [X.Y.Z]` block from `CHANGELOG.md`, and calls `gh release create`. Pass an explicit version as the first argument if needed.
 
 ## How Publishing Works
 
