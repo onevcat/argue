@@ -315,6 +315,35 @@ describe("runCli view command", () => {
       io
     );
     expect(result.ok).toBe(true);
-    expect(out.join("\n")).toMatch(/https:\/\/argue\.onev\.cat\/#v=1&d=/);
+    const joined = out.join("\n");
+    // Must contain the URL prefix so the user can see where the report opens.
+    expect(joined).toContain("Opening report: https://argue.onev.cat/#v=1&d=");
+    // Must include the encoded size diagnostic.
+    expect(joined).toMatch(/\(\d+ bytes encoded\)/);
+    // Tiny fixture compresses under 100 chars — no truncation marker expected.
+    expect(joined).not.toContain("…");
+  });
+
+  it("truncates very long URLs with an ellipsis marker", async () => {
+    const { randomBytes } = await import("node:crypto");
+    const runId = "argue_1712000000000_ccccdd";
+    const runDir = join(tmpRoot, runId);
+    await mkdir(runDir, { recursive: true });
+    const resultPath = join(runDir, "result.json");
+    // Large-ish but compressible payload so URL stays under MAX_ENCODED_BYTES
+    // while still exceeding the 100-char log preview limit comfortably.
+    const big = JSON.stringify({ blob: randomBytes(200).toString("base64") });
+    await writeFile(resultPath, big);
+
+    const { io, out } = captureIo();
+    const result = await runCli(
+      ["view", "--result", resultPath, "--viewer-url", "https://argue.onev.cat/", "--no-open"],
+      io
+    );
+    expect(result.ok).toBe(true);
+    const joined = out.join("\n");
+    expect(joined).toContain("Opening report: https://argue.onev.cat/#v=1&d=");
+    expect(joined).toContain("…");
+    expect(joined).toMatch(/\(\d+ bytes encoded\)/);
   });
 });

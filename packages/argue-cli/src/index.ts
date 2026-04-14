@@ -218,7 +218,7 @@ async function runHeadless(args: string[], io: Pick<typeof console, "log" | "err
         }
         // Don't fail the run — the debate succeeded. Just surface the error.
       } else {
-        io.log(`→ Opening report: ${outcome.url}`);
+        io.log(`→ Opening report: ${formatViewerUrlForLog(outcome.url, outcome.encodedSize)}`);
       }
     }
 
@@ -554,8 +554,19 @@ async function runView(args: string[], io: Pick<typeof console, "log" | "error">
     return { ok: false, code: 1 };
   }
 
-  io.log(`→ Opening report: ${outcome.url}`);
+  io.log(`→ Opening report: ${formatViewerUrlForLog(outcome.url, outcome.encodedSize)}`);
   return { ok: true, code: 0 };
+}
+
+/**
+ * Shorten a viewer URL for terminal output. A full viewer URL contains the
+ * entire gzip+base64url payload (often 30KB+), which is noise in the shell.
+ * Keep enough of the `d=` prefix to confirm the URL shape, then elide.
+ */
+function formatViewerUrlForLog(url: string, encodedSize: number): string {
+  const MAX_LOG_LENGTH = 100;
+  const display = url.length > MAX_LOG_LENGTH ? `${url.slice(0, MAX_LOG_LENGTH)}…` : url;
+  return `${display} (${encodedSize} bytes encoded)`;
 }
 
 type ViewOptions = {
