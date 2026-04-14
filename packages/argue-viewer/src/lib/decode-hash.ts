@@ -20,9 +20,19 @@ export async function decodeHashPayload(hash: string): Promise<string | null> {
     throw new Error("Missing data (`d=`) in report hash.");
   }
 
-  const bytes = base64UrlToBytes(data);
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
-  return await new Response(stream).text();
+  let bytes: Uint8Array;
+  try {
+    bytes = base64UrlToBytes(data);
+  } catch {
+    throw new Error("Invalid base64url encoding in report hash.");
+  }
+
+  try {
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+    return await new Response(stream).text();
+  } catch {
+    throw new Error("Failed to decompress report data. The hash payload may be corrupt.");
+  }
 }
 
 function base64UrlToBytes(encoded: string): Uint8Array {

@@ -31,6 +31,11 @@ describe("decodeHashPayload", () => {
   });
 
   it("rejects garbage base64url", async () => {
-    await expect(decodeHashPayload("#v=1&d=@@@@not base64@@@@")).rejects.toThrow();
+    await expect(decodeHashPayload("#v=1&d=@@@@not base64@@@@")).rejects.toThrow(/base64/i);
+  });
+
+  it("rejects valid base64url that is not a gzip stream", async () => {
+    // "hello world" in base64url — valid base64, decodes to 11 bytes of ASCII that is NOT gzip-framed.
+    await expect(decodeHashPayload("#v=1&d=aGVsbG8gd29ybGQ")).rejects.toThrow(/decompress|corrupt/i);
   });
 });
