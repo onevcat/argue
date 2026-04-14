@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.4.0] - 2026-04-15
+
+Headline: reasoning passthrough for CLI providers, plus a more resilient JSON recovery path. `argue-cli` now forwards per-model and per-agent reasoning settings to Claude Code and Codex, and a new syntax-only fallback in `parseJsonObject` rescues debate rounds where `jsonrepair` would otherwise give up on CJK output with stray ASCII quotes.
+
+### Features
+
+- `argue-cli` now forwards per-model and per-agent `reasoning` settings to Claude Code and Codex so CLI-backed providers can opt into reasoning modes via config (3689783)
+
+### Fixes
+
+- Recover debate rounds where agents emit CJK strings with unescaped ASCII quotes around phrases like `"弱客观性"（...`. `jsonrepair`'s lookahead misclassifies these as unquoted keys; `parseJsonObject` now has a syntax-only position-driven stray-quote escape fallback that walks `JSON.parse`'s error position and escapes the most recent offending quote, retrying until the parser accepts the payload (f857b54)
+- `perTaskTimeoutMs` now defaults to `perRoundTimeoutMs` instead of a fixed value, so per-round and per-task budgets stay aligned unless explicitly overridden (3531cff)
+- Provider error messages now include captured stdout alongside stderr so failed CLI agent invocations are easier to diagnose (ccc448b)
+- Codex provider invocations pass `--skip-git-repo-check` so `argue` can run outside git repositories (ccc448b)
+
+### Other
+
+- Document where the CLI reasoning passthrough is a no-op (non-supporting models) and clarify user responsibility for supplying valid values (a3a22c7)
+- Sync the reasoning passthrough section into `README_CN.md` and `README_JP.md` (14700d1)
+- Clarify in `runtime/json` doc comments that the stray-quote fallback is syntax-only and that schema enforcement stays in `normalizeTaskOutput` (74700bb)
+
 ## [0.3.1] - 2026-04-14
 
 ### Fixes
