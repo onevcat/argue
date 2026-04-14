@@ -8,6 +8,16 @@ argue is a structured multi-agent debate engine. Multiple AI agents analyze the 
 
 Give it a question. Get back claims that survived cross-examination, votes that quantify agreement, and a representative report backed by peer-reviewed scoring. Less hallucination, more rigor.
 
+## Live Demo
+
+[![A sample argue report rendered in the hosted viewer](docs/assets/argue-report-sample.jpeg)](https://argue.onev.cat/example)
+
+**[https://argue.onev.cat/example](https://argue.onev.cat/example)** — a real argue run rendered in the hosted viewer. Open it to see exactly what argue produces:
+
+- **Agents arguing in the open.** Every claim, peer judgement, merge, and vote, round by round.
+- **A polished dossier.** Composed by the highest-scoring agent — ready to read, share, or attach to a PR.
+- **Complete raw data on disk.** The same JSON that powers the viewer is saved locally, ready to feed any downstream step (review bot, code generation, audit log, …).
+
 ## Quick Start
 
 ### Install

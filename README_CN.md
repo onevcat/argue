@@ -8,6 +8,16 @@ argue 是一个结构化的多 Agent 辩论引擎。多个 AI Agent 独立分析
 
 给它一个问题，拿回经过交叉审查的主张、量化了共识程度的投票结果，以及一份基于同行评审打分的代表性报告。更少幻觉，更多严谨。
 
+## 在线 Demo
+
+[![一份在官方 viewer 中渲染的 argue 示例报告](docs/assets/argue-report-sample.jpeg)](https://argue.onev.cat/example)
+
+**[https://argue.onev.cat/example](https://argue.onev.cat/example)** —— 一次真实的 argue 运行，渲染在官方 viewer 里。打开就能看到 argue 实际产出的东西：
+
+- **agent 当面对线。** 每条主张、每次同行判断、每次合并和投票，按轮次完整呈现。
+- **一份精致的报告。** 由得分最高的 agent 撰写，开箱即读，可以分享、可以贴进 PR。
+- **完整原始数据落盘。** 渲染 viewer 用的同一份 JSON 保留在本地，可以喂给下游任意步骤（代码审查机器人、代码生成、审计日志……）。
+
 ## 快速开始
 
 ### 安装
