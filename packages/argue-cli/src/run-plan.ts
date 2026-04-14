@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { CliConfig, LoadedCliConfig } from "./config.js";
 import { resolveOutputPath } from "./config.js";
 import type { RunInput } from "./run-input.js";
+import { newRequestId } from "./request-id.js";
 
 export type RunOverrides = {
   requestId?: string;
@@ -74,7 +75,7 @@ export function resolveRunPlan(args: {
   const { loadedConfig, runInput, overrides } = args;
   const config = loadedConfig.config;
 
-  const requestId = overrides.requestId ?? runInput.requestId ?? `argue_${Date.now()}`;
+  const requestId = overrides.requestId ?? runInput.requestId ?? newRequestId();
   const task = (overrides.task ?? runInput.task ?? "").trim();
 
   if (!task) {

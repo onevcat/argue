@@ -133,6 +133,18 @@ describe("resolveRunPlan", () => {
     ).toThrow(/Unknown agent id in selection/);
   });
 
+  it("generates a collision-resistant default requestId when none is supplied", () => {
+    const loadedConfig = makeLoadedConfig();
+
+    const plan = resolveRunPlan({
+      loadedConfig,
+      runInput: { task: "t" },
+      overrides: {}
+    });
+
+    expect(plan.requestId).toMatch(/^argue_\d+_[a-f0-9]{6}$/);
+  });
+
   it("respects includeFullResult from run input and CLI override", () => {
     const loadedConfig = makeLoadedConfig();
 
