@@ -1,4 +1,5 @@
 import { access, readdir } from "node:fs/promises";
+import { gzipSync } from "node:zlib";
 import { REQUEST_ID_PATTERN } from "./request-id.js";
 
 export type CompletedRun = {
@@ -55,4 +56,34 @@ async function pathExists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * URL fragment budget. macOS ARG_MAX is ~256KB; browsers tolerate much more,
+ * but we need the full URL to pass through argv when calling `open`. Leave a
+ * generous margin for the URL prefix + env + child arg list overhead.
+ */
+export const MAX_ENCODED_BYTES = 200_000;
+
+export function encodeReportForUrl(reportJson: string): string {
+  return gzipSync(Buffer.from(reportJson, "utf8")).toString("base64url");
+}
+
+export type BuildViewerUrlInput = {
+  viewerUrl: string;
+  reportJson: string;
+};
+
+export type BuildViewerUrlResult =
+  | { ok: true; url: string; encodedSize: number }
+  | { ok: false; reason: "too-large"; encodedSize: number };
+
+export function buildViewerUrl(input: BuildViewerUrlInput): BuildViewerUrlResult {
+  const encoded = encodeReportForUrl(input.reportJson);
+  const size = encoded.length;
+  if (size > MAX_ENCODED_BYTES) {
+    return { ok: false, reason: "too-large", encodedSize: size };
+  }
+  const base = input.viewerUrl.endsWith("/") ? input.viewerUrl : `${input.viewerUrl}/`;
+  return { ok: true, url: `${base}#v=1&d=${encoded}`, encodedSize: size };
 }

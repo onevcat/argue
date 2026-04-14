@@ -1,8 +1,15 @@
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { gunzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { listCompletedRuns, resolveLatestRequestId } from "../src/view.js";
+import {
+  buildViewerUrl,
+  encodeReportForUrl,
+  listCompletedRuns,
+  MAX_ENCODED_BYTES,
+  resolveLatestRequestId
+} from "../src/view.js";
 
 let tmpRoot: string;
 
@@ -94,5 +101,48 @@ describe("resolveLatestRequestId", () => {
     const resultTemplate = join(tmpRoot, "{requestId}", "result.json");
     const latest = await resolveLatestRequestId(resultTemplate);
     expect(latest).toBeNull();
+  });
+});
+
+describe("encodeReportForUrl", () => {
+  it("round-trips a JSON payload via gzip + base64url", () => {
+    const payload = JSON.stringify({ hello: "world", n: 42 });
+    const encoded = encodeReportForUrl(payload);
+    expect(encoded).toMatch(/^[A-Za-z0-9_-]+$/);
+    const decoded = gunzipSync(Buffer.from(encoded, "base64url")).toString("utf8");
+    expect(decoded).toBe(payload);
+  });
+
+  it("produces smaller output than the source for typical reports", () => {
+    const big = JSON.stringify({ claims: Array.from({ length: 100 }, (_, i) => ({ id: i, body: "a".repeat(100) })) });
+    const encoded = encodeReportForUrl(big);
+    expect(encoded.length).toBeLessThan(big.length);
+  });
+});
+
+describe("buildViewerUrl", () => {
+  it("returns a normalized fragment URL with v=1 and d=<blob>", () => {
+    const out = buildViewerUrl({ viewerUrl: "https://argue.onev.cat/", reportJson: '{"k":"v"}' });
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.url.startsWith("https://argue.onev.cat/#v=1&d=")).toBe(true);
+  });
+
+  it("normalizes viewerUrl with or without trailing slash to the same prefix", () => {
+    const a = buildViewerUrl({ viewerUrl: "https://argue.onev.cat", reportJson: '{"k":"v"}' });
+    const b = buildViewerUrl({ viewerUrl: "https://argue.onev.cat/", reportJson: '{"k":"v"}' });
+    if (!a.ok || !b.ok) throw new Error("expected both ok");
+    expect(a.url.replace(/#.*$/, "")).toBe(b.url.replace(/#.*$/, ""));
+  });
+
+  it("refuses payloads whose encoded size exceeds MAX_ENCODED_BYTES", () => {
+    const big = JSON.stringify({ blob: Array.from({ length: MAX_ENCODED_BYTES + 1 }, (_, i) => i).join("-") });
+    const out = buildViewerUrl({ viewerUrl: "https://argue.onev.cat/", reportJson: big });
+    if (!out.ok) {
+      expect(out.reason).toBe("too-large");
+      expect(out.encodedSize).toBeGreaterThan(0);
+    } else {
+      expect(out.url.length).toBeLessThanOrEqual("https://argue.onev.cat/#v=1&d=".length + MAX_ENCODED_BYTES);
+    }
   });
 });
