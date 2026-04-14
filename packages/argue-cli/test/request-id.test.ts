@@ -45,6 +45,11 @@ describe("REQUEST_ID_PATTERN", () => {
     expect(REQUEST_ID_PATTERN.test("argue_1712345678901_ZZZZZZ")).toBe(false);
   });
 
+  it("rejects hex suffixes of wrong length", () => {
+    expect(REQUEST_ID_PATTERN.test("argue_1712345678901_a")).toBe(false);
+    expect(REQUEST_ID_PATTERN.test("argue_1712345678901_abcdef01")).toBe(false);
+  });
+
   it("ensures new ids sort after legacy ids with the same timestamp", () => {
     const legacy = "argue_1712345678901";
     const current = "argue_1712345678901_a3f9c2";
