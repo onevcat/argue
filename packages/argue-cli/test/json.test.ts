@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   extractJsonObject,
   JsonParseError,
@@ -56,6 +56,85 @@ describe("runtime/json", () => {
       // The underlying SyntaxError should be preserved as the cause.
       expect(parseError.cause).toBeInstanceOf(SyntaxError);
     }
+  });
+
+  it("V8 SyntaxError.message exposes 'at position N' for stray-quote failures (the fallback depends on this)", () => {
+    // The iterative stray-quote fallback inside parseJsonObject parses
+    // the error position out of SyntaxError.message via /at position (\d+)/.
+    // That substring is a V8 implementation detail — Node.js 21 already
+    // dropped it from the generic "Unexpected token X" family, but the
+    // specific error raised by a stray ASCII quote inside a string value
+    // is "Expected ',' or '}' after property value in JSON at position N",
+    // which still carries the position in Node 20/22. Lock that exact
+    // family here: any node upgrade that renames or drops the position
+    // for *this* error must fail this test loudly, not silently disable
+    // the fallback.
+    let caught: unknown;
+    try {
+      JSON.parse('{"a":"b"c":1}');
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(SyntaxError);
+    const message = String((caught as SyntaxError).message);
+    expect(message).toMatch(/after property value/);
+    expect(message).toMatch(/at position \d+/);
+  });
+
+  it("parseJsonObject emits a stderr warning when the stray-quote fallback rescues a payload", () => {
+    // Observability lock: when the fallback path is the thing that saves
+    // a payload, we want a visible signal (stderr warn) so operators can
+    // watch how often LLM output regresses into needing this rescue.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const broken = readFileSync(
+        join(FIXTURE_DIR, "claude-final-vote-stray-quotes-fullwidth-paren.txt"),
+        "utf8"
+      ).trim();
+      parseJsonObject(broken);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      const [message] = warnSpy.mock.calls[0] ?? [];
+      expect(String(message)).toMatch(/iterative stray-quote escape/);
+      expect(String(message)).toMatch(/iterations=\d+/);
+      expect(String(message)).toMatch(/candidateLength=\d+/);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("parseJsonObject recovers payloads where jsonrepair's stray-quote heuristic fails on '(N) \"CJK\"（' patterns", () => {
+    // Captured from argue_1776185225898_944d69 (final_vote round 4).
+    // The embedded Chinese fullResponse contains stray ASCII quote pairs
+    // around phrases like "弱客观性" / "强形上客观性", each preceded by
+    // structural noise like "立场；(3)" and followed by a fullwidth "（".
+    // This combination defeats jsonrepair's stray-quote lookahead — it
+    // starts parsing the CJK phrase as an unquoted key and throws
+    // "Colon expected" — so parseJsonObject must fall back to a
+    // schema-agnostic iterative-escape recovery path.
+    const broken = readFileSync(join(FIXTURE_DIR, "claude-final-vote-stray-quotes-fullwidth-paren.txt"), "utf8").trim();
+
+    // Document the baseline: jsonrepair alone cannot salvage this input.
+    // If a future jsonrepair release handles it, this assertion will
+    // flag that the fallback is no longer load-bearing for this case.
+    expect(tryRepairJson(broken)).toBeNull();
+
+    const parsed = parseJsonObject(broken) as Record<string, unknown>;
+
+    expect(parsed.fullResponse).toBeTruthy();
+    expect(parsed.summary).toBeTruthy();
+    expect(Array.isArray(parsed.judgements)).toBe(true);
+    expect(Array.isArray(parsed.claimVotes)).toBe(true);
+
+    const fullResponse = String(parsed.fullResponse);
+    expect(fullResponse).toContain('"弱客观性"');
+    expect(fullResponse).toContain('"强形上客观性"');
+
+    const judgements = parsed.judgements as Array<Record<string, unknown>>;
+    const claimVotes = parsed.claimVotes as Array<Record<string, unknown>>;
+    expect(judgements).toHaveLength(18);
+    expect(claimVotes).toHaveLength(18);
+    expect(judgements[0]?.claimId).toBe("claude-agent:0:0");
+    expect(claimVotes[17]?.claimId).toBe("claude-agent:3:0");
   });
 
   it("repairJsonText reuses extractor behavior", () => {
