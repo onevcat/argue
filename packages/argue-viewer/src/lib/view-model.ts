@@ -263,6 +263,21 @@ export function buildClaimLookup(result: ArgueResult): ClaimLookup {
 }
 
 export function buildRoundMergeIndex(result: ArgueResult): Record<number, RoundMerge[]> {
+  const hasStructuredRoundMerges = result.rounds.some((round) => round.appliedMerges !== undefined);
+  if (hasStructuredRoundMerges) {
+    const byRound: Record<number, RoundMerge[]> = {};
+    for (const round of result.rounds) {
+      const applied = round.appliedMerges ?? [];
+      if (applied.length === 0) continue;
+      byRound[round.round] = applied.map((merge) => ({
+        sourceClaimId: merge.sourceClaimId,
+        targetClaimId: merge.targetClaimId,
+        participantIds: [...merge.participantIds].sort((a, b) => a.localeCompare(b))
+      }));
+    }
+    return byRound;
+  }
+
   const lookup = buildClaimLookup(result);
   const firstEffectiveMergeBySource = new Map<
     string,
@@ -313,7 +328,7 @@ export function buildRoundMergeIndex(result: ArgueResult): Record<number, RoundM
     byRound[merge.round]!.push({
       sourceClaimId,
       targetClaimId: merge.targetClaimId,
-      participantIds: [...merge.participantIds]
+      participantIds: [...merge.participantIds].sort((a, b) => a.localeCompare(b))
     });
   }
   return byRound;

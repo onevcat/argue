@@ -14,6 +14,8 @@ import {
   type ParticipantRoundOutput,
   type ParticipantScore,
   type Phase,
+  type RoundAppliedMerge,
+  type RoundRecord,
   type Task
 } from "../contracts/result.js";
 import { buildBuiltinReport } from "./report-compose.js";
@@ -71,7 +73,7 @@ export class ArgueEngine {
       ])
     );
 
-    const rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }> = [];
+    const rounds: RoundRecord[] = [];
     let claimCatalog: Claim[] = [];
     const eliminations: EliminationRecord[] = [];
 
@@ -120,7 +122,7 @@ export class ArgueEngine {
       });
 
       this.ensureMinParticipants(normalized, activeParticipants.size);
-      rounds.push({ round: 0, outputs: initialResult.outputs });
+      rounds.push({ round: 0, outputs: initialResult.outputs, appliedMerges: initialResult.appliedMerges });
       claimCatalog = initialResult.claimCatalog;
 
       let previousOutputs = initialResult.outputs;
@@ -150,7 +152,7 @@ export class ArgueEngine {
         });
 
         this.ensureMinParticipants(normalized, activeParticipants.size);
-        rounds.push({ round, outputs: debateResult.outputs });
+        rounds.push({ round, outputs: debateResult.outputs, appliedMerges: debateResult.appliedMerges });
         claimCatalog = debateResult.claimCatalog;
         previousOutputs = debateResult.outputs;
 
@@ -192,7 +194,11 @@ export class ArgueEngine {
           });
           this.ensureMinParticipants(normalized, activeParticipants.size);
           finalVoteOutputs = finalVoteResult.outputs;
-          rounds.push({ round: finalVoteRound, outputs: finalVoteOutputs });
+          rounds.push({
+            round: finalVoteRound,
+            outputs: finalVoteOutputs,
+            appliedMerges: finalVoteResult.appliedMerges
+          });
           claimCatalog = finalVoteResult.claimCatalog;
         }
       }
@@ -361,7 +367,12 @@ export class ArgueEngine {
       globalDeadlineHit: boolean;
     };
     eliminations: EliminationRecord[];
-  }): Promise<{ outputs: ParticipantRoundOutput[]; claimCatalog: Claim[]; newClaimCount: number }> {
+  }): Promise<{
+    outputs: ParticipantRoundOutput[];
+    claimCatalog: Claim[];
+    newClaimCount: number;
+    appliedMerges: RoundAppliedMerge[];
+  }> {
     const participantIds = [...args.activeParticipants];
     const dispatches = await Promise.all(
       participantIds.map(async (participantId) => {
@@ -507,7 +518,7 @@ export class ArgueEngine {
 
     const { claims, newClaimCount, mergeEvents } =
       args.phase === "final_vote"
-        ? { claims: [...args.claimCatalog], newClaimCount: 0, mergeEvents: [] }
+        ? { claims: [...args.claimCatalog], newClaimCount: 0, mergeEvents: [] as RoundAppliedMerge[] }
         : updateClaims(args.claimCatalog, outputs);
 
     for (const merge of mergeEvents) {
@@ -515,7 +526,7 @@ export class ArgueEngine {
         phase: args.phase,
         round: args.round,
         sourceClaimId: merge.sourceClaimId,
-        mergedInto: merge.mergedInto
+        mergedInto: merge.targetClaimId
       });
     }
 
@@ -539,7 +550,8 @@ export class ArgueEngine {
     return {
       outputs,
       claimCatalog: claims,
-      newClaimCount
+      newClaimCount,
+      appliedMerges: mergeEvents
     };
   }
 
@@ -551,7 +563,7 @@ export class ArgueEngine {
     representative: { participantId: string; speech: string; score: number };
     finalClaims: Claim[];
     claimResolutions: ClaimResolution[];
-    rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }>;
+    rounds: RoundRecord[];
     scoreboard: ParticipantScore[];
     activeParticipants: Set<string>;
   }): Promise<FinalReport> {
@@ -1086,7 +1098,7 @@ function shouldEarlyStop(outputs: ParticipantRoundOutput[], newClaimCount: numbe
 function updateClaims(
   base: Claim[],
   outputs: ParticipantRoundOutput[]
-): { claims: Claim[]; newClaimCount: number; mergeEvents: Array<{ sourceClaimId: string; mergedInto: string }> } {
+): { claims: Claim[]; newClaimCount: number; mergeEvents: RoundAppliedMerge[] } {
   const claimMap = new Map<string, Claim>(
     base.map((claim) => [claim.claimId, { ...claim, proposedBy: [...claim.proposedBy] }])
   );
@@ -1129,7 +1141,34 @@ function updateClaims(
     }
   }
 
-  const mergeEvents: Array<{ sourceClaimId: string; mergedInto: string }> = [];
+  const mergeEventsBySource = new Map<
+    string,
+    {
+      sourceClaimId: string;
+      targetClaimId: string;
+      participantIds: Set<string>;
+    }
+  >();
+
+  const appendMergeParticipant = (
+    sourceClaimId: string,
+    targetClaimId: string,
+    participantId: string,
+    options?: { createIfMissing?: boolean }
+  ) => {
+    const existing = mergeEventsBySource.get(sourceClaimId);
+    if (existing && existing.targetClaimId === targetClaimId) {
+      existing.participantIds.add(participantId);
+      return;
+    }
+    if (!existing && options?.createIfMissing) {
+      mergeEventsBySource.set(sourceClaimId, {
+        sourceClaimId,
+        targetClaimId,
+        participantIds: new Set([participantId])
+      });
+    }
+  };
 
   for (const output of outputs) {
     for (const judgement of output.judgements) {
@@ -1148,7 +1187,13 @@ function updateClaims(
 
       const mergeIntoId = resolveClaimId(claimMap, judgement.mergesWith);
       if (!claimMap.has(mergeIntoId)) continue;
-      if (targetId === mergeIntoId) continue;
+
+      if (targetId === mergeIntoId) {
+        if (directClaim?.status === "merged" && directClaim.mergedInto === mergeIntoId) {
+          appendMergeParticipant(directClaim.claimId, mergeIntoId, output.participantId);
+        }
+        continue;
+      }
 
       const leftOrder = order.get(targetId) ?? Number.MAX_SAFE_INTEGER;
       const rightOrder = order.get(mergeIntoId) ?? Number.MAX_SAFE_INTEGER;
@@ -1170,12 +1215,21 @@ function updateClaims(
         }
       }
 
-      mergeEvents.push({
-        sourceClaimId: loserId,
-        mergedInto: survivorId
-      });
+      appendMergeParticipant(loserId, survivorId, output.participantId, { createIfMissing: true });
     }
   }
+
+  const mergeEvents: RoundAppliedMerge[] = [...mergeEventsBySource.values()]
+    .sort((a, b) => {
+      const leftOrder = order.get(a.sourceClaimId) ?? Number.MAX_SAFE_INTEGER;
+      const rightOrder = order.get(b.sourceClaimId) ?? Number.MAX_SAFE_INTEGER;
+      return leftOrder - rightOrder || a.sourceClaimId.localeCompare(b.sourceClaimId);
+    })
+    .map((merge) => ({
+      sourceClaimId: merge.sourceClaimId,
+      targetClaimId: merge.targetClaimId,
+      participantIds: [...merge.participantIds].sort((a, b) => a.localeCompare(b))
+    }));
 
   return {
     claims: [...claimMap.values()],

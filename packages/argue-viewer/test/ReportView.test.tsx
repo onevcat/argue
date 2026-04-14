@@ -103,4 +103,126 @@ describe("ReportView", () => {
     const { container } = render(<ReportView result={result} />);
     expect(container.querySelectorAll(".merge-row")).toHaveLength(1);
   });
+
+  it("renders chained applied merges from structured round data and sorts participant ids", () => {
+    const result = createFixtureResult();
+
+    result.finalClaims = [
+      {
+        claimId: "c1",
+        title: "Claim 1",
+        statement: "merged into c2",
+        category: "pro",
+        proposedBy: ["alpha"],
+        status: "merged",
+        mergedInto: "c2"
+      },
+      {
+        claimId: "c2",
+        title: "Claim 2",
+        statement: "merged into c3",
+        category: "pro",
+        proposedBy: ["zeta"],
+        status: "merged",
+        mergedInto: "c3"
+      },
+      {
+        claimId: "c3",
+        title: "Claim 3",
+        statement: "survivor",
+        category: "pro",
+        proposedBy: ["gamma"],
+        status: "active"
+      }
+    ];
+
+    result.claimResolutions = [
+      {
+        claimId: "c3",
+        status: "resolved",
+        acceptCount: 3,
+        rejectCount: 0,
+        totalVoters: 3,
+        votes: [
+          { participantId: "alpha", claimId: "c3", vote: "accept" },
+          { participantId: "zeta", claimId: "c3", vote: "accept" },
+          { participantId: "gamma", claimId: "c3", vote: "accept" }
+        ]
+      }
+    ];
+
+    result.rounds = [
+      {
+        round: 1,
+        appliedMerges: [
+          {
+            sourceClaimId: "c1",
+            targetClaimId: "c2",
+            participantIds: ["zeta", "alpha"]
+          }
+        ],
+        outputs: [
+          {
+            participantId: "alpha",
+            round: 1,
+            phase: "debate",
+            fullResponse: "...",
+            judgements: [
+              {
+                claimId: "c1",
+                stance: "revise",
+                confidence: 0.9,
+                rationale: "first merge",
+                mergesWith: "c2"
+              }
+            ],
+            summary: "merge c1 to c2"
+          }
+        ]
+      },
+      {
+        round: 2,
+        appliedMerges: [
+          {
+            sourceClaimId: "c2",
+            targetClaimId: "c3",
+            participantIds: ["gamma"]
+          }
+        ],
+        outputs: [
+          {
+            participantId: "gamma",
+            round: 2,
+            phase: "debate",
+            fullResponse: "...",
+            judgements: [
+              {
+                claimId: "c1",
+                stance: "revise",
+                confidence: 0.92,
+                rationale: "historical reference",
+                mergesWith: "c2"
+              },
+              {
+                claimId: "c2",
+                stance: "revise",
+                confidence: 0.93,
+                rationale: "second merge",
+                mergesWith: "c3"
+              }
+            ],
+            summary: "merge c2 to c3"
+          }
+        ]
+      }
+    ];
+
+    const { container } = render(<ReportView result={result} />);
+    expect(container.querySelectorAll(".merge-row")).toHaveLength(2);
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("by alpha, zeta");
+    expect(text).not.toContain("by zeta, alpha");
+  });
+
 });

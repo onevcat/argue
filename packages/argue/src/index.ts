@@ -66,7 +66,9 @@ export type {
   OpinionShift,
   ParticipantRoundOutput,
   ParticipantScore,
-  Phase
+  Phase,
+  RoundAppliedMerge,
+  RoundRecord
 } from "./contracts/result.js";
 
 export {
@@ -84,5 +86,7 @@ export {
   InitialParticipantRoundOutputSchema,
   ParticipantRoundOutputSchema,
   ParticipantScoreSchema,
-  PhaseSchema
+  PhaseSchema,
+  RoundAppliedMergeSchema,
+  RoundRecordSchema
 } from "./contracts/result.js";
