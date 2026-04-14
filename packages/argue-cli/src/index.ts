@@ -940,9 +940,10 @@ function parseRunOptions(args: string[]): { ok: true; value: CliRunOptions } | {
     }
 
     if (arg === "--viewer-url") {
-      const value = args[++i];
+      const value = args[i + 1];
       if (!value) return { ok: false, error: "Missing value for --viewer-url" };
       out.viewerUrl = value;
+      i += 1;
       continue;
     }
 
