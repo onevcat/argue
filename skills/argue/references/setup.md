@@ -177,10 +177,10 @@ Remove entries from the `providers` object or `agents` array, then save.
     "minRounds": 2,
     "maxRounds": 3,
     "perTaskTimeoutMs": 600000,
-    "perRoundTimeoutMs": 600000,
+    "perRoundTimeoutMs": 1200000,
     "globalDeadlineMs": 3600000,
     "consensusThreshold": 1,
-    "composer": "builtin",
+    "composer": "representative",
     "representativeId": "optional-agent-id",
     "includeDeliberationTrace": false,
     "traceLevel": "compact"
@@ -189,14 +189,20 @@ Remove entries from the `providers` object or `agents` array, then save.
     "jsonlPath": "optional-path",
     "resultPath": "optional-path",
     "summaryPath": "optional-path"
+  },
+  "viewer": {
+    "url": "https://argue.onev.cat/"
   }
 }
 ```
 
+`viewer.url` overrides the hosted viewer for `argue view` / `--view`. Defaults to `https://argue.onev.cat/`. Must be `https://`, except `http://localhost` / `127.0.0.1` for local viewer development. CLI flag `--viewer-url <url>` overrides per-run.
+
 ## Composer Options
 
-- **`builtin`** (default): Synthesized summary from all agents' contributions
-- **`representative`**: Single best agent writes the final report
-  ```bash
-  argue run --task "..." --composer representative --representative-id codex-agent
-  ```
+- **`representative`** (default): The highest-scoring agent writes the final report. Override which agent composes it with `--representative-id <agent-id>`.
+- **`builtin`**: Synthesized summary from all agents' contributions, no per-agent representative narration.
+
+```bash
+argue run --task "..." --composer builtin
+```

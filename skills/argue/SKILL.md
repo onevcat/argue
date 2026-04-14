@@ -12,39 +12,32 @@ Structured debates where AI agents analyze independently, cross-examine across r
 
 ## When to Use
 
-✅ **Use argue when:**
+✅ Strategic / architectural decisions with real trade-offs, "Should we X or Y?" with real stakes, risk analysis, confirmation-bias mitigation, pre-commit quality gates on big decisions.
 
-- Strategic or architectural decisions with real trade-offs
-- Questions where reasonable experts genuinely disagree
-- Pre-commit quality gates on major decisions
-- Risk analysis or confirmation-bias mitigation
-- "Should we X or Y?" with real stakes
-
-❌ **Don't use argue when:**
-
-- Simple factual lookups (just search)
-- Time-critical tasks (debates take 3-7 minutes)
-- Creative/open-ended generation (not a debate format)
-- Questions with obvious answers
+❌ Simple factual lookups, time-critical tasks (debates take 3–7 minutes), open-ended creative generation, questions with obvious answers.
 
 ## Pre-flight
 
-Before first use, ensure argue is configured:
+If `argue` is not on PATH, install it (confirm with the user first — this is a global install):
 
 ```bash
-argue --version  # verify installed (v0.2+)
-argue config init --local  # project-local, or --global for ~/.config/argue/
-
-# Add CLI-based providers (recommended — uses existing CLI auth)
-argue config add-provider --id codex --type cli --cli-type codex --model-id gpt-5.4
-argue config add-provider --id gemini --type cli --cli-type gemini --model-id gemini-3.1-pro-preview
-
-# Add at least 2 agents (--agent shorthand creates agent alongside provider)
-argue config add-agent --id codex-agent --provider codex --model gpt-5.4
-argue config add-agent --id gemini-agent --provider gemini --model gemini-3.1-pro-preview
+npm install -g @onevcat/argue-cli
 ```
 
-For advanced setup (API providers, SDK adapters, roles, system prompts), see [references/setup.md](references/setup.md).
+Then verify and configure:
+
+```bash
+argue version                          # verify installed (v0.2+)
+argue config init --global             # ~/.config/argue/config.json — recommended for agent use
+
+# Add at least 2 agents — `--agent <id>` shorthand creates provider + agent in one shot
+argue config add-provider --id codex  --type cli --cli-type codex  --model-id gpt-5.4 --agent codex-agent
+argue config add-provider --id gemini --type cli --cli-type gemini --model-id gemini-3.1-pro-preview --agent gemini-agent
+```
+
+**Why global by default**: a global config is set up once and works from any cwd, and outputs go to `~/.argue/output/<requestId>/` instead of cluttering the current project tree. Use `argue config init --local` only when a specific project needs its own dedicated agent line-up — that writes `./argue.config.json` and outputs to `./out/<requestId>/`.
+
+For API providers, SDK adapters, roles, and system prompts, see [references/setup.md](references/setup.md).
 
 ## Running Debates
 
@@ -52,91 +45,65 @@ For advanced setup (API providers, SDK adapters, roles, system prompts), see [re
 # Basic — 2 agents, 2-3 rounds, auto-consensus
 argue run --task "Should we use a monorepo or polyrepo?" --verbose
 
-# With post-debate action — execute after consensus
+# With a follow-up action: representative executes once consensus is reached
 argue run \
   --task "Review the API design in docs/api.md" \
   --action "Implement the consensus recommendation and open a PR" \
   --verbose
 
-# Specific agents + deeper rounds
-argue run --agents codex-agent,gemini-agent --min-rounds 3 --max-rounds 5 --task "..."
-
-# JSON input for complex tasks
-argue run --input debate-config.json
+# Open the rendered report in the hosted viewer when the run finishes
+argue run --task "..." --view
 ```
 
-Use `run` or `exec` — both start a debate session. Use `--verbose` while learning or debugging; skip it for quieter output.
+Useful flags (full list: `argue --help`):
 
-Debates typically take 3-7 minutes for 2 agents × 3 rounds. Complex topics or large reviews may need longer — allow ample exec timeout (600s is a reasonable starting point).
+| Flag                            | Purpose                                                                                                       |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `--agents a,b`                  | Pick which agents participate (default: `defaults.defaultAgents` from config, else **all configured agents**) |
+| `--min-rounds` / `--max-rounds` | Control debate depth (defaults: 2 / 3)                                                                        |
+| `--threshold <0..1>`            | Consensus threshold (default: 1 = unanimous)                                                                  |
+| `--action <prompt>`             | Execute task after consensus                                                                                  |
+| `--view` / `--viewer-url <url>` | Open report in the hosted viewer                                                                              |
+| `--input <file>`                | JSON input for complex setups                                                                                 |
+| `--verbose` / `-v`              | Stream agent reasoning live                                                                                   |
 
-## Acting on Results
+Debates typically take 3–7 minutes for 2 agents × 3 rounds. Defaults are 10 min per task and 20 min per round; bump them for heavy reviews.
 
-After a debate completes, use `argue act` to execute a follow-up task using the debate result as context:
+## Viewing & Acting on Results
+
+When a run finishes, argue prints the request id and a viewer hint. Open it any time:
+
+```bash
+argue view                  # most recent run
+argue view <request-id>     # specific run
+```
+
+The hosted viewer renders `result.json` entirely client-side (gzip + base64url in the URL fragment — nothing is uploaded). Use `--viewer-url` to point at a self-hosted viewer.
+
+To run a follow-up task using a debate result as context:
 
 ```bash
 argue act --result ~/.argue/output/<requestId>/result.json --task "Write a summary blog post"
 argue act --result ./out/<requestId>/result.json --task "Implement the changes" --agent codex-agent
 ```
 
-Add `--no-action-full-result` to omit the full result JSON from the action context (saves tokens).
+## Output Files
 
-## Key Options
-
-| Flag                                      | Purpose                              | Default        |
-| ----------------------------------------- | ------------------------------------ | -------------- |
-| `--agents <ids>`                          | Override which agents participate    | all configured |
-| `--min-rounds` / `--max-rounds`           | Control debate depth                 | 2-3            |
-| `--threshold <0-1>`                       | Consensus threshold (1 = unanimous)  | 1              |
-| `--composer builtin\|representative`      | Report style                         | builtin        |
-| `--representative-id <id>`                | Agent for representative composer    | —              |
-| `--action <prompt>`                       | Execute task after consensus         | none           |
-| `--action-agent <id>`                     | Override which agent executes action | representative |
-| `--per-task-timeout-ms <n>`               | Timeout per agent task               | 600000         |
-| `--per-round-timeout-ms <n>`              | Timeout per debate round             | 600000         |
-| `--global-deadline-ms <n>`                | Overall deadline for entire debate   | none           |
-| `--language <lang>`                       | Output language                      | config default |
-| `--token-budget <n>`                      | Token limit per agent                | unlimited      |
-| `--request-id <id>`                       | Custom request ID                    | auto-generated |
-| `--trace` / `--trace-level compact\|full` | Debug tracing                        | off            |
-| `--input <file>`                          | JSON config for complex setups       | —              |
-| `--jsonl` / `--result` / `--summary`      | Output file paths                    | auto           |
-| `--no-color`                              | Disable colored output               | off            |
-
-## Understanding Output
-
-**Debate flow:**
-
-1. **Round 0 (initial):** Each agent responds independently with claims
-2. **Rounds 1-N (debate):** Agents cross-examine, challenge, merge, and refine claims
-3. **Final vote:** Agents vote on remaining claims (✓ accept, ✗ reject, ↻ revise)
-4. **Report:** Final consensus report
-
-**Key metrics:**
-
-- **Claims:** Unique propositions (grows in round 0, shrinks via merges in later rounds)
-- **Representative score:** Per-agent confidence rating
-- **Result status:** `consensus` | `partial_consensus` | `unresolved` | `failed`
-
-**Output files** — path depends on config location:
-
-- **Global config** (`~/.config/argue/config.json`): `~/.argue/output/<requestId>/`
-- **Local config** (`./argue.config.json`): `./out/<requestId>/`
-
-Each directory contains:
+After every run, argue writes to `~/.argue/output/<requestId>/` (global config) or `./out/<requestId>/` (project-local config):
 
 - `result.json` — full structured result
-- `summary.md` — markdown summary (written on completion)
-- `events.jsonl` — event stream (written live)
-- `error.json` — error details (on failure)
+- `summary.md` — markdown report (written on completion)
+- `events.jsonl` — event stream (written live, survives crashes — parse it for partial results if a run is killed)
+- `error.json` — error details (only on failure)
 
-## Tips for Better Debates
+Result status: `consensus` | `partial_consensus` | `unresolved` | `failed`.
 
-1. **Frame as decisions, not topics.** "Should we use SwiftUI or UIKit?" > "Tell me about SwiftUI"
-2. **Add context.** "Should we use a monorepo? Context: 8 microservices, 3 teams, Node+Go"
-3. **Use `--action` for implementation.** When consensus should drive code changes
-4. **Two agents is the sweet spot.** More agents = longer debates with diminishing returns
-5. **Representative composer** gives a single coherent report; **builtin** gives synthesized summary
-6. **If debate is killed mid-round**, `events.jsonl` still has all data — parse it directly
+## Tips
+
+1. **Frame as decisions, not topics.** "Should we use SwiftUI or UIKit?" beats "Tell me about SwiftUI".
+2. **Add context.** "Should we use a monorepo? Context: 8 microservices, 3 teams, Node+Go" produces sharper claims.
+3. **2–3 agents is the sweet spot.** Agents in the same round are dispatched in parallel, so wall-clock is dominated by rounds rather than agent count — adding more agents barely costs time. The real cost is **tokens**: every extra agent produces its own claims, plus every other agent has to read them as peer context, so token usage grows roughly with N². If the user's config has more than 3 agents, pass `--agents a,b,c` explicitly to pick a focused subset, or set `defaults.defaultAgents` in the config file once.
+4. **Use `--action`** when consensus should drive code changes or another real-world side-effect.
 
 ## Troubleshooting
 
