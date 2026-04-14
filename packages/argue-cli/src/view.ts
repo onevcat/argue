@@ -1,9 +1,5 @@
 import { access, readdir } from "node:fs/promises";
-
-// Looser pattern used for on-disk discovery: matches any argue_<ms> or argue_<ms>_<6chars>
-// directory name, regardless of the suffix charset. REQUEST_ID_PATTERN is the strict
-// producer-side pattern; legacy or future variants may have different suffix characters.
-const DISCOVERY_PATTERN = /^argue_\d+(?:_[a-zA-Z0-9]{6})?$/;
+import { REQUEST_ID_PATTERN } from "./request-id.js";
 
 export type CompletedRun = {
   requestId: string;
@@ -37,7 +33,7 @@ export async function listCompletedRuns(resolvedResultTemplate: string): Promise
   const candidates: CompletedRun[] = [];
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    if (!DISCOVERY_PATTERN.test(entry.name)) continue;
+    if (!REQUEST_ID_PATTERN.test(entry.name)) continue;
     const resultPath = resolvedResultTemplate.replaceAll(token, entry.name);
     if (!(await pathExists(resultPath))) continue;
     candidates.push({ requestId: entry.name, resultPath });

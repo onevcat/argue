@@ -58,12 +58,12 @@ describe("listCompletedRuns (directory-per-run layout)", () => {
 
   it("sorts results lexicographically (= chronologically for our id format)", async () => {
     await makeRun("argue_1712000001000_aaaaaa");
-    await makeRun("argue_1711000000000_zzzzzz");
+    await makeRun("argue_1711000000000_eeeeee");
     await makeRun("argue_1712000000000_bbbbbb");
     const resultTemplate = join(tmpRoot, "{requestId}", "result.json");
     const runs = await listCompletedRuns(resultTemplate);
     expect(runs.map((r) => r.requestId)).toEqual([
-      "argue_1711000000000_zzzzzz",
+      "argue_1711000000000_eeeeee",
       "argue_1712000000000_bbbbbb",
       "argue_1712000001000_aaaaaa"
     ]);
