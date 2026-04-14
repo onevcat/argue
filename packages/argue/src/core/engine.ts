@@ -387,6 +387,11 @@ export class ArgueEngine {
             };
           });
 
+        const visibleClaimCatalog =
+          args.phase === "initial"
+            ? args.claimCatalog
+            : args.claimCatalog.filter((claim) => claim.status === "active" || claim.status === undefined);
+
         const task = RoundTaskInputSchema.parse({
           kind: "round",
           sessionId: args.sessionId,
@@ -397,7 +402,7 @@ export class ArgueEngine {
           prompt: this.buildRoundPrompt(args.normalized, args.phase, args.round),
           selfHistoryRef: { stickySession: true },
           peerRoundInputs,
-          claimCatalog: args.claimCatalog,
+          claimCatalog: visibleClaimCatalog,
           metadata: {
             participantSessionKey: args.participantSessionMap.get(participantId),
             role: participant.role,
@@ -879,7 +884,8 @@ export class ArgueEngine {
         ...shared,
         "",
         "Phase goal:",
-        "- Critique and refine existing claims from claimCatalog and peerRoundInputs.",
+        "- Critique and refine existing ACTIVE claims from claimCatalog and peerRoundInputs.",
+        "- claimCatalog excludes already merged claims; treat any merged claims from prior context as historical and do not judge or merge them again.",
         "- Use mergesWith when two claims are duplicates; earliest claim should survive.",
         "- Add extractedClaims only for genuinely new points.",
         "",
@@ -900,6 +906,7 @@ export class ArgueEngine {
       "",
       "Phase goal:",
       "- Vote each active claim independently.",
+      "- claimCatalog contains active claims only; do not re-open or re-merge historical merged claims from prior context.",
       "- Every active claim should appear exactly once in claimVotes.",
       "",
       "Schema requirements (final_vote):",
@@ -1126,12 +1133,15 @@ function updateClaims(
 
   for (const output of outputs) {
     for (const judgement of output.judgements) {
+      const directClaim = claimMap.get(judgement.claimId);
       const targetId = resolveClaimId(claimMap, judgement.claimId);
-      const claim = claimMap.get(targetId);
-      if (!claim) continue;
+      if (!directClaim && !claimMap.get(targetId)) continue;
 
       if (judgement.revisedStatement && (judgement.stance === "revise" || judgement.stance === "disagree")) {
-        claim.statement = judgement.revisedStatement;
+        const revisionTarget = directClaim ?? claimMap.get(targetId);
+        if (revisionTarget) {
+          revisionTarget.statement = judgement.revisedStatement;
+        }
       }
 
       if (!judgement.mergesWith) continue;

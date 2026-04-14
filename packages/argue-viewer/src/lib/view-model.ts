@@ -34,6 +34,12 @@ export type ContributionIndex = Record<
   }
 >;
 
+export type RoundMerge = {
+  sourceClaimId: string;
+  targetClaimId: string;
+  participantIds: string[];
+};
+
 export function formatElapsed(elapsedMs: number): string {
   if (elapsedMs < 1_000) {
     return `${elapsedMs} ms`;
@@ -254,6 +260,63 @@ export function buildClaimLookup(result: ArgueResult): ClaimLookup {
   };
 
   return { byId, survivorId, describe };
+}
+
+export function buildRoundMergeIndex(result: ArgueResult): Record<number, RoundMerge[]> {
+  const lookup = buildClaimLookup(result);
+  const firstEffectiveMergeBySource = new Map<
+    string,
+    {
+      round: number;
+      targetClaimId: string;
+      participantIds: string[];
+    }
+  >();
+
+  for (const round of result.rounds) {
+    for (const output of round.outputs) {
+      for (const judgement of output.judgements) {
+        if (!judgement.mergesWith) continue;
+
+        const source = lookup.byId[judgement.claimId];
+        if (!source || source.status !== "merged" || !source.mergedInto) continue;
+
+        const actualTargetId = lookup.survivorId(judgement.claimId);
+        const proposedTargetId = lookup.survivorId(judgement.mergesWith);
+        if (actualTargetId === judgement.claimId || actualTargetId !== proposedTargetId) continue;
+
+        const existing = firstEffectiveMergeBySource.get(judgement.claimId);
+        if (!existing) {
+          firstEffectiveMergeBySource.set(judgement.claimId, {
+            round: round.round,
+            targetClaimId: actualTargetId,
+            participantIds: [output.participantId]
+          });
+          continue;
+        }
+
+        if (
+          existing.round === round.round &&
+          existing.targetClaimId === actualTargetId &&
+          !existing.participantIds.includes(output.participantId)
+        ) {
+          existing.participantIds.push(output.participantId);
+        }
+      }
+    }
+  }
+
+  const byRound: Record<number, RoundMerge[]> = {};
+  for (const entry of firstEffectiveMergeBySource.entries()) {
+    const [sourceClaimId, merge] = entry;
+    byRound[merge.round] ??= [];
+    byRound[merge.round]!.push({
+      sourceClaimId,
+      targetClaimId: merge.targetClaimId,
+      participantIds: [...merge.participantIds]
+    });
+  }
+  return byRound;
 }
 
 export function buildContributionIndex(result: ArgueResult): ContributionIndex {

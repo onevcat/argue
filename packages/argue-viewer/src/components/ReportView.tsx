@@ -4,6 +4,7 @@ import {
   buildClaimInsights,
   buildClaimLookup,
   buildContributionIndex,
+  buildRoundMergeIndex,
   computeExtractedClaimIds,
   formatDebateDate,
   formatElapsed,
@@ -136,6 +137,7 @@ export function ReportView({ result }: ReportViewProps) {
   const claimInsights = useMemo(() => buildClaimInsights(result), [result]);
   const contributionIndex = useMemo(() => buildContributionIndex(result), [result]);
   const claimLookup = useMemo(() => buildClaimLookup(result), [result]);
+  const roundMergeIndex = useMemo(() => buildRoundMergeIndex(result), [result]);
   const ranked = useMemo(() => rankScoreboard(result.scoreboard), [result.scoreboard]);
   const activeClaims = useMemo(() => result.finalClaims.filter((claim) => claim.status !== "merged"), [result]);
   const debateDate = useMemo(() => formatDebateDate(result), [result]);
@@ -383,15 +385,7 @@ export function ReportView({ result }: ReportViewProps) {
         <div className="rounds-list">
           {result.rounds.map((round) => {
             const extractedIds = computeExtractedClaimIds(round);
-            const mergesInRound = round.outputs.flatMap((output) =>
-              output.judgements
-                .filter((judgement) => judgement.mergesWith)
-                .map((judgement) => ({
-                  participantId: output.participantId,
-                  sourceClaimId: judgement.claimId,
-                  targetClaimId: judgement.mergesWith!
-                }))
-            );
+            const mergesInRound = roundMergeIndex[round.round] ?? [];
             return (
               <details className="round-block" key={round.round}>
                 <summary>
@@ -411,7 +405,7 @@ export function ReportView({ result }: ReportViewProps) {
                               ⟶
                             </span>
                             <ClaimRef claimId={merge.targetClaimId} lookup={claimLookup} compact />
-                            <span className="merge-author mono">by {merge.participantId}</span>
+                            <span className="merge-author mono">by {merge.participantIds.join(", ")}</span>
                           </li>
                         ))}
                       </ul>

@@ -93,6 +93,12 @@ function roundResult(output: ParticipantRoundOutput): AgentTaskResult {
   };
 }
 
+function isRoundDispatch(
+  task: (typeof StubAgentTaskDelegate.prototype.dispatchCalls)[number]
+): task is Extract<(typeof StubAgentTaskDelegate.prototype.dispatchCalls)[number], { kind: "round" }> {
+  return task.kind === "round";
+}
+
 describe("ArgueEngine M2", () => {
   it("uses effective voters as claim-consensus denominator", async () => {
     const scenarios: Record<string, { type: "success"; output: AgentTaskResult } | { type: "timeout" }> = {};
@@ -878,6 +884,251 @@ describe("ArgueEngine M2", () => {
     expect(c2?.mergedInto).toBe("onevclaw:0:0");
     expect(c3?.status).toBe("merged");
     expect(c3?.mergedInto).toBe("onevclaw:0:0");
+  });
+
+  it("only dispatches active claims after a merge has been applied", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {
+      "round:initial:0:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "initial",
+            round: 0,
+            extractedClaims: [{ title: "A", statement: "claim a", category: "pro" }]
+          })
+        )
+      },
+      "round:initial:0:onevpaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevpaw",
+            phase: "initial",
+            round: 0,
+            extractedClaims: [{ title: "B", statement: "claim b", category: "pro" }]
+          })
+        )
+      },
+      "round:debate:1:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "debate",
+            round: 1,
+            judgements: [{ claimId: "onevpaw:0:0", stance: "revise", mergesWith: "onevclaw:0:0" }]
+          })
+        )
+      },
+      "round:debate:1:onevpaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevpaw",
+            phase: "debate",
+            round: 1,
+            judgements: [{ claimId: "onevclaw:0:0", stance: "agree" }]
+          })
+        )
+      },
+      "round:debate:2:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "debate",
+            round: 2,
+            judgements: [{ claimId: "onevclaw:0:0", stance: "agree" }]
+          })
+        )
+      },
+      "round:debate:2:onevpaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevpaw",
+            phase: "debate",
+            round: 2,
+            judgements: [{ claimId: "onevclaw:0:0", stance: "agree" }]
+          })
+        )
+      },
+      "round:final_vote:3:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "final_vote",
+            round: 3,
+            claimVotes: [{ claimId: "onevclaw:0:0", vote: "accept" }]
+          })
+        )
+      },
+      "round:final_vote:3:onevpaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevpaw",
+            phase: "final_vote",
+            round: 3,
+            claimVotes: [{ claimId: "onevclaw:0:0", vote: "accept" }]
+          })
+        )
+      }
+    };
+
+    const delegate = new StubAgentTaskDelegate(scenarios);
+    const engine = new ArgueEngine({ taskDelegate: delegate });
+
+    await engine.start({
+      requestId: "req-active-only-after-merge",
+      task: "only active claims after merge",
+      participants: [{ id: "onevclaw" }, { id: "onevpaw" }],
+      roundPolicy: { minRounds: 1, maxRounds: 2 }
+    });
+
+    const round2Dispatches = delegate.dispatchCalls.filter(
+      (task): task is Extract<(typeof delegate.dispatchCalls)[number], { kind: "round" }> =>
+        isRoundDispatch(task) && task.phase === "debate" && task.round === 2
+    );
+    expect(round2Dispatches).toHaveLength(2);
+    for (const task of round2Dispatches) {
+      expect(task.claimCatalog?.map((claim: { claimId: string }) => claim.claimId)).toEqual(["onevclaw:0:0"]);
+    }
+
+    const finalVoteDispatches = delegate.dispatchCalls.filter(
+      (task): task is Extract<(typeof delegate.dispatchCalls)[number], { kind: "round" }> =>
+        isRoundDispatch(task) && task.phase === "final_vote" && task.round === 3
+    );
+    expect(finalVoteDispatches).toHaveLength(2);
+    for (const task of finalVoteDispatches) {
+      expect(task.claimCatalog?.map((claim: { claimId: string }) => claim.claimId)).toEqual(["onevclaw:0:0"]);
+    }
+  });
+
+  it("does not let repeated merge judgements overwrite the surviving claim statement", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult }> = {
+      "round:initial:0:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "initial",
+            round: 0,
+            extractedClaims: [{ title: "A", statement: "survivor statement", category: "pro" }]
+          })
+        )
+      },
+      "round:initial:0:onevpaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevpaw",
+            phase: "initial",
+            round: 0,
+            extractedClaims: [{ title: "B", statement: "loser statement", category: "pro" }]
+          })
+        )
+      },
+      "round:debate:1:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "debate",
+            round: 1,
+            judgements: [
+              {
+                claimId: "onevpaw:0:0",
+                stance: "revise",
+                revisedStatement: "merged into onevclaw:0:0",
+                mergesWith: "onevclaw:0:0"
+              }
+            ]
+          })
+        )
+      },
+      "round:debate:1:onevpaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevpaw",
+            phase: "debate",
+            round: 1,
+            judgements: [{ claimId: "onevclaw:0:0", stance: "agree" }]
+          })
+        )
+      },
+      "round:debate:2:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "debate",
+            round: 2,
+            judgements: [{ claimId: "onevclaw:0:0", stance: "agree" }]
+          })
+        )
+      },
+      "round:debate:2:onevpaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevpaw",
+            phase: "debate",
+            round: 2,
+            judgements: [
+              {
+                claimId: "onevpaw:0:0",
+                stance: "revise",
+                revisedStatement: "repeat merged note",
+                mergesWith: "onevclaw:0:0"
+              }
+            ]
+          })
+        )
+      },
+      "round:final_vote:3:onevclaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevclaw",
+            phase: "final_vote",
+            round: 3,
+            claimVotes: [{ claimId: "onevclaw:0:0", vote: "accept" }]
+          })
+        )
+      },
+      "round:final_vote:3:onevpaw": {
+        type: "success",
+        output: roundResult(
+          mkRoundOutput({
+            participantId: "onevpaw",
+            phase: "final_vote",
+            round: 3,
+            claimVotes: [{ claimId: "onevclaw:0:0", vote: "accept" }]
+          })
+        )
+      }
+    };
+
+    const engine = new ArgueEngine({ taskDelegate: new StubAgentTaskDelegate(scenarios) });
+    const result = await engine.start({
+      requestId: "req-repeat-merge-does-not-mutate-survivor",
+      task: "repeated merge judgement safety",
+      participants: [{ id: "onevclaw" }, { id: "onevpaw" }],
+      roundPolicy: { minRounds: 1, maxRounds: 2 }
+    });
+
+    const survivor = result.finalClaims.find((claim) => claim.claimId === "onevclaw:0:0");
+    const loser = result.finalClaims.find((claim) => claim.claimId === "onevpaw:0:0");
+
+    expect(survivor?.status).toBe("active");
+    expect(survivor?.statement).toBe("survivor statement");
+    expect(loser?.status).toBe("merged");
+    expect(loser?.mergedInto).toBe("onevclaw:0:0");
+    expect(loser?.statement).toBe("repeat merged note");
   });
 
   it("covers full claim lifecycle: create, debate-introduce, merge, revise, vote", async () => {
