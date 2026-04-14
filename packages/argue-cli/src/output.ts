@@ -112,7 +112,14 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
         if (event.type === "ParticipantEliminated") {
           const participantId = readString(payload.participantId) ?? "unknown";
           const reason = readString(payload.reason) ?? "unknown";
-          io.log(`${tag} ${c.bold(roundTag)} ${c.red(`${participantId} eliminated`)} ${c.dim(`(${reason})`)}`);
+          const errorMessage = readString(payload.error);
+
+          let suffix = `(${reason})`;
+          if (reason === "error" && errorMessage) {
+            suffix += ` - ${errorMessage}`;
+          }
+
+          io.log(`${tag} ${c.bold(roundTag)} ${c.red(`${participantId} eliminated`)} ${c.dim(suffix)}`);
           return;
         }
 
