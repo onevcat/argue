@@ -126,7 +126,16 @@ function buildBaseArgs(
     case "codex": {
       const reasoningArgs = reasoning ? ["-c", `model_reasoning_effort=${reasoning}`] : [];
       return {
-        args: ["exec", "-m", providerModel, ...reasoningArgs, "--full-auto", "--color", "never"],
+        args: [
+          "exec",
+          "-m",
+          providerModel,
+          ...reasoningArgs,
+          "--full-auto",
+          "--color",
+          "never",
+          "--skip-git-repo-check"
+        ],
         reasoningApplied: !!reasoning
       };
     }
@@ -245,7 +254,9 @@ async function runCommand(args: {
       }
 
       reject(
-        new Error(`CLI provider exited with code=${code ?? "null"} signal=${signal ?? "null"} stderr=${stderr.trim()}`)
+        new Error(
+          `CLI provider exited with code=${code ?? "null"} signal=${signal ?? "null"} stderr=${stderr.trim() || "empty"} stdout=${stdout.trim() || "empty"}`
+        )
       );
     });
 
