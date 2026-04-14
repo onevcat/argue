@@ -111,10 +111,12 @@ export function resolveRunPlan(args: {
     throw new Error(`maxRounds must be >= minRounds (got ${maxRounds} < ${minRounds})`);
   }
 
-  const perTaskTimeoutMs =
-    overrides.perTaskTimeoutMs ?? runInput.perTaskTimeoutMs ?? config.defaults?.perTaskTimeoutMs ?? 10 * 60 * 1_000;
   const perRoundTimeoutMs =
     overrides.perRoundTimeoutMs ?? runInput.perRoundTimeoutMs ?? config.defaults?.perRoundTimeoutMs ?? 20 * 60 * 1_000;
+  // perTask defaults to perRound so a single task is never capped tighter than
+  // the round itself. Users wanting a shorter per-task fuse can still set it.
+  const perTaskTimeoutMs =
+    overrides.perTaskTimeoutMs ?? runInput.perTaskTimeoutMs ?? config.defaults?.perTaskTimeoutMs ?? perRoundTimeoutMs;
   const globalDeadlineMs = overrides.globalDeadlineMs ?? runInput.globalDeadlineMs ?? config.defaults?.globalDeadlineMs;
 
   const threshold =

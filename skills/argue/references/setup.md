@@ -176,7 +176,7 @@ Remove entries from the `providers` object or `agents` array, then save.
     "tokenBudgetHint": 100000,
     "minRounds": 2,
     "maxRounds": 3,
-    "perTaskTimeoutMs": 600000,
+    "perTaskTimeoutMs": 1200000,
     "perRoundTimeoutMs": 1200000,
     "globalDeadlineMs": 3600000,
     "consensusThreshold": 1,

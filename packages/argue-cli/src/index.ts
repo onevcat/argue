@@ -429,7 +429,7 @@ async function runAction(args: string[], io: Pick<typeof console, "log" | "error
       task: "",
       participants: [],
       roundPolicy: { minRounds: 1, maxRounds: 1 },
-      waitingPolicy: { perTaskTimeoutMs: 600_000, perRoundTimeoutMs: 600_000 },
+      waitingPolicy: { perTaskTimeoutMs: 20 * 60 * 1_000, perRoundTimeoutMs: 20 * 60 * 1_000 },
       consensusPolicy: { threshold: 1 },
       reportPolicy: {
         composer: "builtin" as const,
@@ -468,7 +468,7 @@ async function runAction(args: string[], io: Pick<typeof console, "log" | "error
 
   try {
     const dispatched = await taskDelegate.dispatch(actionTask as AgentTaskInput);
-    const awaited = await taskDelegate.awaitResult(dispatched.taskId, 600_000);
+    const awaited = await taskDelegate.awaitResult(dispatched.taskId, 20 * 60 * 1_000);
 
     if (!awaited.ok || !awaited.output) {
       io.error(`Action failed: ${awaited.error ?? "unknown error"}`);
