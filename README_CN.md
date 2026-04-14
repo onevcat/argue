@@ -18,6 +18,16 @@ argue 是一个结构化的多 Agent 辩论引擎。多个 AI Agent 独立分析
 - **一份精致的报告。** 由得分最高的 agent 撰写，开箱即读，可以分享、可以贴进 PR。
 - **完整原始数据落盘。** 渲染 viewer 用的同一份 JSON 保留在本地，可以喂给下游任意步骤（代码审查机器人、代码生成、审计日志……）。
 
+## 安装 argue skill
+
+已经在用支持 skill 的 coding agent（Claude Code、Codex 等等）？那就把整套流程交给 agent。argue 以 [agent skill](https://skills.sh/) 的形式发布，内置了何时用 argue、怎么装和配置 CLI、推荐哪些默认值、怎么端到端跑一次辩论的全套指引。
+
+```bash
+npx skills add https://github.com/onevcat/argue --skill argue
+```
+
+装完之后直接跟 agent 说"让 argue 讨论一下 X"或"帮我问一下第二意见"就行。它会在首次使用时帮你搭好 CLI（全局安装前会先跟你确认），然后替你把辩论、报告、以及任何后续 action 一条龙跑完。
+
 ## 快速开始
 
 ### 安装

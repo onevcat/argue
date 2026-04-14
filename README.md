@@ -18,6 +18,16 @@ Give it a question. Get back claims that survived cross-examination, votes that 
 - **A polished dossier.** Composed by the highest-scoring agent — ready to read, share, or attach to a PR.
 - **Complete raw data on disk.** The same JSON that powers the viewer is saved locally, ready to feed any downstream step (review bot, code generation, audit log, …).
 
+## Install the Argue Skill
+
+Already working with an agentic coding assistant (Claude Code, Codex, etc.)? Hand the setup over. Argue ships as an [agent skill](https://skills.sh/) that teaches your agent when to use argue, how to install and configure the CLI, which defaults to recommend, and how to run debates end-to-end.
+
+```bash
+npx skills add https://github.com/onevcat/argue --skill argue
+```
+
+Once installed, just ask your agent to "argue about X" or "get a second opinion on Y". It will bootstrap the CLI on first run (asking you before any global install) and drive the debate, the report, and any follow-up action for you.
+
 ## Quick Start
 
 ### Install
