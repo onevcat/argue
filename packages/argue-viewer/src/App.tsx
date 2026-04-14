@@ -1,40 +1,129 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { ArgueResult } from "@onevcat/argue";
 import { Landing } from "./components/Landing.js";
 import { ReportLayout } from "./components/ReportLayout.js";
 import { SiteFooter } from "./components/SiteFooter.js";
 import { validateArgueResult } from "./lib/validate.js";
 
+const EXAMPLE_URL = "examples/spaces-vs-tabs.json";
+const EXAMPLE_SOURCE = "example:spaces-vs-tabs";
+
+type Route = "home" | "example" | "report";
+
 type ViewState =
   | { kind: "idle" }
+  | { kind: "loading-example" }
   | { kind: "loaded"; source: string; result: ArgueResult }
   | { kind: "error"; source: string; error: string };
 
+type CachedReport = { source: string; result: ArgueResult };
+
+function routeFromPath(pathname: string): Route {
+  const normalized = pathname.replace(/\/+$/, "") || "/";
+  if (normalized === "/example") return "example";
+  if (normalized === "/report") return "report";
+  return "home";
+}
+
+function pathFromRoute(route: Route): string {
+  switch (route) {
+    case "example":
+      return "/example";
+    case "report":
+      return "/report";
+    case "home":
+    default:
+      return "/";
+  }
+}
+
+function pushRoute(route: Route) {
+  if (typeof window === "undefined") return;
+  const target = pathFromRoute(route);
+  if (window.location.pathname !== target) {
+    window.history.pushState(null, "", target);
+  }
+}
+
+function replaceRoute(route: Route) {
+  if (typeof window === "undefined") return;
+  window.history.replaceState(null, "", pathFromRoute(route));
+}
+
 export function App() {
   const [state, setState] = useState<ViewState>({ kind: "idle" });
+  const reportCacheRef = useRef<CachedReport | null>(null);
+  const exampleCacheRef = useRef<CachedReport | null>(null);
+  const fetchGenRef = useRef(0);
 
-  const loadText = (text: string, source: string) => {
+  // Parse + validate JSON text and update state. Returns the parsed
+  // result on success so the caller can cache it per-route.
+  const applyText = (text: string, source: string): ArgueResult | null => {
     if (!text.trim()) {
       setState({ kind: "error", source, error: "Input is empty." });
-      return;
+      return null;
     }
-
     let raw: unknown;
     try {
       raw = JSON.parse(text);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Invalid JSON syntax.";
       setState({ kind: "error", source, error: `Cannot parse JSON: ${message}` });
-      return;
+      return null;
     }
-
     const validation = validateArgueResult(raw);
     if (!validation.ok) {
       setState({ kind: "error", source, error: validation.error });
+      return null;
+    }
+    setState({ kind: "loaded", source, result: validation.data });
+    return validation.data;
+  };
+
+  const fetchExampleText = async (): Promise<{ text: string } | { error: string }> => {
+    try {
+      const response = await fetch(EXAMPLE_URL, { cache: "no-cache" });
+      if (!response.ok) {
+        return { error: `Failed to load example: HTTP ${response.status}` };
+      }
+      const text = await response.text();
+      return { text };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown fetch error.";
+      return { error: `Failed to load example: ${message}` };
+    }
+  };
+
+  const showExample = async (pushHistory: boolean) => {
+    if (pushHistory) {
+      pushRoute("example");
+    }
+    if (exampleCacheRef.current) {
+      const cached = exampleCacheRef.current;
+      setState({ kind: "loaded", source: cached.source, result: cached.result });
       return;
     }
+    const gen = ++fetchGenRef.current;
+    setState({ kind: "loading-example" });
+    const outcome = await fetchExampleText();
+    // Ignore stale fetches — user may have navigated away mid-request.
+    if (gen !== fetchGenRef.current) return;
+    if ("error" in outcome) {
+      setState({ kind: "error", source: EXAMPLE_SOURCE, error: outcome.error });
+      return;
+    }
+    const result = applyText(outcome.text, EXAMPLE_SOURCE);
+    if (result) {
+      exampleCacheRef.current = { source: EXAMPLE_SOURCE, result };
+    }
+  };
 
-    setState({ kind: "loaded", source, result: validation.data });
+  const loadText = (text: string, source: string) => {
+    pushRoute("report");
+    const result = applyText(text, source);
+    if (result) {
+      reportCacheRef.current = { source, result };
+    }
   };
 
   const handleReadError = (source: string, error: string) => {
@@ -42,8 +131,39 @@ export function App() {
   };
 
   const reset = () => {
+    pushRoute("home");
     setState({ kind: "idle" });
   };
+
+  useEffect(() => {
+    const syncFromPath = () => {
+      const route = routeFromPath(window.location.pathname);
+      if (route === "home") {
+        setState({ kind: "idle" });
+        return;
+      }
+      if (route === "example") {
+        void showExample(false);
+        return;
+      }
+      // route === "report"
+      const cached = reportCacheRef.current;
+      if (cached) {
+        setState({ kind: "loaded", source: cached.source, result: cached.result });
+        return;
+      }
+      // No in-memory report — direct entry to /report has nothing to
+      // render, so fall back to landing without leaving a stale entry.
+      replaceRoute("home");
+      setState({ kind: "idle" });
+    };
+
+    syncFromPath();
+    window.addEventListener("popstate", syncFromPath);
+    return () => {
+      window.removeEventListener("popstate", syncFromPath);
+    };
+  }, []);
 
   const shellClass = `app-shell is-${state.kind === "loaded" ? "report" : "landing"}`;
 
@@ -54,8 +174,10 @@ export function App() {
       ) : (
         <Landing
           error={state.kind === "error" ? { source: state.source, message: state.error } : null}
+          loadingExample={state.kind === "loading-example"}
           onLoadText={loadText}
           onReadError={handleReadError}
+          onOpenExample={() => showExample(true)}
         />
       )}
 

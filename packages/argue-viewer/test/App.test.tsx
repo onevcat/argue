@@ -1,9 +1,17 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App.js";
 import { createFixtureResult } from "./fixtures.js";
 
-afterEach(cleanup);
+beforeEach(() => {
+  window.history.replaceState(null, "", "/");
+});
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  window.history.replaceState(null, "", "/");
+});
 
 function makeJsonFile(content: string, name = "result.json"): File {
   return new File([content], name, { type: "application/json" });
@@ -125,5 +133,137 @@ describe("App", () => {
     render(<App />);
     expect(screen.getByText(/github.com\/onevcat\/argue/)).toBeTruthy();
     expect(screen.getByText(/@onevcat/)).toBeTruthy();
+  });
+
+  it("pushes /report to history after a successful file drop", async () => {
+    render(<App />);
+    const valid = JSON.stringify(createFixtureResult());
+    await dropJsonText(valid);
+    await waitFor(() => {
+      expect(screen.getByText("Strict schema validation in the viewer")).toBeTruthy();
+    });
+    expect(window.location.pathname).toBe("/report");
+  });
+
+  it("returns to / on reset", async () => {
+    render(<App />);
+    await dropJsonText(JSON.stringify(createFixtureResult()));
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/report");
+    });
+
+    const resetButton = screen.getByRole("button", { name: /Check Another Report/i });
+    fireEvent.click(resetButton);
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/");
+      expect(screen.getByText(/Follow the argument/)).toBeTruthy();
+    });
+  });
+
+  it("popstate from /report back to / restores the landing page", async () => {
+    render(<App />);
+    await dropJsonText(JSON.stringify(createFixtureResult()));
+    await waitFor(() => {
+      expect(screen.getByText("Strict schema validation in the viewer")).toBeTruthy();
+    });
+    expect(window.location.pathname).toBe("/report");
+
+    // Simulate browser Back button: flip the URL and dispatch popstate.
+    window.history.replaceState(null, "", "/");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Follow the argument/)).toBeTruthy();
+      expect(screen.queryByText("Strict schema validation in the viewer")).toBeNull();
+    });
+  });
+
+  it("popstate forward from / to /report restores the cached report", async () => {
+    render(<App />);
+    const fixture = createFixtureResult();
+    await dropJsonText(JSON.stringify(fixture));
+    await waitFor(() => {
+      expect(screen.getByText("Strict schema validation in the viewer")).toBeTruthy();
+    });
+
+    // Back to landing
+    window.history.replaceState(null, "", "/");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await waitFor(() => {
+      expect(screen.getByText(/Follow the argument/)).toBeTruthy();
+    });
+
+    // Forward to /report — App should rehydrate from its in-memory cache.
+    window.history.replaceState(null, "", "/report");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await waitFor(() => {
+      expect(screen.getByText("Strict schema validation in the viewer")).toBeTruthy();
+    });
+  });
+
+  it("redirects to / when /report is opened directly without any loaded report", async () => {
+    window.history.replaceState(null, "", "/report");
+    render(<App />);
+    await waitFor(() => {
+      expect(screen.getByText(/Follow the argument/)).toBeTruthy();
+      expect(window.location.pathname).toBe("/");
+    });
+  });
+
+  it("auto-loads the example when opened at /example", async () => {
+    const fixture = createFixtureResult();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(fixture))
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    window.history.replaceState(null, "", "/example");
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Strict schema validation in the viewer")).toBeTruthy();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]![0])).toContain("examples/spaces-vs-tabs.json");
+    expect(window.location.pathname).toBe("/example");
+  });
+
+  it("pushes /example when the example button is clicked from landing", async () => {
+    const fixture = createFixtureResult();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(fixture))
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    const button = screen.getByRole("button", { name: /See example/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText("Strict schema validation in the viewer")).toBeTruthy();
+    });
+    expect(window.location.pathname).toBe("/example");
+  });
+
+  it("surfaces a fetch error when the example fails to load", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      text: () => Promise.resolve("not found")
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    const button = screen.getByRole("button", { name: /See example/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      const alert = screen.getByRole("alert");
+      expect(alert.textContent).toContain("HTTP 404");
+    });
   });
 });

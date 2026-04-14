@@ -1,2 +1,3 @@
 **/{dist,coverage,out,node_modules}/**
 packages/argue-viewer/examples/**
+packages/argue-viewer/public/examples/**

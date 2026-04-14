@@ -7,11 +7,15 @@ type LandingError = {
 
 type LandingProps = {
   error: LandingError | null;
+  loadingExample?: boolean;
   onLoadText: (text: string, source: string) => void;
   onReadError: (source: string, error: string) => void;
+  onOpenExample: () => void | Promise<void>;
 };
 
-export function Landing({ error, onLoadText, onReadError }: LandingProps) {
+const EXAMPLE_LABEL = "Swift spaces vs tabs";
+
+export function Landing({ error, loadingExample = false, onLoadText, onReadError, onOpenExample }: LandingProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const dragDepthRef = useRef(0);
   const [dragOver, setDragOver] = useState(false);
@@ -119,6 +123,13 @@ export function Landing({ error, onLoadText, onReadError }: LandingProps) {
           </button>
         </div>
       </div>
+
+      <button type="button" className="landing-example" onClick={() => void onOpenExample()} disabled={loadingExample}>
+        {loadingExample ? "Loading example…" : `See example: ${EXAMPLE_LABEL}`}
+        <span className="landing-example-arrow" aria-hidden="true">
+          →
+        </span>
+      </button>
 
       {error ? (
         <p className="landing-error" role="alert">

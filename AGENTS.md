@@ -35,6 +35,13 @@ Useful commands:
 - `npm run format:check`: Prettier validation
 - `npm run format`: format repo
 
+Viewer-only shortcuts (for frontend iteration without rebuilding the library/CLI):
+
+- `npm run dev:viewer`: start the viewer Vite dev server
+- `npm run build:viewer`: build the viewer only
+- `npm run check:viewer`: typecheck the viewer only
+- `npm run test:viewer`: run the viewer test suite only
+
 Recommended daily loop:
 
 1. `npm install`
@@ -72,7 +79,9 @@ Reference doc:
 
 Workflow:
 
-- GitHub Actions workflow: `.github/workflows/release.yml`
+- GitHub Actions:
+  - `.github/workflows/ci.yml` runs typecheck + tests + build on every PR and push to `master`.
+  - `.github/workflows/release.yml` publishes on tag push.
 - Triggered on `v*` tag push (one tag = one unified release)
 - Publishes `@onevcat/argue` then `@onevcat/argue-cli` in a single run
 - `@onevcat/argue-viewer` stays private and is never published
@@ -98,16 +107,23 @@ If package metadata, dependency wiring, or bin entry changes, run this command.
 For this repository, the practical equivalent of `/init` is:
 
 ```bash
+npm run build                                   # required: builds dist/cli.js
 node packages/argue-cli/dist/cli.js config init --local
 ```
 
 This creates `./argue.config.json` in the repo root when missing.
 
+## Viewer Deployment
+
+`@onevcat/argue-viewer` is deployed to **Cloudflare Pages**. The build output `packages/argue-viewer/dist/` is published as a static site; client-side routes (`/example`, `/report`) rely on SPA fallback via `packages/argue-viewer/public/_redirects`. Do not remove that file, and do not introduce host-specific config for other platforms (Vercel, Netlify, etc.) without updating this section.
+
 ## Documentation Rules
 
 - Root `README.md` is the main human-facing documentation.
-- Package README files should stay minimal and point back to the repo README.
+- Published packages (`@onevcat/argue`, `@onevcat/argue-cli`) keep a minimal README that points back to the repo README. `@onevcat/argue-viewer` is private and intentionally has no README.
 - Release process details belong in `docs/release.md`.
+- Architecture decision records live under `docs/adr/` (numbered, append-only).
+- Implementation plans for larger features live under `docs/plan/`.
 
 ## Git Hooks
 

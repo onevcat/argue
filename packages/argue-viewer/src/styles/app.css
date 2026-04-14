@@ -365,6 +365,53 @@ textarea {
   letter-spacing: 0.04em;
 }
 
+.landing-example {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 6px 2px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--ink-2);
+  font-family: "Manrope", sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    color 160ms ease,
+    transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.landing-example:hover:not(:disabled),
+.landing-example:focus-visible {
+  background: transparent;
+  border-color: transparent;
+  color: var(--amber);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.landing-example:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.landing-example-arrow {
+  display: inline-block;
+  font-size: 0.95rem;
+  line-height: 1;
+  transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.landing-example:hover:not(:disabled) .landing-example-arrow,
+.landing-example:focus-visible .landing-example-arrow {
+  transform: translateX(4px);
+}
+
 .landing-input-grid {
   width: min(640px, 100%);
   display: grid;
