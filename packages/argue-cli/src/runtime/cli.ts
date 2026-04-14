@@ -1,35 +1,48 @@
 import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { spawn } from "node:child_process";
 import type { CliProviderConfig } from "../config.js";
 import { buildTaskPrompt } from "./prompt.js";
 import { normalizeTaskOutput, normalizeTaskOutputFromText } from "./task-output.js";
 import type { ProviderTaskRunner } from "./types.js";
 
+type BaseArgsResult = {
+  args: string[];
+  reasoningApplied: boolean;
+};
+
 export function createCliRunner(raw: CliProviderConfig): ProviderTaskRunner {
   const provider = { ...raw, command: raw.command ?? raw.cliType };
   const sessionUUID = randomUUID();
   let callCount = 0;
+  let warnedUnsupportedReasoning = false;
 
   return {
     async runTask({ task, agent, abortSignal }) {
+      const reasoning = agent.reasoning ?? agent.modelConfig.reasoning;
       const prompt =
         provider.cliType === "generic"
-          ? JSON.stringify(buildGenericEnvelope(task, agent), null, 2)
+          ? JSON.stringify(buildGenericEnvelope(task, agent, reasoning), null, 2)
           : buildTaskPrompt({ task, agent, includeJsonSchema: true });
 
       const hasSession = !!task.metadata?.participantSessionKey;
       const isResume = hasSession && callCount > 0;
       callCount++;
-      const baseArgs = buildBaseArgs(
+      const { args: baseArgs, reasoningApplied } = buildBaseArgs(
         provider.cliType,
         agent.providerModel,
         prompt,
+        reasoning,
         hasSession ? sessionUUID : undefined,
         isResume
       );
       const extraArgs = provider.args.map((arg) => renderTemplate(arg, task, agent));
+
+      if (reasoning && !reasoningApplied && !warnedUnsupportedReasoning) {
+        warnedUnsupportedReasoning = true;
+        warnUnsupportedReasoning(provider.cliType, reasoning);
+      }
 
       const result = await runCommand({
         command: provider.command,
@@ -89,44 +102,68 @@ function buildBaseArgs(
   cliType: CliProviderConfig["cliType"],
   providerModel: string,
   prompt: string,
+  reasoning?: string,
   sessionUUID?: string,
   isResume?: boolean
-): string[] {
+): BaseArgsResult {
   switch (cliType) {
-    case "claude":
-      if (sessionUUID && isResume) {
-        return ["--print", "--model", providerModel, "--resume", sessionUUID];
-      }
-      return [
-        "--print",
-        "--model",
-        providerModel,
-        ...(sessionUUID ? ["--session-id", sessionUUID] : ["--no-session-persistence"])
-      ];
-    case "codex":
-      return ["exec", "-m", providerModel, "--full-auto", "--color", "never", "--skip-git-repo-check"];
+    case "claude": {
+      const args =
+        sessionUUID && isResume
+          ? ["--print", "--model", providerModel, "--resume", sessionUUID]
+          : [
+              "--print",
+              "--model",
+              providerModel,
+              ...(sessionUUID ? ["--session-id", sessionUUID] : ["--no-session-persistence"])
+            ];
+
+      return {
+        args: reasoning ? [...args, "--effort", reasoning] : args,
+        reasoningApplied: !!reasoning
+      };
+    }
+    case "codex": {
+      const reasoningArgs = reasoning ? ["-c", `model_reasoning_effort=${reasoning}`] : [];
+      return {
+        args: [
+          "exec",
+          "-m",
+          providerModel,
+          ...reasoningArgs,
+          "--full-auto",
+          "--color",
+          "never",
+          "--skip-git-repo-check"
+        ],
+        reasoningApplied: !!reasoning
+      };
+    }
     case "copilot":
-      return ["-p", prompt, "--yolo", "--model", providerModel];
+      return { args: ["-p", prompt, "--yolo", "--model", providerModel], reasoningApplied: false };
     case "gemini":
-      return ["--approval-mode", "yolo", "-m", providerModel];
+      return { args: ["--approval-mode", "yolo", "-m", providerModel], reasoningApplied: false };
     case "pi": {
       const sessionArgs = sessionUUID ? ["--session", join(tmpdir(), `argue-pi-${sessionUUID}`)] : [];
-      return ["--model", providerModel, ...sessionArgs];
+      return { args: ["--model", providerModel, ...sessionArgs], reasoningApplied: false };
     }
     case "opencode":
-      return ["run", prompt, "--dangerously-skip-permissions", "-m", providerModel];
+      return { args: ["run", prompt, "--dangerously-skip-permissions", "-m", providerModel], reasoningApplied: false };
     case "droid":
-      return ["exec", "--auto", "high", "-m", providerModel];
+      return { args: ["exec", "--auto", "high", "-m", providerModel], reasoningApplied: false };
     case "amp":
-      return ["-x", prompt, "--dangerously-allow-all"];
+      return { args: ["-x", prompt, "--dangerously-allow-all"], reasoningApplied: false };
+    case "generic":
+      return { args: [], reasoningApplied: !!reasoning };
     default:
-      return [];
+      return { args: [], reasoningApplied: false };
   }
 }
 
 function buildGenericEnvelope(
   task: Parameters<typeof buildTaskPrompt>[0]["task"],
-  agent: Parameters<typeof buildTaskPrompt>[0]["agent"]
+  agent: Parameters<typeof buildTaskPrompt>[0]["agent"],
+  reasoning?: string
 ): Record<string, unknown> {
   return {
     version: 1,
@@ -137,10 +174,19 @@ function buildGenericEnvelope(
       model: agent.model,
       providerModel: agent.providerModel,
       systemPrompt: agent.systemPrompt,
-      temperature: agent.temperature
+      temperature: agent.temperature,
+      reasoning
     },
     task
   };
+}
+
+function warnUnsupportedReasoning(cliType: CliProviderConfig["cliType"], reasoning: string): void {
+  process.stderr.write(
+    `[argue] warning: reasoning='${reasoning}' configured for cliType '${cliType}', ` +
+      "but this adapter does not have a verified reasoning flag yet. Ignoring for now. " +
+      "If this provider supports reasoning, please open an issue: https://github.com/onevcat/argue/issues\n"
+  );
 }
 
 function renderEnv(

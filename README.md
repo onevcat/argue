@@ -364,6 +364,26 @@ The CLI supports four provider types for connecting agents:
 
 Full config example at [`packages/argue-cli/examples/config.example.json`](packages/argue-cli/examples/config.example.json).
 
+`reasoning` is an optional string on both provider model config and agent config:
+
+- `providers.<id>.models.<modelId>.reasoning`: model-level default
+- `agents[].reasoning`: per-agent override
+
+Reasoning passthrough is best-effort and depends on provider type/runtime path:
+
+- `cli` providers:
+  - `claude` → `--effort <reasoning>`
+  - `codex` → `-c model_reasoning_effort=<reasoning>`
+  - `generic` → included in the stdin envelope as `agent.reasoning`
+  - other `cliType` values → no-op with a warning (once per runner)
+- `api` providers: currently no-op (field is accepted in config but not forwarded yet)
+
+User responsibility:
+
+- `argue` only stores/forwards the string and does not validate provider-specific accepted values.
+- Compatibility with downstream model/tool capabilities is up to the user.
+- If a provider rejects a value, the error surfaces from the downstream runtime/API.
+
 Config lookup order:
 
 1. `--config <path>` flag

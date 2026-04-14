@@ -96,6 +96,33 @@ describe("cli config loader", () => {
     expect(resolved).toBe(projectPath);
   });
 
+  it("supports optional reasoning on both model and agent config", () => {
+    const config = CliConfigSchema.parse({
+      schemaVersion: 1,
+      providers: {
+        p1: {
+          type: "cli",
+          cliType: "claude",
+          models: {
+            m1: { reasoning: "medium" }
+          }
+        }
+      },
+      agents: [
+        { id: "a1", provider: "p1", model: "m1", reasoning: "high" },
+        { id: "a2", provider: "p1", model: "m1" }
+      ]
+    });
+
+    const provider = config.providers.p1;
+    expect(provider?.type).toBe("cli");
+    if (provider?.type === "cli") {
+      expect(provider.models.m1?.reasoning).toBe("medium");
+    }
+    expect(config.agents.find((a) => a.id === "a1")?.reasoning).toBe("high");
+    expect(config.agents.find((a) => a.id === "a2")?.reasoning).toBeUndefined();
+  });
+
   it("validates provider/model references in agents", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-validate-"));
     const configPath = join(root, "argue.config.json");
