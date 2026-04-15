@@ -63,6 +63,11 @@ describe("runCli command branches", () => {
       { args: ["run", "--per-round-timeout-ms"], message: "--per-round-timeout-ms requires a value" },
       { args: ["run", "--global-deadline-ms"], message: "--global-deadline-ms requires a value" },
       { args: ["run", "--threshold"], message: "--threshold requires a value" },
+      { args: ["run", "--min-participants"], message: "--min-participants requires a value" },
+      {
+        args: ["run", "--on-insufficient-participants"],
+        message: "--on-insufficient-participants requires a value"
+      },
       { args: ["run", "--representative-id"], message: "--representative-id requires a value" },
       { args: ["run", "--language"], message: "--language requires a value" },
       { args: ["run", "--token-budget"], message: "--token-budget requires a value" },
@@ -79,12 +84,14 @@ describe("runCli command branches", () => {
 
     for (const [args, message] of [
       [["run", "--composer", "bad"], "--composer must be builtin or representative"],
+      [["run", "--on-insufficient-participants", "bad"], "--on-insufficient-participants must be interrupt or fail"],
       [["run", "--trace-level", "bad"], "--trace-level must be compact or full"],
       [["run", "--unknown"], "Unknown option for run: --unknown"],
       [["run", "--min-rounds", "9007199254740993123"], "--min-rounds must be a safe integer"],
       [["run", "--threshold", "1e999"], "--threshold must be a number"],
       [["run", "--threshold", "1.5"], "--threshold must be between 0 and 1"],
       [["run", "--threshold", "-0.1"], "--threshold must be between 0 and 1"],
+      [["run", "--min-participants", "1"], "--min-participants must be >= 2"],
       [["run", "--min-rounds", "-1"], "--min-rounds must be >= 0"],
       [["run", "--max-rounds", "0"], "--max-rounds must be >= 1"],
       [["run", "--min-rounds", "5", "--max-rounds", "3"], "--max-rounds must be >= --min-rounds"],
@@ -231,6 +238,68 @@ describe("runCli command branches", () => {
     const resultJson = JSON.parse(await readFile(join(root, "out", "trace-run.result.json"), "utf8"));
     expect(resultJson.report.traceIncluded).toBe(true);
     expect(resultJson.report.traceLevel).toBe("full");
+  });
+
+  it("accepts participantsPolicy flags and forwards them into the run", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-run-participants-policy-"));
+    const configPath = join(root, "argue.config.json");
+
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        output: {
+          resultPath: "./out/{requestId}.result.json",
+          jsonlPath: "./out/{requestId}.events.jsonl",
+          summaryPath: "./out/{requestId}.summary.md"
+        },
+        defaults: {
+          defaultAgents: ["a1", "a2", "a3"],
+          minRounds: 1,
+          maxRounds: 1,
+          composer: "builtin"
+        },
+        providers: {
+          mock: {
+            type: "mock",
+            models: {
+              fake: {}
+            }
+          }
+        },
+        agents: [
+          { id: "a1", provider: "mock", model: "fake" },
+          { id: "a2", provider: "mock", model: "fake" },
+          { id: "a3", provider: "mock", model: "fake" }
+        ]
+      }),
+      "utf8"
+    );
+
+    const io = createIO();
+    const result = await runCli(
+      [
+        "run",
+        "--config",
+        configPath,
+        "--request-id",
+        "participants-policy-run",
+        "--task",
+        "t",
+        "--agents",
+        "a1,a2,a3",
+        "--min-participants",
+        "3",
+        "--on-insufficient-participants",
+        "fail"
+      ],
+      io
+    );
+
+    expect(result).toEqual({ ok: true, code: 0 });
+
+    const resultJson = JSON.parse(await readFile(join(root, "out", "participants-policy-run.result.json"), "utf8"));
+    expect(resultJson.status).toBe("consensus");
   });
 
   it("returns error for missing act options", async () => {

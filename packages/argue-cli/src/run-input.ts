@@ -1,11 +1,19 @@
 import { z } from "zod";
 import { readJsonFile, resolvePath, type LoadedCliConfig } from "./config.js";
 
+const ParticipantsPolicyInputSchema = z
+  .object({
+    minParticipants: z.number().int().min(2).optional(),
+    onInsufficientParticipants: z.enum(["interrupt", "fail"]).optional()
+  })
+  .strict();
+
 export const RunInputSchema = z
   .object({
     requestId: z.string().min(1).optional(),
     task: z.string().min(1).optional(),
     agents: z.array(z.string().min(1)).min(2).optional(),
+    participantsPolicy: ParticipantsPolicyInputSchema.optional(),
     minRounds: z.number().int().min(0).optional(),
     maxRounds: z.number().int().min(1).optional(),
     perTaskTimeoutMs: z.number().int().positive().optional(),

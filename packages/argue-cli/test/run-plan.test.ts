@@ -15,6 +15,10 @@ function makeLoadedConfig(): LoadedCliConfig {
       },
       defaults: {
         defaultAgents: ["a1", "a2"],
+        participantsPolicy: {
+          minParticipants: 2,
+          onInsufficientParticipants: "interrupt"
+        },
         minRounds: 1,
         maxRounds: 3,
         perTaskTimeoutMs: 100,
@@ -186,6 +190,55 @@ describe("resolveRunPlan", () => {
       prompt: "Act",
       actorId: "a1",
       includeFullResult: false
+    });
+  });
+
+  it("applies participantsPolicy precedence: flags > runInput > defaults", () => {
+    const loadedConfig = makeLoadedConfig();
+
+    const fromDefaults = resolveRunPlan({
+      loadedConfig,
+      runInput: { task: "t" },
+      overrides: {}
+    });
+    expect(fromDefaults.startInput.participantsPolicy).toEqual({
+      minParticipants: 2,
+      onInsufficientParticipants: "interrupt"
+    });
+
+    const fromInput = resolveRunPlan({
+      loadedConfig,
+      runInput: {
+        task: "t",
+        participantsPolicy: {
+          minParticipants: 3,
+          onInsufficientParticipants: "fail"
+        }
+      },
+      overrides: {}
+    });
+    expect(fromInput.startInput.participantsPolicy).toEqual({
+      minParticipants: 3,
+      onInsufficientParticipants: "fail"
+    });
+
+    const fromFlags = resolveRunPlan({
+      loadedConfig,
+      runInput: {
+        task: "t",
+        participantsPolicy: {
+          minParticipants: 3,
+          onInsufficientParticipants: "fail"
+        }
+      },
+      overrides: {
+        minParticipants: 2,
+        onInsufficientParticipants: "interrupt"
+      }
+    });
+    expect(fromFlags.startInput.participantsPolicy).toEqual({
+      minParticipants: 2,
+      onInsufficientParticipants: "interrupt"
     });
   });
 });

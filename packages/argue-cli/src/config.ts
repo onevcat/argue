@@ -98,9 +98,17 @@ export const AgentSchema = z
   })
   .strict();
 
+export const ParticipantsPolicyConfigSchema = z
+  .object({
+    minParticipants: z.number().int().min(2).optional(),
+    onInsufficientParticipants: z.enum(["interrupt", "fail"]).optional()
+  })
+  .strict();
+
 export const DefaultsSchema = z
   .object({
     defaultAgents: z.array(z.string().min(1)).min(2).optional(),
+    participantsPolicy: ParticipantsPolicyConfigSchema.optional(),
     language: z.string().min(1).optional(),
     tokenBudgetHint: z.number().int().positive().optional(),
     minRounds: z.number().int().min(0).optional(),

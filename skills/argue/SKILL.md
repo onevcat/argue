@@ -57,15 +57,17 @@ argue run --task "..." --view
 
 Useful flags (full list: `argue --help`):
 
-| Flag                            | Purpose                                                                                                       |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `--agents a,b`                  | Pick which agents participate (default: `defaults.defaultAgents` from config, else **all configured agents**) |
-| `--min-rounds` / `--max-rounds` | Control debate depth (defaults: 2 / 3)                                                                        |
-| `--threshold <0..1>`            | Consensus threshold (default: 1 = unanimous)                                                                  |
-| `--action <prompt>`             | Execute task after consensus                                                                                  |
-| `--view` / `--viewer-url <url>` | Open report in the hosted viewer                                                                              |
-| `--input <file>`                | JSON input for complex setups                                                                                 |
-| `--verbose` / `-v`              | Stream agent reasoning live                                                                                   |
+| Flag                                             | Purpose                                                                                                       |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `--agents a,b`                                   | Pick which agents participate (default: `defaults.defaultAgents` from config, else **all configured agents**) |
+| `--min-participants <n>`                         | Minimum surviving participants required to continue (default: 2)                                              |
+| `--on-insufficient-participants interrupt\|fail` | When too few participants remain, either emit `interrupted` (default) or fail hard                            |
+| `--min-rounds` / `--max-rounds`                  | Control debate depth (defaults: 2 / 3)                                                                        |
+| `--threshold <0..1>`                             | Consensus threshold (default: 1 = unanimous)                                                                  |
+| `--action <prompt>`                              | Execute task after consensus                                                                                  |
+| `--view` / `--viewer-url <url>`                  | Open report in the hosted viewer                                                                              |
+| `--input <file>`                                 | JSON input for complex setups                                                                                 |
+| `--verbose` / `-v`                               | Stream agent reasoning live                                                                                   |
 
 Debates typically take 3–7 minutes for 2 agents × 3 rounds. Default cap is 20 min per round (and per task, which tracks the round cap by default); bump `--per-round-timeout-ms` for heavy reviews.
 
@@ -96,7 +98,9 @@ After every run, argue writes to `~/.argue/output/<requestId>/` (global config) 
 - `events.jsonl` — event stream (written live, survives crashes — parse it for partial results if a run is killed)
 - `error.json` — error details (only on failure)
 
-Result status: `consensus` | `partial_consensus` | `unresolved` | `failed`.
+Result status: `consensus` | `partial_consensus` | `unresolved` | `interrupted` | `failed`.
+
+If a debate drops below the required participant count, prefer the default `interrupted` path so downstream tools still get a structured result. Only force `onInsufficientParticipants: "fail"` when the caller explicitly needs legacy hard-failure semantics.
 
 If you need to parse `result.json` programmatically, the canonical schema lives at [`packages/argue/src/contracts/result.ts`](https://github.com/onevcat/argue/blob/master/packages/argue/src/contracts/result.ts).
 

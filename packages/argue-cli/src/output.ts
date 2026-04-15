@@ -10,6 +10,12 @@ export type OutputOptions = {
 
 export type OutputIO = Pick<typeof console, "log" | "error">;
 
+export function resultStatusTone(status: ArgueResult["status"]): "success" | "warning" | "failure" {
+  if (status === "consensus") return "success";
+  if (status === "failed") return "failure";
+  return "warning";
+}
+
 export function createOutputFormatter(io: OutputIO, options: OutputOptions = {}) {
   const useColor = !options.noColor && !process.env.NO_COLOR && (options.isTTY ?? process.stdout.isTTY ?? false);
 
@@ -208,8 +214,8 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
       io.log(c.dim("─".repeat(60)));
       io.log("");
 
-      const statusColor =
-        result.status === "consensus" ? c.green : result.status === "partial_consensus" ? c.yellow : c.red;
+      const statusTone = resultStatusTone(result.status);
+      const statusColor = statusTone === "success" ? c.green : statusTone === "warning" ? c.yellow : c.red;
       io.log(`${tag} ${c.bold("result:")} ${statusColor(result.status)}`);
       io.log(
         `  representative: ${c.bold(result.representative.participantId)} ${c.dim(`(score: ${formatNumber(result.representative.score)})`)}`

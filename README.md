@@ -127,15 +127,44 @@ argue run --input task.json
 Useful flags:
 
 ```bash
---agents a1,a2          # pick specific agents from config
---min-rounds 2          # at least 2 debate rounds before early-stop
---max-rounds 5          # cap total debate rounds
---threshold 0.67        # consensus threshold (default: 1.0 = unanimous)
---action "Fix it"       # post-debate action for the representative
---verbose               # show each agent's reasoning in real time
+--agents a1,a2                            # pick specific agents from config
+--min-participants 2                      # minimum surviving participants required to continue
+--on-insufficient-participants interrupt  # interrupt (default) or fail hard
+--min-rounds 2                            # at least 2 debate rounds before early-stop
+--max-rounds 5                            # cap total debate rounds
+--threshold 0.67                          # consensus threshold (default: 1.0 = unanimous)
+--action "Fix it"                         # post-debate action for the representative
+--verbose                                 # show each agent's reasoning in real time
 ```
 
 Run `argue --help` for the full list.
+
+### Migration note: interrupted vs hard failure
+
+Runs that lose too many participants can now finish as `interrupted` instead of throwing a hard error. That is the new default, and it is usually the better behavior for downstream tools because you still get a structured `result.json`, `summary.md`, and viewer report.
+
+If you need the old behavior, set `onInsufficientParticipants` to `"fail"` either in config or on the command line:
+
+```json
+{
+  "defaults": {
+    "participantsPolicy": {
+      "minParticipants": 2,
+      "onInsufficientParticipants": "fail"
+    }
+  }
+}
+```
+
+```bash
+argue run --task "..." --on-insufficient-participants fail
+```
+
+When consuming results, treat `interrupted` as an incomplete debate, not a crash. Good defaults:
+
+- CLI and viewer should surface it as a distinct non-failure state.
+- Automation should inspect `result.status` and decide whether to retry, fall back, or ask for human review.
+- If your pipeline previously assumed only terminal errors, explicitly handle `interrupted` before branching on `failed`.
 
 ## Using as a Library
 
@@ -197,7 +226,7 @@ const result = await engine.start({
   }
 });
 
-// result.status → "consensus" | "partial_consensus" | "unresolved"
+// result.status → "consensus" | "partial_consensus" | "unresolved" | "interrupted" | "failed"
 // result.claimResolutions → per-claim vote outcomes
 // result.representative → highest-scoring agent
 // result.action → action output (if actionPolicy was set)

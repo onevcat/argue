@@ -12,6 +12,8 @@ export type RunOverrides = {
   jsonlPath?: string;
   resultPath?: string;
   summaryPath?: string;
+  minParticipants?: number;
+  onInsufficientParticipants?: "interrupt" | "fail";
   minRounds?: number;
   maxRounds?: number;
   perTaskTimeoutMs?: number;
@@ -41,6 +43,10 @@ export type ResolvedRunPlan = {
     requestId: string;
     task: string;
     participants: Array<{ id: string; role?: string }>;
+    participantsPolicy: {
+      minParticipants: number;
+      onInsufficientParticipants: "interrupt" | "fail";
+    };
     roundPolicy: { minRounds: number; maxRounds: number };
     waitingPolicy: {
       perTaskTimeoutMs: number;
@@ -105,6 +111,17 @@ export function resolveRunPlan(args: {
     };
   });
 
+  const minParticipants =
+    overrides.minParticipants ??
+    runInput.participantsPolicy?.minParticipants ??
+    config.defaults?.participantsPolicy?.minParticipants ??
+    2;
+  const onInsufficientParticipants =
+    overrides.onInsufficientParticipants ??
+    runInput.participantsPolicy?.onInsufficientParticipants ??
+    config.defaults?.participantsPolicy?.onInsufficientParticipants ??
+    "interrupt";
+
   const minRounds = overrides.minRounds ?? runInput.minRounds ?? config.defaults?.minRounds ?? 2;
   const maxRounds = overrides.maxRounds ?? runInput.maxRounds ?? config.defaults?.maxRounds ?? 3;
   if (maxRounds < minRounds) {
@@ -160,6 +177,7 @@ export function resolveRunPlan(args: {
       requestId,
       task,
       participants,
+      participantsPolicy: { minParticipants, onInsufficientParticipants },
       roundPolicy: { minRounds, maxRounds },
       waitingPolicy: {
         perTaskTimeoutMs,

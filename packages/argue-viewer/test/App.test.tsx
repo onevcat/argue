@@ -86,6 +86,28 @@ describe("App", () => {
     });
   });
 
+  it("renders interrupted results without treating them as failed runs", async () => {
+    render(<App />);
+    const fixture = createFixtureResult();
+    const interrupted = JSON.stringify({
+      ...fixture,
+      status: "interrupted",
+      report: {
+        ...fixture.report,
+        finalSummary: "Discussion interrupted before full debate."
+      }
+    });
+
+    await dropJsonText(interrupted);
+    await waitFor(() => {
+      expect(screen.getByText("interrupted")).toBeTruthy();
+      expect(screen.getByText("INTERRUPTED")).toBeTruthy();
+      expect(screen.getByText("Discussion interrupted before full debate.")).toBeTruthy();
+      expect(screen.queryByText("FAILED")).toBeNull();
+      expect(screen.queryByText("Run failed")).toBeNull();
+    });
+  });
+
   it("shows the Check Another Report button in loaded state and can reset", async () => {
     render(<App />);
     const valid = JSON.stringify(createFixtureResult());

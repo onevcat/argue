@@ -6,6 +6,7 @@ Headline: reasoning passthrough for CLI providers, plus a more resilient JSON re
 
 ### Features
 
+- `argue-cli` now accepts `defaults.participantsPolicy`, `--min-participants`, and `--on-insufficient-participants` so users can choose whether participant shortfall yields a structured `interrupted` result or preserves legacy hard-failure behavior via `fail`
 - `argue-cli` now forwards per-model and per-agent `reasoning` settings to Claude Code and Codex so CLI-backed providers can opt into reasoning modes via config (3689783)
 
 ### Fixes
@@ -17,6 +18,8 @@ Headline: reasoning passthrough for CLI providers, plus a more resilient JSON re
 
 ### Other
 
+- Add migration notes across README / README_CN / README_JP / argue skill docs for the new `interrupted` semantics, including how to keep old behavior with `onInsufficientParticipants: "fail"`
+- Add consumer-path coverage for `interrupted` in CLI and viewer tests so the new status ships with same-batch documentation and UI verification
 - Document where the CLI reasoning passthrough is a no-op (non-supporting models) and clarify user responsibility for supplying valid values (a3a22c7)
 - Sync the reasoning passthrough section into `README_CN.md` and `README_JP.md` (14700d1)
 - Clarify in `runtime/json` doc comments that the stray-quote fallback is syntax-only and that schema enforcement stays in `normalizeTaskOutput` (74700bb)

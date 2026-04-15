@@ -19,6 +19,10 @@ const VALID_CONFIG = {
   },
   defaults: {
     defaultAgents: ["a1", "a2"],
+    participantsPolicy: {
+      minParticipants: 2,
+      onInsufficientParticipants: "interrupt"
+    },
     minRounds: 2,
     maxRounds: 3,
     consensusThreshold: 1,
@@ -57,6 +61,10 @@ const RUNNABLE_CONFIG = {
   },
   defaults: {
     defaultAgents: ["a1", "a2"],
+    participantsPolicy: {
+      minParticipants: 2,
+      onInsufficientParticipants: "interrupt"
+    },
     minRounds: 1,
     maxRounds: 1,
     consensusThreshold: 1,
@@ -121,6 +129,35 @@ describe("cli config loader", () => {
     }
     expect(config.agents.find((a) => a.id === "a1")?.reasoning).toBe("high");
     expect(config.agents.find((a) => a.id === "a2")?.reasoning).toBeUndefined();
+  });
+
+  it("supports defaults.participantsPolicy for graceful interrupt vs hard failure", () => {
+    const config = CliConfigSchema.parse({
+      schemaVersion: 1,
+      defaults: {
+        participantsPolicy: {
+          minParticipants: 3,
+          onInsufficientParticipants: "fail"
+        }
+      },
+      providers: {
+        p1: {
+          type: "mock",
+          models: {
+            m1: {}
+          }
+        }
+      },
+      agents: [
+        { id: "a1", provider: "p1", model: "m1" },
+        { id: "a2", provider: "p1", model: "m1" }
+      ]
+    });
+
+    expect(config.defaults?.participantsPolicy).toEqual({
+      minParticipants: 3,
+      onInsufficientParticipants: "fail"
+    });
   });
 
   it("validates provider/model references in agents", async () => {
