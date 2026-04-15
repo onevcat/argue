@@ -232,7 +232,7 @@ export const ReportTaskInputSchema = z.object({
   participantId: z.string().min(1),
   prompt: z.string().min(1),
   reportInput: z.object({
-    status: z.enum(["consensus", "partial_consensus", "unresolved", "failed"]),
+    status: z.enum(["consensus", "partial_consensus", "unresolved", "failed", "interrupted"]),
     representative: z.object({
       participantId: z.string().min(1),
       speech: z.string().min(1),
@@ -260,7 +260,7 @@ export const ActionTaskInputSchema = z.object({
   participantId: z.string().min(1),
   prompt: z.string().min(1),
   argueResult: z.object({
-    status: z.enum(["consensus", "partial_consensus", "unresolved", "failed"]),
+    status: z.enum(["consensus", "partial_consensus", "unresolved", "failed", "interrupted"]),
     finalSummary: z.string().min(1),
     representativeSpeech: z.string().min(1),
     claims: z.array(ClaimSchema),
