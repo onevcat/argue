@@ -1,13 +1,21 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ArgueEngine } from "../src/core/engine.js";
 import { JsonlObserver } from "../src/observers/jsonl-observer.js";
 import { JsonlRunEventSchema } from "../src/contracts/run-log.js";
 import type { ParticipantRoundOutput } from "../src/contracts/result.js";
 import type { AgentTaskResult } from "../src/contracts/task.js";
 import { StubAgentTaskDelegate } from "./helpers/stub-agent.js";
+
+vi.mock("node:fs/promises", async () => {
+  const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+  return {
+    ...actual,
+    appendFile: vi.fn(actual.appendFile)
+  };
+});
 
 function roundResult(output: ParticipantRoundOutput): AgentTaskResult {
   return { kind: "round", output };
@@ -162,5 +170,41 @@ describe("JsonlObserver", () => {
     expect(records.at(-1)?.event.type).toBe("Finalized");
     expect(records.map((r) => r.seq)).toEqual(records.map((_, index) => index));
     expect(records.every((r) => r.event.requestId === "req-jsonl")).toBe(true);
+  });
+
+  it("recovers when a previous appendFile write rejects", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "argue-jsonl-recover-"));
+    const path = join(dir, "events.jsonl");
+    const observer = new JsonlObserver({ path, append: false });
+
+    const mockedAppend = vi.mocked(appendFile);
+    mockedAppend.mockRejectedValueOnce(new Error("simulated disk failure"));
+
+    await expect(
+      observer.onEvent({
+        sessionId: "s1",
+        requestId: "r1",
+        type: "SessionStarted",
+        at: "2026-03-01T00:00:00.000Z"
+      })
+    ).rejects.toThrow("simulated disk failure");
+
+    await expect(
+      observer.onEvent({
+        sessionId: "s1",
+        requestId: "r1",
+        type: "Finalized",
+        at: "2026-03-01T00:00:01.000Z"
+      })
+    ).resolves.toBeUndefined();
+
+    await observer.flush();
+
+    const raw = await readFile(path, "utf8");
+    const lines = raw.trim().split("\n").filter(Boolean);
+    expect(lines).toHaveLength(1);
+    const record = JsonlRunEventSchema.parse(JSON.parse(lines[0]!));
+    expect(record.event.type).toBe("Finalized");
+    expect(record.seq).toBe(1);
   });
 });
