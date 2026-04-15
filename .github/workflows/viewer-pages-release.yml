@@ -1,0 +1,36 @@
+name: Deploy Viewer to Cloudflare Pages
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  deploy-viewer:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build:viewer
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_PAGES_PROJECT_NAME: ${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME }}
+        run: |
+          if [ -z "${CLOUDFLARE_PAGES_PROJECT_NAME:-}" ]; then
+            echo "Missing repository variable: CLOUDFLARE_PAGES_PROJECT_NAME"
+            exit 1
+          fi
+          npx wrangler pages deploy packages/argue-viewer/dist --project-name="${CLOUDFLARE_PAGES_PROJECT_NAME}"
