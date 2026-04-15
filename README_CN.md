@@ -127,12 +127,14 @@ argue run --input task.json
 常用参数：
 
 ```bash
---agents a1,a2          # 从配置中选择特定 agent
---min-rounds 2          # 至少 2 轮辩论才能提前停止
---max-rounds 5          # 辩论轮数上限
---threshold 0.67        # 共识阈值（默认 1.0 = 全票通过）
---action "修复它"        # 辩论后由代表执行的操作
---verbose               # 实时显示每个 agent 的推理过程
+--agents a1,a2                            # 从配置中选择特定 agent
+--min-participants 2                      # 继续辩论所需的最少存活参与者数
+--on-insufficient-participants interrupt  # interrupt（默认）或 fail
+--min-rounds 2                            # 至少 2 轮辩论才能提前停止
+--max-rounds 5                            # 辩论轮数上限
+--threshold 0.67                          # 共识阈值（默认 1.0 = 全票通过）
+--action "修复它"                          # 辩论后由代表执行的操作
+--verbose                                 # 实时显示每个 agent 的推理过程
 ```
 
 运行 `argue --help` 查看完整参数列表。
@@ -195,7 +197,7 @@ const result = await engine.start({
   }
 });
 
-// result.status → "consensus" | "partial_consensus" | "unresolved"
+// result.status → "consensus" | "partial_consensus" | "unresolved" | "interrupted" | "failed"
 // result.claimResolutions → 每个主张的投票结果
 // result.representative → 得分最高的 agent
 // result.action → action 输出（如果设置了 actionPolicy）

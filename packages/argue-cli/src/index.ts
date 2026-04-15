@@ -34,6 +34,8 @@ export type CliRunOptions = {
   jsonlPath?: string;
   resultPath?: string;
   summaryPath?: string;
+  minParticipants?: number;
+  onInsufficientParticipants?: "interrupt" | "fail";
   minRounds?: number;
   maxRounds?: number;
   perTaskTimeoutMs?: number;
@@ -428,6 +430,7 @@ async function runAction(args: string[], io: Pick<typeof console, "log" | "error
       requestId: argueResult.requestId,
       task: "",
       participants: [],
+      participantsPolicy: { minParticipants: 2, onInsufficientParticipants: "interrupt" as const },
       roundPolicy: { minRounds: 1, maxRounds: 1 },
       waitingPolicy: { perTaskTimeoutMs: 20 * 60 * 1_000, perRoundTimeoutMs: 20 * 60 * 1_000 },
       consensusPolicy: { threshold: 1 },
@@ -825,6 +828,25 @@ function parseRunOptions(args: string[]): { ok: true; value: CliRunOptions } | {
       const value = args[i + 1];
       if (!value) return { ok: false, error: "--summary requires a path" };
       out.summaryPath = value;
+      i += 1;
+      continue;
+    }
+
+    if (arg === "--min-participants") {
+      const value = parseIntArg(arg, args[i + 1]);
+      if (typeof value === "string") return { ok: false, error: value };
+      out.minParticipants = value;
+      i += 1;
+      continue;
+    }
+
+    if (arg === "--on-insufficient-participants") {
+      const value = args[i + 1];
+      if (!value) return { ok: false, error: "--on-insufficient-participants requires a value" };
+      if (value !== "interrupt" && value !== "fail") {
+        return { ok: false, error: "--on-insufficient-participants must be interrupt or fail" };
+      }
+      out.onInsufficientParticipants = value;
       i += 1;
       continue;
     }
@@ -1346,6 +1368,9 @@ function validateRunOptionRanges(opts: CliRunOptions): string | null {
   if (opts.consensusThreshold != null && (opts.consensusThreshold < 0 || opts.consensusThreshold > 1)) {
     return "--threshold must be between 0 and 1";
   }
+  if (opts.minParticipants != null && opts.minParticipants < 2) {
+    return "--min-participants must be >= 2";
+  }
   if (opts.minRounds != null && opts.minRounds < 0) {
     return "--min-rounds must be >= 0";
   }
@@ -1390,6 +1415,7 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("  --task <text>");
   io.log("  --request-id <id>");
   io.log("  --jsonl <path> --result <path> --summary <path>");
+  io.log("  --min-participants <n> --on-insufficient-participants interrupt|fail");
   io.log("  --min-rounds <n> --max-rounds <n> --threshold <0..1>");
   io.log("  --composer builtin|representative --representative-id <id>");
   io.log("  --trace --trace-level compact|full");

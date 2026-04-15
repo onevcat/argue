@@ -19,13 +19,14 @@ type ReportViewProps = {
   result: ArgueResult;
 };
 
-type StampKind = "pass" | "warn" | "fail";
+type StampKind = "pass" | "warn" | "fail" | "interrupt";
 
 const verdictByStatus: Record<ArgueResult["status"], { label: string; kind: StampKind; subtitle: string }> = {
   consensus: { label: "PASS", kind: "pass", subtitle: "Consensus reached" },
   partial_consensus: { label: "PARTIAL", kind: "warn", subtitle: "Partial consensus" },
   unresolved: { label: "OPEN", kind: "warn", subtitle: "Unresolved" },
-  failed: { label: "FAIL", kind: "fail", subtitle: "Run failed" }
+  failed: { label: "FAIL", kind: "fail", subtitle: "Run failed" },
+  interrupted: { label: "INTERRUPTED", kind: "interrupt", subtitle: "Discussion interrupted" }
 };
 
 const breakdownOrder = ["correctness", "completeness", "actionability", "consistency"] as const;
@@ -175,6 +176,9 @@ export function ReportView({ result }: ReportViewProps) {
   }
   if (result.action) {
     assignSection("action");
+  }
+  if (result.error) {
+    assignSection("error");
   }
   assignSection("metrics");
 
@@ -561,6 +565,25 @@ export function ReportView({ result }: ReportViewProps) {
           </p>
           {result.action.summary ? <Prose text={result.action.summary} /> : null}
           {result.action.error ? <p className="error-line">{result.action.error}</p> : null}
+        </section>
+      ) : null}
+
+      {/* Error (conditional) */}
+      {result.error ? (
+        <section className="panel diagnostics-panel">
+          <header className="section-head">
+            <p className="eyebrow">§{sectionNumbers.error} · Error</p>
+          </header>
+          <dl className="metrics-grid">
+            <div>
+              <dt>code</dt>
+              <dd className="mono">{result.error.code}</dd>
+            </div>
+            <div>
+              <dt>message</dt>
+              <dd>{result.error.message}</dd>
+            </div>
+          </dl>
         </section>
       ) : null}
 

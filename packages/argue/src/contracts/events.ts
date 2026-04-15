@@ -15,6 +15,7 @@ export const ArgueEventTypeSchema = z.enum([
   "ActionDispatched",
   "ActionCompleted",
   "ActionFailed",
+  "SessionInterrupted",
   "Finalized",
   "Failed"
 ]);

@@ -1,0 +1,226 @@
+{
+  "resultVersion": 1,
+  "requestId": "req-interrupted-demo-1",
+  "sessionId": "argue_interrupted_demo",
+  "task": {
+    "prompt": "Should we adopt a microservices architecture for our payment processing system?",
+    "title": "Microservices for payment processing?"
+  },
+  "status": "interrupted",
+  "finalClaims": [
+    {
+      "claimId": "claude-agent:0:0",
+      "title": "Microservices enable independent scaling of payment components",
+      "statement": "Payment authorization, fraud detection, and settlement have wildly different load profiles. Microservices let each scale independently, reducing cost and latency during peak checkout windows.",
+      "category": "pro",
+      "proposedBy": ["claude-agent"],
+      "status": "active"
+    },
+    {
+      "claimId": "claude-agent:0:1",
+      "title": "Distributed transactions add significant complexity",
+      "statement": "Payment flows require strong consistency guarantees. Splitting them across services introduces saga patterns, compensating transactions, and partial-failure states that are hard to reason about and test.",
+      "category": "con",
+      "proposedBy": ["claude-agent"],
+      "status": "active"
+    },
+    {
+      "claimId": "codex-agent:0:0",
+      "title": "Blast radius isolation protects revenue",
+      "statement": "A bug in the refund subsystem should not bring down authorization. Service boundaries contain failures, keeping the revenue-critical path available even when auxiliary features degrade.",
+      "category": "pro",
+      "proposedBy": ["codex-agent"],
+      "status": "active"
+    },
+    {
+      "claimId": "codex-agent:0:1",
+      "title": "Operational overhead may exceed team capacity",
+      "statement": "Each microservice needs its own CI pipeline, monitoring, runbook, and on-call rotation. For a team of fewer than 10, the operational tax can exceed the architectural benefits.",
+      "category": "risk",
+      "proposedBy": ["codex-agent"],
+      "status": "active"
+    }
+  ],
+  "claimResolutions": [
+    {
+      "claimId": "claude-agent:0:0",
+      "status": "unresolved",
+      "acceptCount": 1,
+      "rejectCount": 0,
+      "totalVoters": 1,
+      "votes": [
+        { "participantId": "claude-agent", "claimId": "claude-agent:0:0", "vote": "accept", "reason": "Clear scaling benefit for heterogeneous workloads" }
+      ]
+    },
+    {
+      "claimId": "claude-agent:0:1",
+      "status": "unresolved",
+      "acceptCount": 1,
+      "rejectCount": 0,
+      "totalVoters": 1,
+      "votes": [
+        { "participantId": "claude-agent", "claimId": "claude-agent:0:1", "vote": "accept", "reason": "Distributed consistency is genuinely hard" }
+      ]
+    },
+    {
+      "claimId": "codex-agent:0:0",
+      "status": "unresolved",
+      "acceptCount": 1,
+      "rejectCount": 0,
+      "totalVoters": 1,
+      "votes": [
+        { "participantId": "claude-agent", "claimId": "codex-agent:0:0", "vote": "accept", "reason": "Fault isolation is a strong argument" }
+      ]
+    },
+    {
+      "claimId": "codex-agent:0:1",
+      "status": "unresolved",
+      "acceptCount": 1,
+      "rejectCount": 0,
+      "totalVoters": 1,
+      "votes": [
+        { "participantId": "claude-agent", "claimId": "codex-agent:0:1", "vote": "accept", "reason": "Team size constraint is real" }
+      ]
+    }
+  ],
+  "representative": {
+    "participantId": "claude-agent",
+    "reason": "top-score",
+    "score": 72.5,
+    "speech": "The discussion was interrupted before we could reach a thorough debate. Based on the initial round, both sides raised valid points: microservices offer clear scaling and isolation benefits for payment processing, but the distributed transaction complexity and operational overhead are significant concerns — especially for smaller teams. A modular monolith with clear domain boundaries might be a pragmatic middle ground worth exploring before committing to full microservices."
+  },
+  "scoreboard": [
+    {
+      "participantId": "claude-agent",
+      "total": 72.5,
+      "byRound": [
+        { "round": 0, "score": 72.5 }
+      ],
+      "breakdown": {
+        "correctness": 78.0,
+        "completeness": 65.0,
+        "actionability": 70.0,
+        "consistency": 80.0
+      }
+    },
+    {
+      "participantId": "codex-agent",
+      "total": 68.0,
+      "byRound": [
+        { "round": 0, "score": 68.0 }
+      ],
+      "breakdown": {
+        "correctness": 72.0,
+        "completeness": 60.0,
+        "actionability": 68.0,
+        "consistency": 74.0
+      }
+    },
+    {
+      "participantId": "gemini-agent",
+      "total": 0,
+      "byRound": [],
+      "breakdown": {
+        "correctness": 0,
+        "completeness": 0,
+        "actionability": 0,
+        "consistency": 0
+      }
+    }
+  ],
+  "eliminations": [
+    {
+      "participantId": "codex-agent",
+      "round": 1,
+      "reason": "timeout",
+      "at": "2026-04-15T10:05:30.000Z"
+    },
+    {
+      "participantId": "gemini-agent",
+      "round": 0,
+      "reason": "error",
+      "at": "2026-04-15T10:01:15.000Z"
+    }
+  ],
+  "report": {
+    "mode": "builtin",
+    "traceIncluded": false,
+    "traceLevel": "compact",
+    "finalSummary": "Discussion interrupted. 4 claims: 0 resolved, 4 unresolved.\n\n- claude-agent:0:0: Microservices enable independent scaling of payment components (1/1 accept)\n- claude-agent:0:1: Distributed transactions add significant complexity (1/1 accept)\n- codex-agent:0:0: Blast radius isolation protects revenue (1/1 accept)\n- codex-agent:0:1: Operational overhead may exceed team capacity (1/1 accept)\n\nFinal round summaries:\n- claude-agent: Both architectures have merit; the key deciding factor is team size and operational maturity.",
+    "representativeSpeech": "The discussion was interrupted before we could reach a thorough debate. Based on the initial round, both sides raised valid points: microservices offer clear scaling and isolation benefits for payment processing, but the distributed transaction complexity and operational overhead are significant concerns — especially for smaller teams. A modular monolith with clear domain boundaries might be a pragmatic middle ground worth exploring before committing to full microservices."
+  },
+  "disagreements": [],
+  "rounds": [
+    {
+      "round": 0,
+      "outputs": [
+        {
+          "participantId": "claude-agent",
+          "phase": "initial",
+          "round": 0,
+          "fullResponse": "Payment processing has distinct sub-domains (auth, fraud, settlement) with different scaling needs. Microservices align well with these boundaries but introduce distributed transaction complexity that is especially dangerous in financial systems where consistency is non-negotiable.",
+          "taskTitle": "Microservices for payment processing?",
+          "extractedClaims": [
+            { "title": "Microservices enable independent scaling of payment components", "statement": "Payment authorization, fraud detection, and settlement have wildly different load profiles.", "category": "pro" },
+            { "title": "Distributed transactions add significant complexity", "statement": "Payment flows require strong consistency guarantees across service boundaries.", "category": "con" }
+          ],
+          "judgements": [],
+          "summary": "Microservices fit the domain boundaries but distributed consistency is a serious concern for payment flows.",
+          "respondedAt": "2026-04-15T10:00:45.000Z"
+        },
+        {
+          "participantId": "codex-agent",
+          "phase": "initial",
+          "round": 0,
+          "fullResponse": "The main advantage of microservices for payments is blast radius isolation — a refund bug shouldn't take down checkout. However, the operational overhead (separate pipelines, monitoring, runbooks per service) can overwhelm small teams.",
+          "taskTitle": "Should payments go microservices?",
+          "extractedClaims": [
+            { "title": "Blast radius isolation protects revenue", "statement": "Service boundaries contain failures to protect the revenue-critical path.", "category": "pro" },
+            { "title": "Operational overhead may exceed team capacity", "statement": "Each microservice adds CI, monitoring, and on-call burden.", "category": "risk" }
+          ],
+          "judgements": [],
+          "summary": "Fault isolation is the strongest argument for microservices; operational cost is the strongest argument against.",
+          "respondedAt": "2026-04-15T10:00:52.000Z"
+        }
+      ]
+    },
+    {
+      "round": 1,
+      "outputs": [
+        {
+          "participantId": "claude-agent",
+          "phase": "final_vote",
+          "round": 1,
+          "fullResponse": "With only one participant remaining after eliminations, casting votes on all claims based on initial analysis.",
+          "judgements": [
+            { "claimId": "claude-agent:0:0", "stance": "agree", "confidence": 0.85, "rationale": "Scaling benefit is well-established" },
+            { "claimId": "claude-agent:0:1", "stance": "agree", "confidence": 0.9, "rationale": "Consistency complexity is a real risk" },
+            { "claimId": "codex-agent:0:0", "stance": "agree", "confidence": 0.8, "rationale": "Fault isolation is valuable" },
+            { "claimId": "codex-agent:0:1", "stance": "agree", "confidence": 0.75, "rationale": "Team size matters" }
+          ],
+          "claimVotes": [
+            { "claimId": "claude-agent:0:0", "vote": "accept", "reason": "Clear scaling benefit for heterogeneous workloads" },
+            { "claimId": "claude-agent:0:1", "vote": "accept", "reason": "Distributed consistency is genuinely hard" },
+            { "claimId": "codex-agent:0:0", "vote": "accept", "reason": "Fault isolation is a strong argument" },
+            { "claimId": "codex-agent:0:1", "vote": "accept", "reason": "Team size constraint is real" }
+          ],
+          "summary": "Both architectures have merit; the key deciding factor is team size and operational maturity.",
+          "respondedAt": "2026-04-15T10:06:10.000Z"
+        }
+      ]
+    }
+  ],
+  "metrics": {
+    "elapsedMs": 370000,
+    "totalRounds": 2,
+    "totalTurns": 3,
+    "retries": 0,
+    "waitTimeouts": 1,
+    "earlyStopTriggered": false,
+    "globalDeadlineHit": false
+  },
+  "error": {
+    "code": "INSUFFICIENT_PARTICIPANTS",
+    "message": "Discussion interrupted after initial round: active=1, required=2"
+  }
+}

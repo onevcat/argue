@@ -1,6 +1,6 @@
 import type { ArgueEvent, ArgueResult } from "@onevcat/argue";
 import { describe, expect, it } from "vitest";
-import { createOutputFormatter } from "../src/output.js";
+import { createOutputFormatter, resultStatusTone } from "../src/output.js";
 
 function createIO(): { logs: string[]; errors: string[]; log: (msg: string) => void; error: (msg: string) => void } {
   const logs: string[] = [];
@@ -372,5 +372,13 @@ describe("view hint", () => {
     const formatter = createOutputFormatter(io, { isTTY: false, noColor: true });
     formatter.viewHint("argue_1712000000000_aaaaaa");
     expect(logs.join("\n")).toContain("→ View report: argue view argue_1712000000000_aaaaaa");
+  });
+
+  it("renders interrupted with a distinct non-failure status tone", () => {
+    expect(resultStatusTone("consensus")).toBe("success");
+    expect(resultStatusTone("failed")).toBe("failure");
+    expect(resultStatusTone("interrupted")).toBe("warning");
+    expect(resultStatusTone("partial_consensus")).toBe("warning");
+    expect(resultStatusTone("unresolved")).toBe("warning");
   });
 });

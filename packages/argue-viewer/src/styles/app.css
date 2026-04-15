@@ -778,6 +778,10 @@ textarea {
 .verdict-stamp.is-fail {
   --stamp-color: var(--stamp-fail);
 }
+.verdict-stamp.is-interrupt {
+  --stamp-color: var(--stamp-fail);
+  border-style: dashed;
+}
 
 /* ------------------------------------------------------------------
  * §01 Conclusion — hero pull-quote on a dark ink plate.

@@ -127,12 +127,14 @@ argue run --input task.json
 Useful flags:
 
 ```bash
---agents a1,a2          # pick specific agents from config
---min-rounds 2          # at least 2 debate rounds before early-stop
---max-rounds 5          # cap total debate rounds
---threshold 0.67        # consensus threshold (default: 1.0 = unanimous)
---action "Fix it"       # post-debate action for the representative
---verbose               # show each agent's reasoning in real time
+--agents a1,a2                            # pick specific agents from config
+--min-participants 2                      # minimum surviving participants required to continue
+--on-insufficient-participants interrupt  # interrupt (default) or fail hard
+--min-rounds 2                            # at least 2 debate rounds before early-stop
+--max-rounds 5                            # cap total debate rounds
+--threshold 0.67                          # consensus threshold (default: 1.0 = unanimous)
+--action "Fix it"                         # post-debate action for the representative
+--verbose                                 # show each agent's reasoning in real time
 ```
 
 Run `argue --help` for the full list.
@@ -197,7 +199,7 @@ const result = await engine.start({
   }
 });
 
-// result.status → "consensus" | "partial_consensus" | "unresolved"
+// result.status → "consensus" | "partial_consensus" | "unresolved" | "interrupted" | "failed"
 // result.claimResolutions → per-claim vote outcomes
 // result.representative → highest-scoring agent
 // result.action → action output (if actionPolicy was set)

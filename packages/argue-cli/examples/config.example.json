@@ -7,6 +7,10 @@
   },
   "defaults": {
     "defaultAgents": ["architect", "bughunter"],
+    "participantsPolicy": {
+      "minParticipants": 2,
+      "onInsufficientParticipants": "interrupt"
+    },
     "language": "en",
     "minRounds": 2,
     "maxRounds": 3,

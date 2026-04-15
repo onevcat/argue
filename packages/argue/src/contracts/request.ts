@@ -13,9 +13,10 @@ export const ArgueStartInputSchema = z
 
     participantsPolicy: z
       .object({
-        minParticipants: z.number().int().min(2).default(2)
+        minParticipants: z.number().int().min(2).default(2),
+        onInsufficientParticipants: z.enum(["interrupt", "fail"]).default("interrupt")
       })
-      .default({ minParticipants: 2 }),
+      .default({ minParticipants: 2, onInsufficientParticipants: "interrupt" }),
 
     roundPolicy: z
       .object({
