@@ -139,6 +139,8 @@ argue run --input task.json
 
 `argue --help` で全オプションを確認できます。
 
+> **0.5.0 の挙動変更:** 生存参加者が `minParticipants` を下回った場合、argue はハードエラーを投げる代わりに構造化された `interrupted` 結果を返すようになりました。従来の挙動に戻したい場合は、`--on-insufficient-participants fail` を指定するか、config の `defaults.participantsPolicy.onInsufficientParticipants` を `"fail"` に設定してください。
+
 ## ライブラリとして使用
 
 argue-cli の裏側にあるのは `@onevcat/argue`、任意のシステムに組み込める独立した討論エンジンです。`AgentTaskDelegate` という 1 つのインターフェースを実装するだけで、argue エンジンがすべてのオーケストレーションを処理します。

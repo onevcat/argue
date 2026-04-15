@@ -139,6 +139,8 @@ Useful flags:
 
 Run `argue --help` for the full list.
 
+> **Behavior change in 0.5.0:** when surviving participants drop below `minParticipants`, argue now returns a structured `interrupted` result instead of throwing a hard error. Pass `--on-insufficient-participants fail` (or set `defaults.participantsPolicy.onInsufficientParticipants: "fail"` in config) to restore the previous behavior.
+
 ## Using as a Library
 
 Behind argue-cli is `@onevcat/argue`, a standalone debate engine you can embed in any system. Implement one interface — `AgentTaskDelegate` — and the engine handles all orchestration.

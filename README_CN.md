@@ -139,6 +139,8 @@ argue run --input task.json
 
 运行 `argue --help` 查看完整参数列表。
 
+> **0.5.0 行为变更：** 当存活参与者降到 `minParticipants` 以下时，argue 现在会返回结构化的 `interrupted` 结果，而不是直接抛硬错误。如需保留旧行为，在命令行使用 `--on-insufficient-participants fail`，或在配置中设置 `defaults.participantsPolicy.onInsufficientParticipants: "fail"`。
+
 ## 作为库使用
 
 argue-cli 的背后是 `@onevcat/argue`，一个独立的辩论引擎，可以嵌入到任何系统中。你只需实现一个接口——`AgentTaskDelegate`，argue 引擎负责所有编排工作。

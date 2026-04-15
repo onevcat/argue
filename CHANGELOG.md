@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.0] - 2026-04-15
+
+Headline: graceful interrupt on insufficient participants. When surviving participants drop below `minParticipants` mid-session, argue now returns a structured `interrupted` result by default instead of throwing a hard error — wired through the engine, CLI flags, config, viewer, and contracts so downstream consumers still get a full `result.json`, `summary.md`, and viewable report. Also fixes a latent `JsonlObserver` bug where a single `appendFile` rejection would permanently break the write queue and silently swallow every subsequent event for the rest of the session.
+
+### Features
+
+- New `participantsPolicy.onInsufficientParticipants` option: `"interrupt"` (new default) yields a structured result with `status: "interrupted"` and a `SessionInterrupted` event; `"fail"` preserves the legacy hard-failure behavior. Wired through `argue-cli` as `defaults.participantsPolicy`, `--min-participants`, and `--on-insufficient-participants`, with precedence `flags > input JSON > config defaults`, and surfaced by the viewer as a first-class non-failure verdict (8ecc992, 3eea0ea)
+
+### Fixes
+
+- `JsonlObserver` no longer silently drops every subsequent event after a single `appendFile` failure. The write queue was chained via `this.queue.then(...)`, so any rejection (full disk, permission flip, deleted file) permanently poisoned the chain because `.then` on a rejected promise skips its callback — every future event was lost for the rest of the session. The chain now recovers from a previous failure with `.catch(() => {})` before the next work step, and a regression test mocks `appendFile` to reject once and verifies the next `onEvent` still lands on disk (37e83f4, 2b30fb6)
+- `ReportTaskInput` / `ActionTaskInput` status enums now accept `"interrupted"` so the new status survives round-trip through task inputs (0ab65ee)
+
+### Other
+
+- README (EN / CN / JP) calls out the 0.5.0 behavior change and documents how to opt back into the legacy hard-failure behavior via `--on-insufficient-participants fail`
+
 ## [0.4.0] - 2026-04-15
 
 Headline: reasoning passthrough for CLI providers, plus a more resilient JSON recovery path. `argue-cli` now forwards per-model and per-agent reasoning settings to Claude Code and Codex, and a new syntax-only fallback in `parseJsonObject` rescues debate rounds where `jsonrepair` would otherwise give up on CJK output with stray ASCII quotes.
