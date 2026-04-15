@@ -24,20 +24,22 @@ export class JsonlObserver implements ArgueObserver {
   }
 
   onEvent(event: ArgueEvent): Promise<void> {
-    this.queue = this.queue.then(async () => {
-      await this.ready;
+    this.queue = this.queue
+      .catch(() => {}) // recover from a previous write failure so the chain is not permanently broken
+      .then(async () => {
+        await this.ready;
 
-      const record: JsonlRunEvent = JsonlRunEventSchema.parse({
-        v: JSONL_RUN_EVENT_VERSION,
-        kind: "argue.event",
-        seq: this.seq,
-        loggedAt: new Date().toISOString(),
-        event
+        const record: JsonlRunEvent = JsonlRunEventSchema.parse({
+          v: JSONL_RUN_EVENT_VERSION,
+          kind: "argue.event",
+          seq: this.seq,
+          loggedAt: new Date().toISOString(),
+          event
+        });
+
+        this.seq += 1;
+        await appendFile(this.path, `${JSON.stringify(record)}\n`, "utf8");
       });
-
-      this.seq += 1;
-      await appendFile(this.path, `${JSON.stringify(record)}\n`, "utf8");
-    });
 
     return this.queue;
   }

@@ -52,5 +52,5 @@ async function loadAdapter(
 }
 
 function isLocalModuleSpecifier(specifier: string): boolean {
-  return specifier.startsWith(".") || specifier.startsWith("/") || specifier.startsWith("..");
+  return specifier.startsWith(".") || specifier.startsWith("/");
 }
