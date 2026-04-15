@@ -121,13 +121,18 @@ export class ArgueEngine {
         eliminations
       });
 
-      this.ensureMinParticipants(normalized, activeParticipants.size);
       rounds.push({ round: 0, outputs: initialResult.outputs, appliedMerges: initialResult.appliedMerges });
       claimCatalog = initialResult.claimCatalog;
 
+      let interruptReason: string | null = null;
+      if (!this.hasMinParticipants(normalized, activeParticipants.size)) {
+        this.enforceMinParticipants(normalized, activeParticipants.size, "initial round");
+        interruptReason = `Discussion interrupted after initial round: active=${activeParticipants.size}, required=${normalized.participantsPolicy.minParticipants}`;
+      }
+
       let previousOutputs = initialResult.outputs;
 
-      for (let round = 1; round <= normalized.roundPolicy.maxRounds; round += 1) {
+      for (let round = 1; !interruptReason && round <= normalized.roundPolicy.maxRounds; round += 1) {
         if (this.isGlobalDeadlineHit(normalized, startAt)) {
           metrics.globalDeadlineHit = true;
           await this.emit(normalized, sessionId, "GlobalDeadlineHit", {
@@ -151,8 +156,13 @@ export class ArgueEngine {
           eliminations
         });
 
-        this.ensureMinParticipants(normalized, activeParticipants.size);
         rounds.push({ round, outputs: debateResult.outputs, appliedMerges: debateResult.appliedMerges });
+
+        if (!this.hasMinParticipants(normalized, activeParticipants.size)) {
+          this.enforceMinParticipants(normalized, activeParticipants.size, `debate round ${round}`);
+          interruptReason = `Discussion interrupted after debate round ${round}: active=${activeParticipants.size}, required=${normalized.participantsPolicy.minParticipants}`;
+          break;
+        }
         claimCatalog = debateResult.claimCatalog;
         previousOutputs = debateResult.outputs;
 
@@ -169,9 +179,11 @@ export class ArgueEngine {
         }
       }
 
+      // Final vote: run if we have active participants (even just one for interrupted sessions)
       const finalVoteRound = (rounds.at(-1)?.round ?? 0) + 1;
       let finalVoteOutputs: ParticipantRoundOutput[] = [];
-      if (!metrics.globalDeadlineHit) {
+      const skipFinalVote = metrics.globalDeadlineHit || activeParticipants.size === 0;
+      if (!skipFinalVote) {
         if (this.isGlobalDeadlineHit(normalized, startAt)) {
           metrics.globalDeadlineHit = true;
           await this.emit(normalized, sessionId, "GlobalDeadlineHit", {
@@ -192,7 +204,10 @@ export class ArgueEngine {
             metrics,
             eliminations
           });
-          this.ensureMinParticipants(normalized, activeParticipants.size);
+          if (!this.hasMinParticipants(normalized, activeParticipants.size) && !interruptReason) {
+            this.enforceMinParticipants(normalized, activeParticipants.size, "final vote");
+            interruptReason = `Discussion interrupted after final vote: active=${activeParticipants.size}, required=${normalized.participantsPolicy.minParticipants}`;
+          }
           finalVoteOutputs = finalVoteResult.outputs;
           rounds.push({
             round: finalVoteRound,
@@ -222,8 +237,18 @@ export class ArgueEngine {
         scoringPolicy: normalized.scoringPolicy
       });
 
+      if (interruptReason) {
+        await this.emit(normalized, sessionId, "SessionInterrupted", {
+          reason: interruptReason,
+          activeParticipants: [...activeParticipants],
+          eliminations
+        });
+      }
+
       const activeScoreboard = scoreboard.filter((score) => activeParticipants.has(score.participantId));
-      this.ensureMinParticipants(normalized, activeScoreboard.length);
+
+      // For representative selection, fall back to full scoreboard if no active participants remain
+      const candidateScoreboard = activeScoreboard.length > 0 ? activeScoreboard : scoreboard;
 
       const designated = normalized.reportPolicy.representativeId;
       const designatedIsActive = typeof designated === "string" && activeParticipants.has(designated);
@@ -231,21 +256,23 @@ export class ArgueEngine {
       const selected = designatedIsActive
         ? {
             participantId: designated,
-            score: activeScoreboard.find((x) => x.participantId === designated)?.total ?? 0,
+            score: candidateScoreboard.find((x) => x.participantId === designated)?.total ?? 0,
             reason: "host-designated" as const
           }
         : chooseRepresentative({
-            scores: activeScoreboard,
+            scores: candidateScoreboard,
             rounds,
             tieBreaker: normalized.scoringPolicy.tieBreaker
           });
 
       const representativeSpeech = this.pickRepresentativeSpeech(selected.participantId, rounds);
 
-      const status = aggregateSessionStatus({
-        claimResolutions,
-        globalDeadlineHit: metrics.globalDeadlineHit
-      });
+      const status = interruptReason
+        ? ("interrupted" as const)
+        : aggregateSessionStatus({
+            claimResolutions,
+            globalDeadlineHit: metrics.globalDeadlineHit
+          });
 
       const report = await this.composeReport({
         normalized,
@@ -307,7 +334,8 @@ export class ArgueEngine {
           waitTimeouts: metrics.waitTimeouts,
           earlyStopTriggered: metrics.earlyStopTriggered,
           globalDeadlineHit: metrics.globalDeadlineHit
-        }
+        },
+        ...(interruptReason ? { error: { code: "INSUFFICIENT_PARTICIPANTS", message: interruptReason } } : {})
       });
 
       const actionOutput = await this.executeAction({
@@ -842,11 +870,16 @@ export class ArgueEngine {
     return this.now() - startAt >= deadline;
   }
 
-  private ensureMinParticipants(normalized: NormalizedArgueStartInput, count: number): void {
-    if (count >= normalized.participantsPolicy.minParticipants) return;
-    throw new Error(
-      `Round failed minimum participant requirement: completed=${count}, required=${normalized.participantsPolicy.minParticipants}`
-    );
+  private hasMinParticipants(normalized: NormalizedArgueStartInput, count: number): boolean {
+    return count >= normalized.participantsPolicy.minParticipants;
+  }
+
+  private enforceMinParticipants(normalized: NormalizedArgueStartInput, count: number, phase: string): void {
+    if (normalized.participantsPolicy.onInsufficientParticipants === "fail") {
+      throw new Error(
+        `Round failed minimum participant requirement after ${phase}: completed=${count}, required=${normalized.participantsPolicy.minParticipants}`
+      );
+    }
   }
 
   private buildRoundPrompt(input: NormalizedArgueStartInput, phase: Phase, round: number): string {
@@ -1005,6 +1038,7 @@ export class ArgueEngine {
       | "ActionDispatched"
       | "ActionCompleted"
       | "ActionFailed"
+      | "SessionInterrupted"
       | "Finalized"
       | "Failed",
     payload?: Record<string, unknown>,

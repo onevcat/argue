@@ -2037,3 +2037,188 @@ describe("task title selection", () => {
     expect(result.task.title).toBe(`headline from ${result.representative.participantId}`);
   });
 });
+
+describe("graceful interrupt (onInsufficientParticipants)", () => {
+  it("produces an interrupted result when participants drop below min (default interrupt mode)", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult } | { type: "timeout" }> = {};
+
+    const allClaimIds = PARTICIPANTS.map((p) => `${p}:0:0`);
+    for (const participant of PARTICIPANTS) {
+      scenarios[`round:initial:0:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
+      };
+    }
+
+    // Two participants timeout in debate round 1 → drops below minParticipants=2
+    scenarios["round:debate:1:onevclaw"] = {
+      type: "success",
+      output: roundResult(
+        mkRoundOutput({ participantId: "onevclaw", phase: "debate", round: 1, catalogClaimIds: allClaimIds })
+      )
+    };
+    scenarios["round:debate:1:onevpaw"] = { type: "timeout" };
+    scenarios["round:debate:1:onevtail"] = { type: "timeout" };
+
+    // Remaining participant still runs final vote
+    scenarios["round:final_vote:2:onevclaw"] = {
+      type: "success",
+      output: roundResult(
+        mkRoundOutput({
+          participantId: "onevclaw",
+          phase: "final_vote",
+          round: 2,
+          catalogClaimIds: allClaimIds
+        })
+      )
+    };
+
+    const events: string[] = [];
+    const engine = new ArgueEngine({
+      taskDelegate: new StubAgentTaskDelegate(scenarios),
+      observer: {
+        onEvent: async (e) => {
+          events.push(e.type);
+        }
+      }
+    });
+
+    const result = await engine.start({
+      requestId: "req-interrupt-default",
+      task: "Interrupt test",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      participantsPolicy: { minParticipants: 2 },
+      roundPolicy: { minRounds: 1, maxRounds: 2 },
+      waitingPolicy: { perTaskTimeoutMs: 1000, perRoundTimeoutMs: 1000 }
+    });
+
+    expect(result.status).toBe("interrupted");
+    expect(result.error).toBeDefined();
+    expect(result.error?.code).toBe("INSUFFICIENT_PARTICIPANTS");
+    expect(result.eliminations.length).toBe(2);
+    expect(result.report.mode).toBe("builtin");
+    expect(result.report.finalSummary).toContain("interrupted");
+    expect(events).toContain("SessionInterrupted");
+    // Final vote still ran with the surviving participant
+    expect(result.rounds.some((r) => r.outputs.some((o) => o.phase === "final_vote"))).toBe(true);
+  });
+
+  it("throws when onInsufficientParticipants is set to fail", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult } | { type: "timeout" }> = {};
+
+    for (const participant of PARTICIPANTS) {
+      scenarios[`round:initial:0:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
+      };
+    }
+
+    const allClaimIds = PARTICIPANTS.map((p) => `${p}:0:0`);
+    scenarios["round:debate:1:onevclaw"] = {
+      type: "success",
+      output: roundResult(
+        mkRoundOutput({ participantId: "onevclaw", phase: "debate", round: 1, catalogClaimIds: allClaimIds })
+      )
+    };
+    scenarios["round:debate:1:onevpaw"] = { type: "timeout" };
+    scenarios["round:debate:1:onevtail"] = { type: "timeout" };
+
+    const engine = new ArgueEngine({
+      taskDelegate: new StubAgentTaskDelegate(scenarios)
+    });
+
+    await expect(
+      engine.start({
+        requestId: "req-interrupt-fail",
+        task: "Fail mode test",
+        participants: PARTICIPANTS.map((id) => ({ id })),
+        participantsPolicy: { minParticipants: 2, onInsufficientParticipants: "fail" },
+        roundPolicy: { minRounds: 1, maxRounds: 2 },
+        waitingPolicy: { perTaskTimeoutMs: 1000, perRoundTimeoutMs: 1000 }
+      })
+    ).rejects.toThrow("minimum participant requirement");
+  });
+
+  it("skips final vote when all participants are eliminated", async () => {
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult } | { type: "timeout" }> = {};
+
+    for (const participant of PARTICIPANTS) {
+      scenarios[`round:initial:0:${participant}`] = {
+        type: "success",
+        output: roundResult(mkRoundOutput({ participantId: participant, phase: "initial", round: 0 }))
+      };
+    }
+
+    // All three timeout in debate round 1 → zero active participants
+    for (const participant of PARTICIPANTS) {
+      scenarios[`round:debate:1:${participant}`] = { type: "timeout" };
+    }
+
+    const engine = new ArgueEngine({
+      taskDelegate: new StubAgentTaskDelegate(scenarios)
+    });
+
+    const result = await engine.start({
+      requestId: "req-interrupt-zero-active",
+      task: "Zero active test",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      participantsPolicy: { minParticipants: 2 },
+      roundPolicy: { minRounds: 1, maxRounds: 2 },
+      waitingPolicy: { perTaskTimeoutMs: 1000, perRoundTimeoutMs: 1000 }
+    });
+
+    expect(result.status).toBe("interrupted");
+    expect(result.eliminations.length).toBe(3);
+    // No final_vote round should exist since all participants were eliminated
+    expect(result.rounds.every((r) => r.outputs.every((o) => o.phase !== "final_vote"))).toBe(true);
+    // Representative falls back to full scoreboard
+    expect(result.representative.participantId).toBeDefined();
+    expect(result.report.mode).toBe("builtin");
+  });
+
+  it("interrupts after initial round when all participants fail at round 0", async () => {
+    // Only one participant succeeds in initial round, rest timeout
+    const scenarios: Record<string, { type: "success"; output: AgentTaskResult } | { type: "timeout" }> = {};
+
+    scenarios["round:initial:0:onevclaw"] = {
+      type: "success",
+      output: roundResult(mkRoundOutput({ participantId: "onevclaw", phase: "initial", round: 0 }))
+    };
+    scenarios["round:initial:0:onevpaw"] = { type: "timeout" };
+    scenarios["round:initial:0:onevtail"] = { type: "timeout" };
+
+    // Remaining participant runs final vote
+    const allClaimIds = ["onevclaw:0:0"];
+    scenarios["round:final_vote:1:onevclaw"] = {
+      type: "success",
+      output: roundResult(
+        mkRoundOutput({
+          participantId: "onevclaw",
+          phase: "final_vote",
+          round: 1,
+          catalogClaimIds: allClaimIds
+        })
+      )
+    };
+
+    const engine = new ArgueEngine({
+      taskDelegate: new StubAgentTaskDelegate(scenarios)
+    });
+
+    const result = await engine.start({
+      requestId: "req-interrupt-initial",
+      task: "Interrupt at initial",
+      participants: PARTICIPANTS.map((id) => ({ id })),
+      participantsPolicy: { minParticipants: 2 },
+      roundPolicy: { minRounds: 1, maxRounds: 2 },
+      waitingPolicy: { perTaskTimeoutMs: 1000, perRoundTimeoutMs: 1000 }
+    });
+
+    expect(result.status).toBe("interrupted");
+    expect(result.error?.message).toContain("initial round");
+    // No debate rounds happened (interrupt after initial)
+    expect(result.rounds.every((r) => r.outputs.every((o) => o.phase !== "debate"))).toBe(true);
+    // Final vote still ran with surviving participant
+    expect(result.rounds.some((r) => r.outputs.some((o) => o.phase === "final_vote"))).toBe(true);
+  });
+});

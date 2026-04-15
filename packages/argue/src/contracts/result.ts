@@ -220,7 +220,7 @@ export const ArgueResultSchema = z.object({
   requestId: z.string().min(1),
   sessionId: z.string().min(1),
   task: TaskSchema,
-  status: z.enum(["consensus", "partial_consensus", "unresolved", "failed"]),
+  status: z.enum(["consensus", "partial_consensus", "unresolved", "failed", "interrupted"]),
   finalClaims: z.array(ClaimSchema),
   claimResolutions: z.array(ClaimResolutionSchema),
   representative: z.object({

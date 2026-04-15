@@ -3,7 +3,7 @@ import type { Claim, ClaimResolution, FinalReport, OpinionShift, ParticipantRoun
 type BuildBuiltinReportInput = {
   includeDeliberationTrace: boolean;
   traceLevel: "compact" | "full";
-  status: "consensus" | "partial_consensus" | "unresolved" | "failed";
+  status: "consensus" | "partial_consensus" | "unresolved" | "failed" | "interrupted";
   representativeSpeech: string;
   rounds: Array<{ round: number; outputs: ParticipantRoundOutput[] }>;
   representativeId: string;
@@ -44,7 +44,9 @@ function buildFinalSummary(input: BuildBuiltinReportInput): string {
         ? "Partial consensus"
         : input.status === "unresolved"
           ? "Unresolved"
-          : "Failed";
+          : input.status === "interrupted"
+            ? "Discussion interrupted"
+            : "Failed";
 
   lines.push(
     `${statusLabel}. ${activeClaims.length} claims: ${resolved.length} resolved, ${unresolved.length} unresolved.`
