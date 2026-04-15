@@ -139,33 +139,6 @@ argue run --input task.json
 
 运行 `argue --help` 查看完整参数列表。
 
-### 迁移说明：interrupted 与硬失败
-
-当运行过程中存活参与者不足时，argue 现在默认返回 `interrupted`，而不是直接抛出硬错误。这样通常更适合下游消费，因为你仍然会拿到结构化的 `result.json`、`summary.md` 和可打开的 viewer 报告。
-
-如果你需要保持旧行为，可以在 config 或命令行里把 `onInsufficientParticipants` 设为 `"fail"`：
-
-```json
-{
-  "defaults": {
-    "participantsPolicy": {
-      "minParticipants": 2,
-      "onInsufficientParticipants": "fail"
-    }
-  }
-}
-```
-
-```bash
-argue run --task "..." --on-insufficient-participants fail
-```
-
-消费结果时，应该把 `interrupted` 当作“讨论未完成”，而不是“程序崩溃”。推荐做法：
-
-- CLI 和 viewer 把它显示为独立状态，而不是失败样式。
-- 自动化流程检查 `result.status`，再决定重试、降级，还是交给人处理。
-- 如果你的旧脚本只区分成功和失败，要先显式处理 `interrupted`，再判断 `failed`。
-
 ## 作为库使用
 
 argue-cli 的背后是 `@onevcat/argue`，一个独立的辩论引擎，可以嵌入到任何系统中。你只需实现一个接口——`AgentTaskDelegate`，argue 引擎负责所有编排工作。

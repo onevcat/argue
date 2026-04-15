@@ -139,33 +139,6 @@ argue run --input task.json
 
 `argue --help` で全オプションを確認できます。
 
-### 移行メモ: interrupted とハード失敗
-
-実行中に生存参加者が足りなくなった場合、argue はデフォルトでハードエラーを投げる代わりに `interrupted` を返すようになりました。こちらの方が下流では扱いやすく、`result.json`、`summary.md`、viewer レポートをそのまま残せます。
-
-従来どおりハード失敗を維持したい場合は、config または CLI で `onInsufficientParticipants` を `"fail"` に設定してください。
-
-```json
-{
-  "defaults": {
-    "participantsPolicy": {
-      "minParticipants": 2,
-      "onInsufficientParticipants": "fail"
-    }
-  }
-}
-```
-
-```bash
-argue run --task "..." --on-insufficient-participants fail
-```
-
-結果を消費する側では、`interrupted` は「議論が未完了」であって「クラッシュ」ではないものとして扱うのが正解です。
-
-- CLI と viewer では失敗とは別の状態として表示する。
-- 自動化は `result.status` を見て、再試行、フォールバック、人手確認のどれに進むか決める。
-- 旧パイプラインが成功/失敗の二値しか想定していないなら、`failed` を判定する前に `interrupted` を先に分岐する。
-
 ## ライブラリとして使用
 
 argue-cli の裏側にあるのは `@onevcat/argue`、任意のシステムに組み込める独立した討論エンジンです。`AgentTaskDelegate` という 1 つのインターフェースを実装するだけで、argue エンジンがすべてのオーケストレーションを処理します。

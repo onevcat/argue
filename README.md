@@ -139,33 +139,6 @@ Useful flags:
 
 Run `argue --help` for the full list.
 
-### Migration note: interrupted vs hard failure
-
-Runs that lose too many participants can now finish as `interrupted` instead of throwing a hard error. That is the new default, and it is usually the better behavior for downstream tools because you still get a structured `result.json`, `summary.md`, and viewer report.
-
-If you need the old behavior, set `onInsufficientParticipants` to `"fail"` either in config or on the command line:
-
-```json
-{
-  "defaults": {
-    "participantsPolicy": {
-      "minParticipants": 2,
-      "onInsufficientParticipants": "fail"
-    }
-  }
-}
-```
-
-```bash
-argue run --task "..." --on-insufficient-participants fail
-```
-
-When consuming results, treat `interrupted` as an incomplete debate, not a crash. Good defaults:
-
-- CLI and viewer should surface it as a distinct non-failure state.
-- Automation should inspect `result.status` and decide whether to retry, fall back, or ask for human review.
-- If your pipeline previously assumed only terminal errors, explicitly handle `interrupted` before branching on `failed`.
-
 ## Using as a Library
 
 Behind argue-cli is `@onevcat/argue`, a standalone debate engine you can embed in any system. Implement one interface — `AgentTaskDelegate` — and the engine handles all orchestration.
