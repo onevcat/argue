@@ -30,13 +30,6 @@ export function buildBuiltinReport(input: BuildBuiltinReportInput): FinalReport 
 }
 
 function buildFinalSummary(input: BuildBuiltinReportInput): string {
-  const lines: string[] = [];
-
-  // Status headline
-  const activeClaims = input.finalClaims.filter((c) => c.status === "active");
-  const resolved = input.claimResolutions.filter((r) => r.status === "resolved");
-  const unresolved = input.claimResolutions.filter((r) => r.status === "unresolved");
-
   const statusLabel =
     input.status === "consensus"
       ? "Consensus reached"
@@ -48,32 +41,14 @@ function buildFinalSummary(input: BuildBuiltinReportInput): string {
             ? "Discussion interrupted"
             : "Failed";
 
-  lines.push(
-    `${statusLabel}. ${activeClaims.length} claims: ${resolved.length} resolved, ${unresolved.length} unresolved.`
-  );
-
-  // Claim list with vote results
-  if (activeClaims.length > 0) {
-    lines.push("");
-    for (const claim of activeClaims) {
-      const resolution = input.claimResolutions.find((r) => r.claimId === claim.claimId);
-      const voteStr = resolution ? ` (${resolution.acceptCount}/${resolution.totalVoters} accept)` : "";
-      lines.push(`- ${claim.claimId}: ${claim.title}${voteStr}`);
-    }
-  }
-
-  // Last round participant summaries
   const lastRound = input.rounds.length > 0 ? input.rounds.reduce((a, b) => (a.round > b.round ? a : b)) : undefined;
 
-  if (lastRound && lastRound.outputs.length > 0) {
-    lines.push("");
-    lines.push("Final round summaries:");
-    for (const output of lastRound.outputs) {
-      lines.push(`- ${output.participantId}: ${singleLine(output.summary)}`);
-    }
+  if (!lastRound || lastRound.outputs.length === 0) {
+    return `${statusLabel}.`;
   }
 
-  return lines.join("\n");
+  const summaries = lastRound.outputs.map((o) => `**${o.participantId}**: ${singleLine(o.summary)}`);
+  return `${statusLabel}.\n\n${summaries.join("\n\n")}`;
 }
 
 function singleLine(value: string): string {
