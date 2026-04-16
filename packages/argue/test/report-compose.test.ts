@@ -134,13 +134,11 @@ describe("buildBuiltinReport", () => {
     });
 
     expect(report.finalSummary).toContain("Consensus reached");
-    expect(report.finalSummary).toContain("2 claims");
-    expect(report.finalSummary).toContain("2 resolved");
-    expect(report.finalSummary).toContain("0 unresolved");
-    expect(report.finalSummary).toContain("c1: Main point (2/2 accept)");
-    expect(report.finalSummary).toContain("c2: Supporting fact (2/2 accept)");
-    expect(report.finalSummary).toContain("Agent A's view");
-    expect(report.finalSummary).toContain("Agent B's view");
+    expect(report.finalSummary).toContain("**a1**: Agent A's view");
+    expect(report.finalSummary).toContain("**a2**: Agent B's view");
+    // No claim lists or vote tallies in the summary
+    expect(report.finalSummary).not.toContain("claims");
+    expect(report.finalSummary).not.toContain("accept)");
   });
 
   it("shows partial consensus and unresolved claims", () => {
@@ -159,8 +157,10 @@ describe("buildBuiltinReport", () => {
     });
 
     expect(report.finalSummary).toContain("Partial consensus");
-    expect(report.finalSummary).toContain("1 resolved, 1 unresolved");
-    expect(report.finalSummary).toContain("c2: Disputed (1/2 accept)");
+    // No claim details or vote tallies — just status label when no rounds
+    expect(report.finalSummary).toBe("Partial consensus.");
+    expect(report.finalSummary).not.toContain("resolved");
+    expect(report.finalSummary).not.toContain("accept)");
   });
 
   it("includes last round summaries, not earlier rounds", () => {
