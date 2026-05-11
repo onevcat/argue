@@ -1,11 +1,14 @@
 import pc from "picocolors";
 import type { ArgueEvent, ArgueResult } from "@onevcat/argue";
 import { formatMs } from "./artifacts.js";
+import { createSpinner, type SpinnerStream } from "./spinner.js";
 
 export type OutputOptions = {
   verbose?: boolean;
   noColor?: boolean;
   isTTY?: boolean;
+  spinnerStream?: SpinnerStream;
+  spinnerIsTTY?: boolean;
 };
 
 export type OutputIO = Pick<typeof console, "log" | "error">;
@@ -35,6 +38,15 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
 
   const tag = c.cyan("[argue]");
   const verbose = options.verbose ?? false;
+
+  const spinnerStream = options.spinnerStream ?? null;
+  const spinner = spinnerStream
+    ? createSpinner(spinnerStream, "", {
+        isTTY: options.spinnerIsTTY ?? spinnerStream.isTTY ?? false,
+        noColor: options.noColor
+      })
+    : null;
+  let waitingFor: Set<string> = new Set();
 
   function stanceIcon(stance: string): string {
     if (stance === "agree") return c.green("✓");
@@ -80,9 +92,18 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
         const round = readNumber(payload.round);
         const roundTag = formatRoundTag(phase, round);
 
+        // Any event arriving means there is news to print. Stop the spinner
+        // first so log lines start at column 0; the spinner is rearmed below
+        // only when we are about to wait again.
+        spinner?.stop();
+
         if (event.type === "RoundDispatched") {
           const participants = readStringArray(payload.participants);
           io.log(`${tag} ${c.bold(roundTag)} dispatched ${c.dim("-> " + participants.join(", "))}`);
+          waitingFor = new Set(participants);
+          if (waitingFor.size > 0) {
+            spinner?.start(`${roundTag} waiting on ${[...waitingFor].join(", ")}…`);
+          }
           return;
         }
 
@@ -112,6 +133,10 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
           if (verbose) {
             printVerboseResponse(payload);
           }
+          waitingFor.delete(participantId);
+          if (waitingFor.size > 0) {
+            spinner?.start(`${roundTag} waiting on ${[...waitingFor].join(", ")}…`);
+          }
           return;
         }
 
@@ -126,6 +151,10 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
           }
 
           io.log(`${tag} ${c.bold(roundTag)} ${c.red(`${participantId} eliminated`)} ${c.dim(suffix)}`);
+          waitingFor.delete(participantId);
+          if (waitingFor.size > 0) {
+            spinner?.start(`${roundTag} waiting on ${[...waitingFor].join(", ")}…`);
+          }
           return;
         }
 
@@ -133,6 +162,9 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
           const source = readString(payload.sourceClaimId) ?? "?";
           const mergedInto = readString(payload.mergedInto) ?? "?";
           io.log(`${tag} ${c.bold(roundTag)} ${c.yellow(`claim merged ${source} -> ${mergedInto}`)}`);
+          if (waitingFor.size > 0) {
+            spinner?.start(`${roundTag} waiting on ${[...waitingFor].join(", ")}…`);
+          }
           return;
         }
 
@@ -148,6 +180,7 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
               `${tag} ${roundTag} completed: done=${completed} timeout=${timedOut} failed=${failed} claims=${claimCatalogSize} (+${newClaims}, -${mergeCount})`
             )
           );
+          waitingFor.clear();
           return;
         }
 
@@ -164,6 +197,7 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
         if (event.type === "ReportDispatched") {
           const reporterId = readString(payload.reporterId) ?? "unknown";
           io.log(`${tag} ${c.magenta(`report dispatched -> ${reporterId}`)}`);
+          spinner?.start(`composing report via ${reporterId}…`);
           return;
         }
 
@@ -174,6 +208,7 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
           if (verbose && prompt) {
             io.log(c.dim(`  prompt: ${singleLine(prompt)}`));
           }
+          spinner?.start(`${actorId} executing action…`);
           return;
         }
 
@@ -210,6 +245,7 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
     },
 
     runCompleted(result: ArgueResult, paths: { resultPath: string; summaryPath: string }) {
+      spinner?.stop();
       io.log("");
       io.log(c.dim("─".repeat(60)));
       io.log("");
@@ -237,6 +273,7 @@ export function createOutputFormatter(io: OutputIO, options: OutputOptions = {})
     },
 
     runFailed(error: unknown, errorPath: string) {
+      spinner?.stop();
       io.log("");
       io.log(c.dim("─".repeat(60)));
       io.log("");

@@ -21,6 +21,7 @@ import { createOutputFormatter } from "./output.js";
 import { loadRunInput } from "./run-input.js";
 import { defaultOutputDirTemplate, resolveRunPlan } from "./run-plan.js";
 import { createTaskDelegate } from "./runtime/delegate.js";
+import { createSpinner } from "./spinner.js";
 import { MAX_ENCODED_BYTES, openReportInViewer, resolveLatestRequestId } from "./view.js";
 import { VENDOR_PRESETS, getVendorNames } from "./vendors.js";
 export type { CliSdkProviderAdapter, CreateCliSdkProviderAdapter, ProviderTaskRunnerArgs } from "./runtime/types.js";
@@ -168,7 +169,9 @@ async function runHeadless(args: string[], io: Pick<typeof console, "log" | "err
   const out = createOutputFormatter(io, {
     verbose: options.value.verbose,
     noColor: options.value.noColor,
-    isTTY: process.stdout.isTTY
+    isTTY: process.stdout.isTTY,
+    spinnerStream: process.stderr,
+    spinnerIsTTY: process.stderr.isTTY
   });
 
   out.planResolved({
@@ -469,9 +472,15 @@ async function runAction(args: string[], io: Pick<typeof console, "log" | "error
     fullResult: options.value.includeFullResult ? JSON.parse(JSON.stringify(argueResult)) : undefined
   };
 
+  const spinner = createSpinner(process.stderr, `argue act · ${actorId} thinking…`, {
+    isTTY: process.stderr.isTTY
+  });
+  spinner.start();
+
   try {
     const dispatched = await taskDelegate.dispatch(actionTask as AgentTaskInput);
     const awaited = await taskDelegate.awaitResult(dispatched.taskId, 20 * 60 * 1_000);
+    spinner.stop();
 
     if (!awaited.ok || !awaited.output) {
       io.error(`Action failed: ${awaited.error ?? "unknown error"}`);
@@ -489,6 +498,8 @@ async function runAction(args: string[], io: Pick<typeof console, "log" | "error
   } catch (error) {
     io.error(`Action execution failed: ${String(error)}`);
     return { ok: false, code: 1 };
+  } finally {
+    spinner.stop();
   }
 }
 
