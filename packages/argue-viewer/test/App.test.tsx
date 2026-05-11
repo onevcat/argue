@@ -127,6 +127,41 @@ describe("App", () => {
     });
   });
 
+  it("the report header logo links back to home on plain click", async () => {
+    render(<App />);
+    const valid = JSON.stringify(createFixtureResult());
+    await dropJsonText(valid);
+    await waitFor(() => {
+      expect(screen.getByText("Strict schema validation in the viewer")).toBeTruthy();
+    });
+
+    const logoLink = screen.getByRole("link", { name: /Argue — back to home/i });
+    expect((logoLink as HTMLAnchorElement).getAttribute("href")).toBe("/");
+    fireEvent.click(logoLink);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Follow the argument/)).toBeTruthy();
+      expect(screen.queryByText("Strict schema validation in the viewer")).toBeNull();
+    });
+  });
+
+  it("the report header logo defers to the browser when modifier keys are held", async () => {
+    render(<App />);
+    const valid = JSON.stringify(createFixtureResult());
+    await dropJsonText(valid);
+    await waitFor(() => {
+      expect(screen.getByText("Strict schema validation in the viewer")).toBeTruthy();
+    });
+
+    const logoLink = screen.getByRole("link", { name: /Argue — back to home/i });
+    // metaKey simulates cmd+click → should NOT trigger SPA reset; report stays.
+    fireEvent.click(logoLink, { metaKey: true });
+
+    // Give any (incorrect) state updates a tick to flush before asserting.
+    await Promise.resolve();
+    expect(screen.getByText("Strict schema validation in the viewer")).toBeTruthy();
+  });
+
   it("recovers from error to loaded when a new valid payload is loaded", async () => {
     render(<App />);
     await dropJsonText("not json");

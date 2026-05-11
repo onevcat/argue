@@ -499,6 +499,28 @@ textarea {
   border-bottom: 1px solid var(--rule);
 }
 
+.report-header-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 4px;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+}
+
+.report-header-link:hover .report-header-wordmark,
+.report-header-link:focus-visible .report-header-wordmark {
+  color: var(--amber);
+}
+
+.report-header-link:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 4px;
+}
+
 .report-header-mark {
   display: inline-block;
   width: 3px;
