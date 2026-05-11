@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.6.0] - 2026-05-11
+
+Headline: visible progress for slow CLI operations. `argue run` and `argue act` now drive a Braille spinner on stderr so the long opaque waits between events feel alive, while stdout stays clean for piping. The viewer also gains a small navigation polish — the report header logo now links back to home.
+
+### Features
+
+- `argue run` and `argue act` show a Braille spinner (`⣾⣽⣻⢿⡿⣟⣯⣷`) on stderr during waits. `argue run` rotates labels as participants respond and stops on round/report/action terminal events; `argue act` spins from dispatch until the result settles. Spinner writes to stderr so stdout (the action response) stays pipe-friendly; non-TTY falls back to a single breadcrumb line; `NO_COLOR` and `--no-color` are honored (f26cead, dfa12c9)
+- Viewer report header logo now links back to the landing page so users can navigate home without retyping the URL (9895189)
+
+### Fixes
+
+- `argue act` now actually accepts `--no-color` (previously rejected as unknown option) and forwards it to the spinner. The catch path in `runAction` also stops the spinner before printing the error so the error line is not interleaved with an in-flight animation frame or written under a hidden cursor (dfa12c9)
+
+### Other
+
+- Refactor report composer: `finalSummary` is now concise (one or two sentences) while detail moves to `representativeSpeech`, so consumers can pick the granularity they need (3cbbb4f)
+- CI: deploy `argue-viewer` to Cloudflare Pages on release tag pushes (59d6f4e)
+
 ## [0.5.0] - 2026-04-15
 
 Headline: graceful interrupt on insufficient participants. When surviving participants drop below `minParticipants` mid-session, argue now returns a structured `interrupted` result by default instead of throwing a hard error — wired through the engine, CLI flags, config, viewer, and contracts so downstream consumers still get a full `result.json`, `summary.md`, and viewable report. Also fixes a latent `JsonlObserver` bug where a single `appendFile` rejection would permanently break the write queue and silently swallow every subsequent event for the rest of the session.
