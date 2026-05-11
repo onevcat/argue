@@ -33,4 +33,10 @@ jobs:
             echo "Missing repository variable: CLOUDFLARE_PAGES_PROJECT_NAME"
             exit 1
           fi
-          npx wrangler pages deploy packages/argue-viewer/dist --project-name="${CLOUDFLARE_PAGES_PROJECT_NAME}"
+          # checkout @ tag is detached HEAD, so wrangler infers the branch as
+          # the tag name (e.g. "v0.6.0") and treats it as a Preview deployment.
+          # Pin to the project's production branch so tagged releases publish
+          # to Production.
+          npx wrangler pages deploy packages/argue-viewer/dist \
+            --project-name="${CLOUDFLARE_PAGES_PROJECT_NAME}" \
+            --branch=master
