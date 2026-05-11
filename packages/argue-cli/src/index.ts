@@ -473,7 +473,8 @@ async function runAction(args: string[], io: Pick<typeof console, "log" | "error
   };
 
   const spinner = createSpinner(process.stderr, `argue act · ${actorId} thinking…`, {
-    isTTY: process.stderr.isTTY
+    isTTY: process.stderr.isTTY,
+    noColor: options.value.noColor
   });
   spinner.start();
 
@@ -496,6 +497,9 @@ async function runAction(args: string[], io: Pick<typeof console, "log" | "error
     io.log(actionResult.data.output.fullResponse);
     return { ok: true, code: 0 };
   } catch (error) {
+    // Stop the spinner before printing so the error line is not interleaved
+    // with an in-flight animation frame or written under a hidden cursor.
+    spinner.stop();
     io.error(`Action execution failed: ${String(error)}`);
     return { ok: false, code: 1 };
   } finally {
@@ -660,10 +664,24 @@ async function resolveConfiguredViewerUrl(explicitConfigPath?: string): Promise<
 function parseActOptions(args: string[]):
   | {
       ok: true;
-      value: { resultPath: string; task: string; agent?: string; configPath?: string; includeFullResult: boolean };
+      value: {
+        resultPath: string;
+        task: string;
+        agent?: string;
+        configPath?: string;
+        includeFullResult: boolean;
+        noColor?: boolean;
+      };
     }
   | { ok: false; error: string } {
-  const out: { resultPath?: string; task?: string; agent?: string; configPath?: string; includeFullResult: boolean } = {
+  const out: {
+    resultPath?: string;
+    task?: string;
+    agent?: string;
+    configPath?: string;
+    includeFullResult: boolean;
+    noColor?: boolean;
+  } = {
     includeFullResult: true
   };
 
@@ -707,6 +725,11 @@ function parseActOptions(args: string[]):
       continue;
     }
 
+    if (arg === "--no-color") {
+      out.noColor = true;
+      continue;
+    }
+
     return { ok: false, error: `Unknown option for act: ${arg}` };
   }
 
@@ -721,7 +744,8 @@ function parseActOptions(args: string[]):
       task: out.task,
       agent: out.agent,
       configPath: out.configPath,
-      includeFullResult: out.includeFullResult
+      includeFullResult: out.includeFullResult,
+      noColor: out.noColor
     }
   };
 }
@@ -1412,7 +1436,9 @@ function printHelp(io: Pick<typeof console, "log">): void {
   io.log("Usage:");
   io.log("  argue run|exec [options]        # run a debate session");
   io.log("  argue view [request-id]       # open a completed run in the hosted viewer");
-  io.log("  argue act --result <path> --task <prompt> [--agent <id>] [--config <path>] [--no-action-full-result]");
+  io.log(
+    "  argue act --result <path> --task <prompt> [--agent <id>] [--config <path>] [--no-action-full-result] [--no-color]"
+  );
   io.log("  argue config init                # create empty config file");
   io.log("  argue config add-provider ...    # append provider to config");
   io.log("  argue config add-agent ...       # append agent to config");
