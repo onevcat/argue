@@ -168,8 +168,12 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs?: number): Promise<
   }
 
   return new Promise<T>((resolve, reject) => {
+    // Intentionally not unref'd: if every other handle is unref'd (e.g. mock
+    // providers that unref their own setTimeout), unref'ing this one too lets
+    // the event loop exit before `promise` ever settles, leaving the top-level
+    // await hung. Keeping it ref'd is safe because clearTimeout is called on
+    // both resolve and reject paths.
     const timer = setTimeout(() => reject(new TimeoutError()), timeoutMs);
-    timer.unref?.();
 
     promise.then(
       (value) => {

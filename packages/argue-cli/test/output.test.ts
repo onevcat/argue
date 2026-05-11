@@ -1,6 +1,19 @@
 import type { ArgueEvent, ArgueResult } from "@onevcat/argue";
 import { describe, expect, it } from "vitest";
 import { createOutputFormatter, resultStatusTone } from "../src/output.js";
+import type { SpinnerStream } from "../src/spinner.js";
+
+function createSpinnerStream(): SpinnerStream & { written: string[] } {
+  const written: string[] = [];
+  return {
+    isTTY: true,
+    write(chunk: string) {
+      written.push(chunk);
+      return true;
+    },
+    written
+  };
+}
 
 function createIO(): { logs: string[]; errors: string[]; log: (msg: string) => void; error: (msg: string) => void } {
   const logs: string[] = [];
@@ -362,6 +375,88 @@ describe("output formatter", () => {
       expect(all).toContain("Eliminations:");
       expect(all).toContain("agent-c at round 2 (timeout)");
     });
+  });
+});
+
+describe("spinner integration", () => {
+  it("starts the spinner with remaining participants after RoundDispatched", () => {
+    const io = createIO();
+    const stream = createSpinnerStream();
+    const fmt = createOutputFormatter(io, { noColor: true, spinnerStream: stream, spinnerIsTTY: true });
+    const handler = fmt.createEventHandler();
+
+    handler({
+      type: "RoundDispatched",
+      at: new Date().toISOString(),
+      requestId: "req-1",
+      sessionId: "sess-1",
+      payload: { phase: "debate", round: 1, participants: ["a", "b"] }
+    });
+
+    const all = stream.written.join("");
+    expect(all).toContain("waiting on");
+    expect(all).toContain("a");
+    expect(all).toContain("b");
+  });
+
+  it("updates spinner label after each ParticipantResponded and stops on RoundCompleted", () => {
+    const io = createIO();
+    const stream = createSpinnerStream();
+    const fmt = createOutputFormatter(io, { noColor: true, spinnerStream: stream, spinnerIsTTY: true });
+    const handler = fmt.createEventHandler();
+
+    handler({
+      type: "RoundDispatched",
+      at: new Date().toISOString(),
+      requestId: "req-1",
+      sessionId: "sess-1",
+      payload: { phase: "debate", round: 1, participants: ["a", "b"] }
+    });
+    handler(makeParticipantRespondedEvent({ participantId: "a" }));
+
+    // After "a" responded, the spinner should restart with only "b" in label.
+    const afterA = stream.written.join("");
+    expect(afterA).toMatch(/waiting on[^a-z]*b/);
+
+    handler(makeParticipantRespondedEvent({ participantId: "b" }));
+    handler({
+      type: "RoundCompleted",
+      at: new Date().toISOString(),
+      requestId: "req-1",
+      sessionId: "sess-1",
+      payload: { phase: "debate", round: 1, completed: 2, timedOut: 0, failed: 0 }
+    });
+
+    // RoundCompleted must end with clear-line + cursor-show, no further animation.
+    const last = stream.written[stream.written.length - 1] ?? "";
+    expect(last).toContain("\x1b[?25h");
+  });
+
+  it("starts a spinner on ActionDispatched and stops on ActionCompleted", () => {
+    const io = createIO();
+    const stream = createSpinnerStream();
+    const fmt = createOutputFormatter(io, { noColor: true, spinnerStream: stream, spinnerIsTTY: true });
+    const handler = fmt.createEventHandler();
+
+    handler({
+      type: "ActionDispatched",
+      at: new Date().toISOString(),
+      requestId: "req-1",
+      sessionId: "sess-1",
+      payload: { actorId: "agent-a", prompt: "do it" }
+    });
+    expect(stream.written.join("")).toContain("agent-a executing action");
+
+    handler({
+      type: "ActionCompleted",
+      at: new Date().toISOString(),
+      requestId: "req-1",
+      sessionId: "sess-1",
+      payload: { actorId: "agent-a", summary: "done" }
+    });
+
+    const last = stream.written[stream.written.length - 1] ?? "";
+    expect(last).toContain("\x1b[?25h");
   });
 });
 

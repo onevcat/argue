@@ -314,6 +314,61 @@ describe("runCli command branches", () => {
     expect(io2.errors.some((x) => x.includes("--task"))).toBe(true);
   });
 
+  it("accepts --no-color for argue act", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-act-no-color-"));
+    const configPath = join(root, "argue.config.json");
+
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        output: {
+          resultPath: "./out/{requestId}.result.json",
+          jsonlPath: "./out/{requestId}.events.jsonl",
+          summaryPath: "./out/{requestId}.summary.md"
+        },
+        defaults: {
+          defaultAgents: ["a1", "a2"],
+          minRounds: 1,
+          maxRounds: 1,
+          composer: "builtin"
+        },
+        providers: {
+          mock: {
+            type: "mock",
+            models: {
+              fake: {}
+            }
+          }
+        },
+        agents: [
+          { id: "a1", provider: "mock", model: "fake" },
+          { id: "a2", provider: "mock", model: "fake" }
+        ]
+      }),
+      "utf8"
+    );
+
+    const runIO = createIO();
+    const runResult = await runCli(
+      ["run", "--config", configPath, "--request-id", "act-no-color", "--task", "t"],
+      runIO
+    );
+    expect(runResult).toEqual({ ok: true, code: 0 });
+
+    const resultPath = join(root, "out", "act-no-color.result.json");
+
+    const actIO = createIO();
+    const actResult = await runCli(
+      ["act", "--config", configPath, "--result", resultPath, "--task", "do stuff", "--no-color"],
+      actIO
+    );
+
+    expect(actResult).toEqual({ ok: true, code: 0 });
+    // Sanity: no "Unknown option for act: --no-color" error reached the IO.
+    expect(actIO.errors.some((x) => x.includes("Unknown option for act"))).toBe(false);
+  });
+
   it("accepts action flags including no-action-full-result", async () => {
     const root = await mkdtemp(join(tmpdir(), "argue-cli-run-action-flags-"));
     const configPath = join(root, "argue.config.json");
