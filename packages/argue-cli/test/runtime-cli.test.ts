@@ -475,7 +475,7 @@ process.stdout.write(JSON.stringify(output));
     expect(argv).toContain("--model");
   });
 
-  it("builds opencode base args with prompt as positional arg", async () => {
+  it("builds opencode base args with prompt via stdin", async () => {
     const script = await createArgvAndStdinEchoScript("argue-cli-runner-opencode-");
 
     const runner = createCliRunner({
@@ -490,15 +490,11 @@ process.stdout.write(JSON.stringify(output));
     const { argv, stdin } = getArgvAndStdin(result as { kind: string; output: { fullResponse: string } });
 
     expect(argv).toContain("run");
-    const runIdx = argv.indexOf("run");
-    const promptValue = argv[runIdx + 1]!;
-    expect(promptValue).toContain("argue CLI host");
+    expect(stdin).toContain("argue CLI host");
 
     expect(argv).toContain("--dangerously-skip-permissions");
     expect(argv).toContain("-m");
     expect(argv[argv.indexOf("-m") + 1]).toBe("fake");
-
-    expect(stdin).toBe("");
   });
 
   it("builds droid base args with exec subcommand and stdin prompt", async () => {

@@ -89,9 +89,10 @@ function usesStdinPrompt(cliType: CliProviderConfig["cliType"]): boolean {
     case "generic":
       return true;
     case "copilot":
-    case "opencode":
     case "amp":
       return false;
+    case "opencode":
+      return true;
     case "droid":
     default:
       return true;
@@ -148,7 +149,7 @@ function buildBaseArgs(
       return { args: ["--model", providerModel, ...sessionArgs], reasoningApplied: false };
     }
     case "opencode":
-      return { args: ["run", prompt, "--dangerously-skip-permissions", "-m", providerModel], reasoningApplied: false };
+      return { args: ["run", "--dangerously-skip-permissions", "-m", providerModel], reasoningApplied: false };
     case "droid":
       return { args: ["exec", "--auto", "high", "-m", providerModel], reasoningApplied: false };
     case "amp":
