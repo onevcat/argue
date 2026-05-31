@@ -96,20 +96,33 @@ describe("spinner", () => {
   });
 
   it("writes ANSI color escapes only when color is enabled", () => {
+    const previousNoColor = process.env.NO_COLOR;
+    delete process.env.NO_COLOR;
+
     const colored = createMockStream(true);
     const plain = createMockStream(true);
+    let a: ReturnType<typeof createSpinner> | undefined;
+    let b: ReturnType<typeof createSpinner> | undefined;
 
-    const a = createSpinner(colored, "working", { isTTY: true, noColor: false });
-    const b = createSpinner(plain, "working", { isTTY: true, noColor: true });
+    try {
+      a = createSpinner(colored, "working", { isTTY: true, noColor: false });
+      b = createSpinner(plain, "working", { isTTY: true, noColor: true });
 
-    a.start();
-    b.start();
+      a.start();
+      b.start();
 
-    expect(colored.written.join("").includes("\x1b[36m")).toBe(true);
-    expect(plain.written.join("").includes("\x1b[36m")).toBe(false);
+      expect(colored.written.join("").includes("\x1b[36m")).toBe(true);
+      expect(plain.written.join("").includes("\x1b[36m")).toBe(false);
+    } finally {
+      a?.stop();
+      b?.stop();
 
-    a.stop();
-    b.stop();
+      if (previousNoColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = previousNoColor;
+      }
+    }
   });
 
   it("supports updating the label via start argument or setLabel", () => {
