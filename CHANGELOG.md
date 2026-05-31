@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.1] - 2026-05-31
+
+### Fixes
+
+- The `opencode` provider now delivers the prompt over stdin instead of as a command-line argument, avoiding argument-length and shell-escaping issues with large prompts (abecdf2)
+
+### Other
+
+- Pin the `argue-viewer` Cloudflare deploy workflow to the `master` branch so only production builds publish (d963fa5)
+- Isolate spinner color environment in CLI tests to keep `NO_COLOR`/`--no-color` assertions deterministic (55c1103)
+
 ## [0.6.0] - 2026-05-11
 
 Headline: visible progress for slow CLI operations. `argue run` and `argue act` now drive a Braille spinner on stderr so the long opaque waits between events feel alive, while stdout stays clean for piping. The viewer also gains a small navigation polish — the report header logo now links back to home.
