@@ -22,7 +22,7 @@
     "@testing-library/preact": "^3.2.4",
     "happy-dom": "^20.8.9",
     "typescript": "^5.8.2",
-    "vite": "^7.1.7",
-    "vitest": "^3.2.4"
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8"
   }
 }
