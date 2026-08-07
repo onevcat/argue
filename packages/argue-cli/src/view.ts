@@ -1,5 +1,7 @@
-import { access, readdir, readFile } from "node:fs/promises";
+import { access, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { spawn as nodeSpawn } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { REQUEST_ID_PATTERN } from "./request-id.js";
 
@@ -96,6 +98,21 @@ export type LaunchBrowserOptions = {
   spawn?: BrowserSpawnFn;
 };
 
+/**
+ * Longest URL we hand the OS handler as an argument. ARG_MAX is not the ceiling:
+ * handoff to an already-running browser truncates well below it (Chromium's Linux
+ * ProcessSingleton socket), cutting `#d=` short so the viewer cannot gunzip it.
+ * Above this size we hand over a temp redirect page instead.
+ */
+export const MAX_ARGV_URL_CHARS = 8_000;
+
+async function writeRedirectPage(url: string): Promise<string> {
+  const file = join(await mkdtemp(join(tmpdir(), "argue-view-")), "report.html");
+  const escaped = url.replaceAll("&", "&amp;").replaceAll('"', "&quot;");
+  await writeFile(file, `<!doctype html><meta http-equiv="refresh" content="0;url=${escaped}">`, "utf8");
+  return file;
+}
+
 export async function launchBrowser(url: string, options: LaunchBrowserOptions = {}): Promise<void> {
   const platform = options.platform ?? process.platform;
   const spawn =
@@ -105,18 +122,20 @@ export async function launchBrowser(url: string, options: LaunchBrowserOptions =
       child.unref();
     });
 
+  const target = url.length > MAX_ARGV_URL_CHARS ? await writeRedirectPage(url) : url;
+
   let cmd: string;
   let args: string[];
   if (platform === "darwin") {
     cmd = "open";
-    args = [url];
+    args = [target];
   } else if (platform === "linux") {
     cmd = "xdg-open";
-    args = [url];
+    args = [target];
   } else if (platform === "win32") {
     // `start` is a cmd.exe builtin; first quoted arg is the window title (empty).
     cmd = "cmd";
-    args = ["/c", "start", "", url];
+    args = ["/c", "start", "", target];
   } else {
     throw new Error(`Unsupported platform for launchBrowser: ${platform}`);
   }

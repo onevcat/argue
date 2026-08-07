@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
@@ -9,6 +9,7 @@ import {
   encodeReportForUrl,
   launchBrowser,
   listCompletedRuns,
+  MAX_ARGV_URL_CHARS,
   MAX_ENCODED_BYTES,
   openReportInViewer,
   resolveLatestRequestId
@@ -194,6 +195,24 @@ describe("launchBrowser", () => {
       }
     });
     expect(spawned).toEqual([{ cmd: "cmd", args: ["/c", "start", "", "https://example.com/#x"] }]);
+  });
+
+  it("hands over a redirect file instead of an oversized URL argument", async () => {
+    const url = `https://example.com/#v=1&d=${"a".repeat(MAX_ARGV_URL_CHARS)}`;
+    const spawned: Array<{ cmd: string; args: string[] }> = [];
+    await launchBrowser(url, {
+      platform: "linux",
+      spawn: (cmd, args) => {
+        spawned.push({ cmd, args });
+      }
+    });
+
+    expect(spawned).toHaveLength(1);
+    const handedOver = spawned[0]!.args[0]!;
+    // The full URL survives inside the page, with `&` escaped so the parser
+    // cannot swallow `&d=` as an entity.
+    const page = await readFile(handedOver, "utf8");
+    expect(page).toContain(url.replaceAll("&", "&amp;"));
   });
 
   it("rejects unknown platforms with a clear error", async () => {
