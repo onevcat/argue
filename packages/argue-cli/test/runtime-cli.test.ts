@@ -278,15 +278,16 @@ process.stdout.write(JSON.stringify(output));
 
     const execIndex = argv.indexOf("exec");
     const modelFlagIndex = argv.indexOf("-m");
-    const fullAutoIndex = argv.indexOf("--full-auto");
+    const approveForMeIndex = argv.indexOf("--approve-for-me");
     const colorIndex = argv.indexOf("--color");
     const sandboxIndex = argv.indexOf("--sandbox");
 
     expect(execIndex).toBeGreaterThan(0);
     expect(modelFlagIndex).toBeGreaterThan(execIndex);
     expect(argv[modelFlagIndex + 1]).toBe("fake");
-    expect(fullAutoIndex).toBeGreaterThan(modelFlagIndex);
-    expect(colorIndex).toBeGreaterThan(fullAutoIndex);
+    expect(approveForMeIndex).toBeGreaterThan(modelFlagIndex);
+    expect(argv).not.toContain("--full-auto");
+    expect(colorIndex).toBeGreaterThan(approveForMeIndex);
     expect(argv[colorIndex + 1]).toBe("never");
     expect(sandboxIndex).toBeGreaterThan(colorIndex);
     expect(argv[sandboxIndex + 1]).toBe("danger-full-access");
