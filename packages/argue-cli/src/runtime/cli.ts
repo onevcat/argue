@@ -132,7 +132,7 @@ function buildBaseArgs(
           "-m",
           providerModel,
           ...reasoningArgs,
-          "--full-auto",
+          "--approve-for-me",
           "--color",
           "never",
           "--skip-git-repo-check"
