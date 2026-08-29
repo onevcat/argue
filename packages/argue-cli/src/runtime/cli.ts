@@ -119,6 +119,8 @@ function buildBaseArgs(
       };
     }
     case "copilot":
+      // No -p on purpose: copilot resolves the prompt as `-p` first and stdin
+      // second, so adding the flag back would silently discard the piped one.
       return { args: ["--yolo", "--model", providerModel], reasoningApplied: false };
     case "gemini":
       return { args: ["--approval-mode", "yolo", "-m", providerModel], reasoningApplied: false };
@@ -131,6 +133,8 @@ function buildBaseArgs(
     case "droid":
       return { args: ["exec", "--auto", "high", "-m", providerModel], reasoningApplied: false };
     case "amp":
+      // `-x` selects execute mode rather than carrying the prompt; left bare it
+      // reads stdin. Its value is optional, so nothing may follow it positionally.
       return { args: ["-x", "--dangerously-allow-all"], reasoningApplied: false };
     case "generic":
       return { args: [], reasoningApplied: !!reasoning };
@@ -239,6 +243,9 @@ async function runCommand(args: {
       );
     });
 
+    // Load-bearing: a CLI that exits before draining stdin (failing auth is the
+    // common case) fails this write with EPIPE, which is fatal when unhandled.
+    // The close handler above already reports why the child went away.
     child.stdin.on("error", () => {});
     child.stdin.end(args.stdin);
   });

@@ -582,7 +582,11 @@ process.exit(1);
       args: [],
       models: { fake: {} }
     });
+
+    // Must stay larger than the pipe buffer, or the write lands before the
+    // child exits and the EPIPE window this guards never opens.
     const task = { ...makeRoundTask(), prompt: "p".repeat(200_000) };
+
     await expect(runner.runTask({ task, agent })).rejects.toThrow(/exited with code=1/);
   });
 
