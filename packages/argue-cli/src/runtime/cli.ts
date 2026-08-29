@@ -32,7 +32,6 @@ export function createCliRunner(raw: CliProviderConfig): ProviderTaskRunner {
       const { args: baseArgs, reasoningApplied } = buildBaseArgs(
         provider.cliType,
         agent.providerModel,
-        prompt,
         reasoning,
         hasSession ? sessionUUID : undefined,
         isResume
@@ -62,7 +61,7 @@ export function createCliRunner(raw: CliProviderConfig): ProviderTaskRunner {
               }
             : {})
         },
-        stdin: usesStdinPrompt(provider.cliType) ? prompt : "",
+        stdin: prompt,
         abortSignal
       });
 
@@ -79,30 +78,9 @@ export function createCliRunner(raw: CliProviderConfig): ProviderTaskRunner {
   };
 }
 
-/** Returns true if the CLI tool reads the prompt from stdin, false if it goes in args. */
-function usesStdinPrompt(cliType: CliProviderConfig["cliType"]): boolean {
-  switch (cliType) {
-    case "claude":
-    case "codex":
-    case "gemini":
-    case "pi":
-    case "generic":
-      return true;
-    case "copilot":
-    case "amp":
-      return false;
-    case "opencode":
-      return true;
-    case "droid":
-    default:
-      return true;
-  }
-}
-
 function buildBaseArgs(
   cliType: CliProviderConfig["cliType"],
   providerModel: string,
-  prompt: string,
   reasoning?: string,
   sessionUUID?: string,
   isResume?: boolean
@@ -141,7 +119,9 @@ function buildBaseArgs(
       };
     }
     case "copilot":
-      return { args: ["-p", prompt, "--yolo", "--model", providerModel], reasoningApplied: false };
+      // No -p on purpose: copilot resolves the prompt as `-p` first and stdin
+      // second, so adding the flag back would silently discard the piped one.
+      return { args: ["--yolo", "--model", providerModel], reasoningApplied: false };
     case "gemini":
       return { args: ["--approval-mode", "yolo", "-m", providerModel], reasoningApplied: false };
     case "pi": {
@@ -153,7 +133,9 @@ function buildBaseArgs(
     case "droid":
       return { args: ["exec", "--auto", "high", "-m", providerModel], reasoningApplied: false };
     case "amp":
-      return { args: ["-x", prompt, "--dangerously-allow-all"], reasoningApplied: false };
+      // `-x` selects execute mode rather than carrying the prompt; left bare it
+      // reads stdin. Its value is optional, so nothing may follow it positionally.
+      return { args: ["-x", "--dangerously-allow-all"], reasoningApplied: false };
     case "generic":
       return { args: [], reasoningApplied: !!reasoning };
     default:
@@ -261,6 +243,10 @@ async function runCommand(args: {
       );
     });
 
+    // Load-bearing: a CLI that exits before draining stdin (failing auth is the
+    // common case) fails this write with EPIPE, which is fatal when unhandled.
+    // The close handler above already reports why the child went away.
+    child.stdin.on("error", () => {});
     child.stdin.end(args.stdin);
   });
 }
