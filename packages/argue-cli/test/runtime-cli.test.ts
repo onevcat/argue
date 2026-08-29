@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentTaskInput } from "@onevcat/argue";
 import { describe, expect, it, vi } from "vitest";
+import { CliProviderSchema } from "../src/config.js";
 import { createCliRunner } from "../src/runtime/cli.js";
 
 function makeRoundTask(): AgentTaskInput {
@@ -353,7 +354,7 @@ process.stdout.write(JSON.stringify(output));
     }
   });
 
-  it("builds copilot base args with prompt in args and --yolo", async () => {
+  it("builds copilot base args with stdin prompt and --yolo", async () => {
     const script = await createArgvAndStdinEchoScript("argue-cli-runner-copilot-");
 
     const runner = createCliRunner({
@@ -367,16 +368,13 @@ process.stdout.write(JSON.stringify(output));
     const result = await runner.runTask({ task: makeRoundTask(), agent });
     const { argv, stdin } = getArgvAndStdin(result as { kind: string; output: { fullResponse: string } });
 
-    expect(argv).toContain("-p");
-    const pIdx = argv.indexOf("-p");
-    const promptValue = argv[pIdx + 1]!;
-    expect(promptValue).toContain("argue CLI host");
+    expect(argv).not.toContain("-p");
+    expect(argv).not.toContain("--prompt");
+    expect(stdin).toContain("argue CLI host");
 
     expect(argv).toContain("--yolo");
     expect(argv).toContain("--model");
     expect(argv[argv.indexOf("--model") + 1]).toBe("fake");
-
-    expect(stdin).toBe("");
   });
 
   it("builds gemini base args with stdin prompt and --approval-mode yolo", async () => {
@@ -520,7 +518,7 @@ process.stdout.write(JSON.stringify(output));
     expect(stdin).toContain("argue CLI host");
   });
 
-  it("builds amp base args with -x prompt and no model flag", async () => {
+  it("builds amp base args with -x stdin prompt and no model flag", async () => {
     const script = await createArgvAndStdinEchoScript("argue-cli-runner-amp-");
 
     const runner = createCliRunner({
@@ -535,15 +533,57 @@ process.stdout.write(JSON.stringify(output));
     const { argv, stdin } = getArgvAndStdin(result as { kind: string; output: { fullResponse: string } });
 
     expect(argv).toContain("-x");
-    const xIdx = argv.indexOf("-x");
-    const promptValue = argv[xIdx + 1]!;
-    expect(promptValue).toContain("argue CLI host");
+    expect(argv[argv.indexOf("-x") + 1]).toBe("--dangerously-allow-all");
+    expect(stdin).toContain("argue CLI host");
 
-    expect(argv).toContain("--dangerously-allow-all");
     expect(argv).not.toContain("--model");
     expect(argv).not.toContain("-m");
+  });
 
-    expect(stdin).toBe("");
+  it("delivers the task payload over stdin for every cliType", async () => {
+    const cliTypes = CliProviderSchema.shape.cliType.options;
+    const leakedIntoArgv: string[] = [];
+    const missingFromStdin: string[] = [];
+
+    for (const cliType of cliTypes) {
+      const script = await createArgvAndStdinEchoScript(`argue-cli-runner-stdin-${cliType}-`);
+      const runner = createCliRunner({
+        type: "cli",
+        cliType,
+        command: script,
+        args: [],
+        models: { fake: {} }
+      });
+      const result = await runner.runTask({ task: makeRoundTask(), agent });
+      const { argv, stdin } = getArgvAndStdin(result as { kind: string; output: { fullResponse: string } });
+      if (!stdin.includes("req-1")) missingFromStdin.push(cliType);
+      if (argv.some((entry) => entry.includes("req-1"))) leakedIntoArgv.push(cliType);
+    }
+    expect(leakedIntoArgv).toEqual([]);
+    expect(missingFromStdin).toEqual([]);
+  });
+
+  it("rejects cleanly when a CLI exits before draining a large prompt", async () => {
+    const root = await mkdtemp(join(tmpdir(), "argue-cli-runner-epipe-"));
+    const script = join(root, "runner.mjs");
+    await writeFile(
+      script,
+      `#!/usr/bin/env node
+process.stderr.write("No authentication information found.");
+process.exit(1);
+`,
+      { mode: 0o755 }
+    );
+
+    const runner = createCliRunner({
+      type: "cli",
+      cliType: "copilot",
+      command: script,
+      args: [],
+      models: { fake: {} }
+    });
+    const task = { ...makeRoundTask(), prompt: "p".repeat(200_000) };
+    await expect(runner.runTask({ task, agent })).rejects.toThrow(/exited with code=1/);
   });
 
   it("parses fenced json output in codex mode", async () => {
